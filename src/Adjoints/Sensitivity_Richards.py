@@ -2,6 +2,8 @@
 from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import spsolve, bicgstab, bicg, spilu
 
+#TODO: maybe have a look to avoid recreate array at each time
+
 class Sensitivity_Richards:
   """
   Compute the derivative of the cost function according to the material
@@ -45,7 +47,7 @@ class Sensitivity_Richards:
     self.method = x
     return
     
-  def compute_sensitivity(self):
+  def compute_sensitivity(self, S=None):
     """
     Compute the total cost function derivative according to material density
     parameter p.
@@ -63,8 +65,10 @@ class Sensitivity_Richards:
       if self.n_inputs > 1:
         for i in range(1,self.n_inputs):
           dc_dXi_dXi_dp += self.dc_dXi[i]*self.dXi_dp[i]
-          
-    S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
+    if S is None:      
+      S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
+    else:
+      S[:] = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
     return S
   
   def solve_adjoint(self,method='ilu'):
@@ -88,15 +92,4 @@ class Sensitivity_Richards:
       exit(1)
     return l
     
-    
 
-
-
-class Sensitivity_Reactive_Transport:
-  def __init__(self):
-    return
-    
-
-class Sensitivity_Flow_Reactive_Transport_Coupled:
-  def __init__(self):
-    return

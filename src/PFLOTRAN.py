@@ -30,7 +30,7 @@ class PFLOTRAN:
                          "LIQUID_PRESSURE":"Liquid Pressure",
                          "Z_COORDINATE":"Z Coordinate"}
     self.dict_var_in = {"PERMEABILITY":"K_Sensitivity.mat",
-                        "PRESSURE":"Rjacobian.mat"}
+                        "LIQUID_PRESSURE":"Rjacobian.mat"}
     return
     
   def parallel_calling_command(self, processes, command):
@@ -48,6 +48,15 @@ class PFLOTRAN:
   
   
   # interacting with data #
+  def get_region_ids(self, reg_name):
+    if self.mesh_type == "ugi" or self.mesh_type == "h5": #unstructured
+      pass #TODO
+    elif self.mesh_type == "uge":
+      pass #TODO
+    else:
+      print("Unsupported mesh type in get_region_ids()")
+    return ids
+  
   def create_cell_indexed_dataset(self, X_dataset, dataset_name, h5_file_name="",
                                   X_ids=None, resize_to=True):
     """
@@ -97,11 +106,9 @@ class PFLOTRAN:
   
   
   # interact with output data
-  def initiate_output_cell_variable(self, region=None):
-    if region is None:
-      return np.zeros(self.n_cells, dtype='f8')
-    else:
-      return None
+  def initiate_output_cell_variable(self):
+    return np.zeros(self.n_cells, dtype='f8')
+  
   
   def get_output_variable(self, var, out=None, i_timestep=-1):
     """
@@ -155,6 +162,12 @@ class PFLOTRAN:
     out.create_dataset(var_name, data=var)
     out.close()
     return
+  
+  def update_sensitivity(self, var, coo_mat):
+    f = self.input_folder + self.dict_var_in[var]
+    data = np.genfromtxt(f, skip_header=8, skip_footer=2)
+    coo_mat.data[:] = data[:,2]
+    return 
   
   
   
