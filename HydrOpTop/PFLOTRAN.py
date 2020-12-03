@@ -51,7 +51,7 @@ class PFLOTRAN:
   # interacting with data #
   def get_region_ids(self, reg_name):
     #look for region in pflotran input
-    file_name = ""
+    filename = ""
     for i,line in enumerate(self.input_deck):
       if "REGION" in line and reg_name in line:
         line = self.input_deck[i+1]
@@ -60,17 +60,17 @@ class PFLOTRAN:
           index = line.index("FILE")
           filename = self.input_folder+line[index+1]
           break
-    if not file_name:
+    if not filename:
       print("No regions found in PFLOTRAN input file, stop...")
       exit(1)
     
     if self.mesh_type == "ugi" or self.mesh_type == "uge":
-      cell_ids = np.genfromtxt(filename)
+      cell_ids = np.genfromtxt(filename, dtype='i8')
       
     elif self.mesh_type == "h5": #h5 region have same name in pflotran
       src = h5py.File(filename, 'r')
-      if reg_name in src["Domain/Regions"]:
-        cell_ids = np.array(src["Domain/Regions/"+reg_name+"/Cell Ids"])
+      if reg_name in src["Regions"]:
+        cell_ids = np.array(src["Regions/"+reg_name+"/Cell Ids"])
         src.close()
       else:
         src.close()
@@ -121,7 +121,8 @@ class PFLOTRAN:
       cmd = ["pflotran", "-pflotranin", self.pft_in]
     ret = subprocess.call(cmd, stdout=open("PFLOTRAN_simulation.log",'w'))
     if ret: 
-      print("\n!!! Error occured in PFLOTRAN simulation !!!\n")
+      print("\n!!! Error occured in PFLOTRAN simulation !!!")
+      print(f"Please see {self.input_folder}PFLOTRAN_simulation.log for more details\n")
       exit()
     return 
   
@@ -178,7 +179,7 @@ class PFLOTRAN:
       out = h5py.File(out_file, 'r+')
     except:
       out = h5py.File(out_file, 'w')
-	  #delete var_name dataset if already exist
+    #delete var_name dataset if already exist
     if var_name in list(out.keys()): del out[var_name]
     out.create_dataset(var_name, data=var)
     out.close()
@@ -246,7 +247,7 @@ class PFLOTRAN:
       return
     elif self.mesh_type == "uge": #unstructured explicit
       src = open(mesh_path, 'r')
-      self.n_cells = int(src.readline())
+      self.n_cells = int(src.readline().split()[1])
       src.close()
       self.n_vertices = -1 #no info about it...
       return

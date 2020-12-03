@@ -1,4 +1,4 @@
-
+import numpy as np
 
 class Permeability:
   """
@@ -10,8 +10,12 @@ class Permeability:
   !When p=0 -> k=bound[0]
   !When p=1 -> k=bound[1]
   """
-  def __init__(self, cell_ids, bound, power=3):
-    self.cell_ids = cell_ids
+  def __init__(self, bound, cell_ids_to_parametrize=None, power=3):
+    if isinstance(cell_ids_to_parametrize, str) and \
+             cell_ids_to_parametrize.lower() == "everywhere":
+      self.cell_ids = None
+    else:
+      self.cell_ids = cell_ids_to_parametrize
     self.min_K = bound[0]
     self.max_K = bound[1]
     self.power = power
@@ -29,10 +33,22 @@ class Permeability:
       return
   
   def d_mat_properties(self, p, out=None):
+    """
+    Return the derivative of the material properties according to 
+    material parameter p.
+    """
     if out is None:
       return self.power * (self.max_K-self.min_K) * p**(self.power-1)
     else:
-      out[:] = self.power * (self.max_K-self.min_K) * p**(self.power-1)
+      #if out is provided, we must match its dimension
+      # out size of the input domain size, while the cell id to parametrize
+      # can be subset
+      if self.cell_ids is None:
+        out[:] = self.power * (self.max_K-self.min_K) * p**(self.power-1)
+      else:
+        #we add the 0 in indexing since array is of shape (1,n) because
+        # of the data structure in scipy.sparse.dia_matrix
+        out[0,self.cell_ids-1] = self.power * (self.max_K-self.min_K) * p**(self.power-1)
       return
   
   def get_name(self):

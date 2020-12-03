@@ -2,25 +2,26 @@
 # Verification of the sensitivity computed via the adjoint equation
 # versus finite difference for the Sum_Liquid_Piezometric_Head objective
 #
+#TODO update
 
 import sys
 import os
-path = os.getcwd() + '/../../src/'
+path = os.getcwd() + '/../../'
 sys.path.append(path)
 
 import h5py
 import numpy as np
 
 
-import PFLOTRAN as PFT
-from Objective import Sum_Liquid_Piezometric_Head
-from Sensitivity_Adjoint import Sensitivity_Richards
+from HydrOpTop import PFLOTRAN
+from HydrOpTop.Objectives import Sum_Liquid_Piezometric_Head
+from HydrOpTop.Adjoints import Sensitivity_Richards
 
 
 def compute_sensitivity_adjoint():
   #initialize model field
   print("Initialize PFLOTRAN model with the given permeability field")
-  pft_model = PFT.PFLOTRAN("pflotran.in")
+  pft_model = PFLOTRAN("pflotran.in")
   perm_data = np.genfromtxt("permeability_field.csv", comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   pft_model.create_cell_indexed_dataset(perm_field, "permeability", 
@@ -31,23 +32,21 @@ def compute_sensitivity_adjoint():
   
   #initiate objective
   print("Compute objective function")
-  head = pft_model.get_output_variable("LIQUID_PRESSURE")
+  pressure = pft_model.get_output_variable("LIQUID_PRESSURE")
   z = pft_model.get_output_variable("Z_COORDINATE")
-  head /= PFT.default_gravity * PFT.default_water_density
-  head -= z
-  objective = Sum_Liquid_Piezometric_Head(head)
+  objective = Sum_Liquid_Piezometric_Head()
+  objective.set_inputs([pressure,z])
   print(f"Objective: {objective.evaluate()}")
   
   #compute sensitivity
   print("Compute sensitivity")
-  cost_deriv_pressure = objective.d_objective_dh()
-  cost_deriv_pressure /= PFT.default_gravity * PFT.default_water_density
+  cost_deriv_pressure = objective.d_objective_dP()
   #mat_prop_deriv_mat_parameter is unit
   #cost_deriv_mat_prop is null
   res_deriv_mat_prop= pft_model.get_sensitivity("PERMEABILITY") #Pa.s / m
-  res_deriv_pressure = pft_model.get_sensitivity("PRESSURE") #[-]
+  res_deriv_pressure = pft_model.get_sensitivity("LIQUID_PRESSURE") #[-]
   sens = Sensitivity_Richards(cost_deriv_pressure,
-                              [1.],
+                              [np.ones(len(pressure))],
                               None,
                               [res_deriv_mat_prop],
                               res_deriv_pressure)
@@ -59,35 +58,31 @@ def compute_sensitivity_adjoint():
 
 def compute_sensitivity_finite_difference(pertub = 1e-6):
   #initiate data for calculating finite difference
-  pft_model = PFT.PFLOTRAN("pflotran.in")
+  pft_model = PFLOTRAN("pflotran.in")
   perm_data = np.genfromtxt("permeability_field.csv", comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   pft_model.create_cell_indexed_dataset(perm_field, "permeability", 
                                         "Permeability.h5", cell_ids)
-  head = pft_model.initiate_output_cell_variable()
-  objective = Sum_Liquid_Piezometric_Head(head)
   
   #run model for current objective
   pft_model.run_PFLOTRAN()
-  pft_model.get_output_variable("LIQUID_PRESSURE",out=head)
+  pressure = pft_model.get_output_variable("LIQUID_PRESSURE")
   z = pft_model.get_output_variable("Z_COORDINATE")
-  head /= PFT.default_gravity * PFT.default_water_density
-  head -= z
+  objective = Sum_Liquid_Piezometric_Head()
+  objective.set_inputs([pressure,z])
   ref_obj = objective.evaluate()
   print(f"Current objective: {ref_obj}")
   
   #run finite difference
-  deriv = np.zeros(len(head),dtype='f8')
-  for i in range(len(head)):
+  deriv = np.zeros(len(pressure),dtype='f8')
+  for i in range(len(pressure)):
     print("Compute derivative of head sum for element {}".format(i+1))
     old_perm = perm_field[i]
     perm_field[i] += old_perm * pertub
     pft_model.create_cell_indexed_dataset(perm_field, "permeability", 
                                           "Permeability.h5", cell_ids)
     pft_model.run_PFLOTRAN()
-    pft_model.get_output_variable("LIQUID_PRESSURE",out=head)
-    head /= PFT.default_gravity * PFT.default_water_density
-    head -= z
+    pft_model.get_output_variable("LIQUID_PRESSURE",out=pressure)
     cur_obj = objective.evaluate()
     deriv[i] = (cur_obj-ref_obj) / (old_perm * pertub)
     perm_field[i] = old_perm

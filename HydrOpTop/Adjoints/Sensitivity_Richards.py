@@ -51,7 +51,7 @@ class Sensitivity_Richards:
     self.method = x
     return
     
-  def compute_sensitivity(self, S=None):
+  def compute_sensitivity(self, S=None, assign_at_ids=None):
     """
     Compute the total cost function derivative according to material density
     parameter p.
@@ -69,10 +69,13 @@ class Sensitivity_Richards:
       if self.n_inputs > 1:
         for i in range(1,self.n_inputs):
           dc_dXi_dXi_dp += self.dc_dXi[i]*self.dXi_dp[i]
+      #TODO: got a problem with the numpy axis and output size
     if S is None:      
       S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
-    else:
+    elif assign_at_ids is None:
       S[:] = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
+    else:
+      S[:] = (dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l))[0,assign_at_ids-1]
     return S
   
   def solve_adjoint(self,method='ilu'):

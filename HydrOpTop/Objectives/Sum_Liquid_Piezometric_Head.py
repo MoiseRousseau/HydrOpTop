@@ -17,9 +17,11 @@ class Sum_Liquid_Piezometric_Head:
   """
   def __init__(self, ids_to_sum = None, penalizing_power = 1,
                      gravity=9.80655, density=997.16):
-    #pflotran output file
-    #self.pz_head = pz_head_array
-    self.ids_to_sum = ids_to_sum
+    if isinstance(ids_to_sum, str) and \
+             ids_to_sum.lower() == "everywhere":
+      self.ids_to_sum = None
+    else:
+      self.ids_to_sum = ids_to_sum
     if int(penalizing_power) != penalizing_power:
       print("Penalizing power need to be integer")
       raise(ValueError)
@@ -31,7 +33,7 @@ class Sum_Liquid_Piezometric_Head:
     
     self.gravity = gravity #m2/s
     self.density = density #kg/m3
-    self.dependance = []
+    self.mat_props_dependance = []
     #self.reference_pressure = 101325 #Pa
     return
     
@@ -104,8 +106,9 @@ class Sum_Liquid_Piezometric_Head:
     return ["LIQUID_PRESSURE", "Z_COORDINATE"]
   def __is_steady_state__(self): 
     return True
-  def __depend_of__(self,var):
-    if var in self.dependance: return True
+  def __depend_of_mat_props__(self, var=None):
+    if var is None: return self.mat_props_dependance
+    if var in self.mat_props_dependance: return True
     else: return False
 
                       

@@ -22,24 +22,24 @@ END
 
 #=========================== discretization ===================================
 GRID
-  TYPE UNSTRUCTURED_EXPLICIT ./Mesh_2D/mesh_2D.uge
+  TYPE UNSTRUCTURED_EXPLICIT ./mesh_2D.uge
   UPWIND_FRACTION_METHOD ABSOLUTE_DISTANCE
 END
 
 REGION xmin
-  FILE ./Mesh_2D/xmin_2D.ex
+  FILE ./xmin_2D.ex
 END
 
 REGION xmax
-  FILE ./Mesh_2D/xmax_2D.ex
+  FILE ./xmax_2D.ex
 END
 
 REGION pit
-  FILE ./Mesh_2D/pit_2D.vs
+  FILE ./pit_2D.vs
 END
 
 REGION rock
-  FILE ./Mesh_2D/rock_2D.vs
+  FILE ./rock_2D.vs
 END
 
 
@@ -59,7 +59,6 @@ END
 #=========================== material properties ==============================
 DATASET permeability
   FILENAME permeability.h5
-  HDF5_DATASET_NAME PERMEABILITY
 END
 
 MATERIAL_PROPERTY mater
@@ -92,23 +91,22 @@ OUTPUT
   FORMAT HDF5
   VARIABLES
     PERMEABILITY_X
-    #FACE_PERMEABILITY
-    #FACE_AREA
-    #FACE_UPWIND_FRACTION
-    LIQUID_PZ_HEAD
+    LIQUID_PRESSURE
     VOLUME
+    Z_COORDINATE
   /
   SNAPSHOT_FILE
     PRINT_CONNECTION_IDS
   /
   NO_PRINT_INITIAL
+  #PRINT_PRIMAL_GRID
   #NO_PRINT_FINAL
 END
 
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 1e3 y
+  FINAL_TIME 1e2 y
   INITIAL_TIMESTEP_SIZE 10 y
   MAXIMUM_TIMESTEP_SIZE 1e3 y
 END
