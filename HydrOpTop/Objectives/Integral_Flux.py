@@ -1,4 +1,4 @@
-class Intergral_Flux:
+class Integral_Flux:
   def __init__(self, surface_file):
     self.surface_file = surface_file
   

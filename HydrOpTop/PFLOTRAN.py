@@ -17,6 +17,7 @@ class PFLOTRAN:
     self.input_folder = '/'.join(pft_in.split('/')[:-1])+'/'
     if self.input_folder[0] == '/': self.input_folder = '.' + self.input_folder
     self.__read_input_file__()
+    self.__parse_regions__()
     self.__get_mesh_info__()
     self.__get_nvertices_ncells__()
     
@@ -49,13 +50,33 @@ class PFLOTRAN:
   
   # interacting with data #
   def get_region_ids(self, reg_name):
-    if self.mesh_type == "ugi" or self.mesh_type == "h5": #unstructured
-      pass #TODO
-    elif self.mesh_type == "uge":
-      pass #TODO
-    else:
-      print("Unsupported mesh type in get_region_ids()")
-    return ids
+    #look for region in pflotran input
+    file_name = ""
+    for i,line in enumerate(self.input_deck):
+      if "REGION" in line and reg_name in line:
+        line = self.input_deck[i+1]
+        if "FILE" in line:
+          line = line.split()
+          index = line.index("FILE")
+          filename = self.input_folder+line[index+1]
+          break
+    if not file_name:
+      print("No regions found in PFLOTRAN input file, stop...")
+      exit(1)
+    
+    if self.mesh_type == "ugi" or self.mesh_type == "uge":
+      cell_ids = np.genfromtxt(filename)
+      
+    elif self.mesh_type == "h5": #h5 region have same name in pflotran
+      src = h5py.File(filename, 'r')
+      if reg_name in src["Domain/Regions"]:
+        cell_ids = np.array(src["Domain/Regions/"+reg_name+"/Cell Ids"])
+        src.close()
+      else:
+        src.close()
+        print(f"Region not found in mesh file {filename}")
+        exit(1)
+    return cell_ids
   
   def create_cell_indexed_dataset(self, X_dataset, dataset_name, h5_file_name="",
                                   X_ids=None, resize_to=True):
@@ -178,8 +199,10 @@ class PFLOTRAN:
     """
     input_file = self.input_folder + self.pft_in 
     src = open(input_file, 'r')
-    self.input_deck = src.readlines()
+    self.input_deck = [x for x in src.readlines() if x]
     src.close()
+    return 
+    
   
   def __get_mesh_info__(self):
     """
@@ -227,6 +250,9 @@ class PFLOTRAN:
       src.close()
       self.n_vertices = -1 #no info about it...
       return
+    
+  def __parse_regions__(self):
+    return
     
     
     

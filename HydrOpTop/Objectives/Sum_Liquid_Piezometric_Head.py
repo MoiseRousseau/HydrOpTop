@@ -15,7 +15,7 @@ class Sum_Liquid_Piezometric_Head:
   - gravity: the gravity (constant) (default=9.80665)
   - density: water liquid density (constant) (default=997.16)
   """
-  def __init__(self, ids_to_sum = None, penalizing_power = 1
+  def __init__(self, ids_to_sum = None, penalizing_power = 1,
                      gravity=9.80655, density=997.16):
     #pflotran output file
     #self.pz_head = pz_head_array
@@ -31,6 +31,7 @@ class Sum_Liquid_Piezometric_Head:
     
     self.gravity = gravity #m2/s
     self.density = density #kg/m3
+    self.dependance = []
     #self.reference_pressure = 101325 #Pa
     return
     
@@ -44,14 +45,6 @@ class Sum_Liquid_Piezometric_Head:
       raise(ValueError)
     else:
       self.penalizing_power = x
-    return  
-  
-  def set_liquid_head(self, h):
-    self.head = h
-    return
-    
-  def set_z_coordinate(self, z):
-    self.z = z
     return
     
   def get_ids_to_sum(self):
@@ -75,39 +68,44 @@ class Sum_Liquid_Piezometric_Head:
       return np.sum(pz_head**self.penalizing_power)
     else: 
       return np.sum(pz_head[self.ids_to_sum-1]**self.penalizing_power)
-  
-  def d_objective_d_inputs(self, pz_head=None, outs=None):
+   
+  def d_objective_dP(self, out=None): 
     """
     Evaluate the derivative of the cost function according to the piezometric head
     If a numpy array is provided, derivative will be copied in this array
     Else create a new numpy array
     Derivative have no dimension [-]
     """
-    if pz_head is None: 
-      pz_head = self.pressure / (self.gravity * self.density) - self.z 
-      
-    if outs is None:
-      out = [np.zeros(len(self.z), dtype='f8'), 0.]
-    else:
-      #outs[0][:] = 0. #initialize to zeros
-      out[1] = 0.
+    if out is None:
+      out = np.zeros(len(self.z), dtype='f8')
+    deriv = 1. / (self.gravity * self.density)
     if self.penalizing_power == 1:
       if self.ids_to_sum is None: 
-        outs[0][:] = 1.
+        out[:] = deriv
       else:
-        out[0][self.ids_to_sum-1] = 1.
+        out[self.ids_to_sum-1] = deriv
     else:
+      pz_head = self.pressure / (self.gravity * self.density) - self.z 
       if self.ids_to_sum is None: 
-        out[0][:] = self.penalizing_power * X**(self.penalizing_power-1)
+        out[:] = self.penalizing_power / (self.gravity * self.density) * \
+                         pz_head**(self.penalizing_power-1)
       else:
-        out[0][self.ids_to_sum-1] = 1. * self.penalizing_power * \
-                                 self.pz_head **(self.penalizing_power-1)
-    return outs
+        out[self.ids_to_sum-1] = self.penalizing_power / (self.gravity * self.density) * \
+                         pz_head**(self.penalizing_power-1)
+    return out
+  
+  def d_objective_d_inputs(self, out=None):
+    # Does not depend on other variable
+    # TODO: add density dependance ?
+    return None
     
   
   def __get_PFLOTRAN_output_variable_needed__(self):
     return ["LIQUID_PRESSURE", "Z_COORDINATE"]
   def __is_steady_state__(self): 
     return True
+  def __depend_of__(self,var):
+    if var in self.dependance: return True
+    else: return False
 
                       

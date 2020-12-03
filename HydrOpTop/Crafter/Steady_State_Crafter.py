@@ -32,7 +32,7 @@ class Steady_State_Crafter:
     self.Yi = None #store PFLOTRAN output
     
     self.__initialize_IO_array__()
-    self.__initialize_adjoint__() #TODO complete
+    self.first_call = True
     return
   
   def nlopt_function_to_optimize(self, p, grad):      
@@ -54,10 +54,10 @@ class Steady_State_Crafter:
     # update the Yi in the objective
     cf = self.objectif.evaluate()
     if grad.size > 0:
-      ### CREATE ADJOINT AT FIRST CALL ###
-      if first:
-        self.__initialize_adjoint__() #TODO: find a way to remove that
-        first = False
+      ### CREATE ADJOINT ###
+      if self.first_call:
+        self.fist_call = False
+        self.__initialize_adjoint__()
       ### UPDATE ADJOINT ###
       #cost derivative to pressure (vector)
       self.obj.d_objectives_dP(self.adjoint.dc_dP)
@@ -65,7 +65,7 @@ class Steady_State_Crafter:
       for i,mat_prop in enumerate(self.mat_props):
         var = mat_prop.get_name()
         if self.obj.__depend_of__(var):
-          self.obj.d_objectives_d_inputs(var, self.adjoint.dXi_dp[i].data)
+          self.obj.d_objectives_d_inputs(var, self.adjoint.dc_dXi[i].data)
       #update matrix
       #note the I,J do not change, only the data
       #residual according to pressure
@@ -104,11 +104,23 @@ class Steady_State_Crafter:
     #initialize output
     n_outputs = len(self.obj.__get_PFLOTRAN_output_variable_needed__())
     self.Yi = [np.zeros(self.solver.n_cells, dtype='f8') for x in range(n_outputs)]
+    self.obj.set_inputs(self.Yi)
     return
   
   def __initialize_adjoint__(self):
-    
-    self.adjoint = Sensitivity_Richards()
+    #cost derivative to pressure (vector)
+    dc_dP = np.zeros(self.solver.n_cells, dtype='f8')
+    #cost derivative to mat properties (vector)
+    dc_dXi = np.zeros(self.solver.n_cells, dtype='f8')
+    #mat properties derivative to parameter (diag matrix)
+    dXi_dp = [np.zeros(n_cells, dtype='f8') for x in range(len(self.mat_props))]
+    #residual derivtive to mat prop (matrix)
+    dR_dXi = []
+    for mat_prop in self.mat_props:
+      dR_dXi.append(self.solver.get_sensitivity(mat_prop.get_name()))
+    #residual derivative to pressure
+    dR_dP = self.solver.get_sensitivity("PRESSURE")
+    self.adjoint = Sensitivity_Richards(dC_dP, dXi_dP, dc_dXi, dR_dXi, dR_dP)
     return
     
 

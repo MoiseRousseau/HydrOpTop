@@ -21,7 +21,7 @@ class Maximum_Volume:
     self.p = p #a reference to the p array
     return
   
-  def set_cell_volume(self, V)
+  def set_cell_volume(self, V):
     self.V = V
     self.V_tot = np.sum(self.V)
     return

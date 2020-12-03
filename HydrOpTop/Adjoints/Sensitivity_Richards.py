@@ -1,5 +1,5 @@
 
-from scipy.sparse import coo_matrix
+from scipy.sparse import coo_matrix, dia_matrix
 from scipy.sparse.linalg import spsolve, bicgstab, bicg, spilu
 
 #TODO: maybe have a look to avoid recreate array at each time
@@ -30,9 +30,13 @@ class Sensitivity_Richards:
   """
   def __init__(self, cost_deriv_pressure, mat_prop_deriv_mat_parameter, 
                cost_deriv_mat_prop, res_deriv_mat_prop, res_deriv_pressure):
+    #vector
     self.dc_dP = cost_deriv_pressure #dim = [cost] * L * T2 / M
-    self.dXi_dp = mat_prop_deriv_mat_parameter # dim = [mat_prop] * L * T2 / M
     self.dc_dXi = cost_deriv_mat_prop #[cost] / [mat_prop]
+    #diag matrix
+    self.dXi_dp = [dia_matrix((x,0), shape=(len(x),len(x)), dtype='f8') for x 
+                       in mat_prop_deriv_mat_parameter] # dim = [mat_prop] * L * T2 / M
+    #matrix
     self.dR_dXi = [ coo_matrix((x[:,2],(x[:,0].astype('i8')-1,x[:,1].astype('i8')-1)))
                       for x in res_deriv_mat_prop] # dim = M / (L2 * T2 * [mat_prop])
     self.dR_dP = coo_matrix((res_deriv_pressure[:,2], 
@@ -54,10 +58,10 @@ class Sensitivity_Richards:
     """
     l = self.solve_adjoint(self.method)
     
-    dR_dXi_dXi_dp = (self.dR_dXi[0]).tocsr().dot(self.dXi_dp[0])
+    dR_dXi_dXi_dp = (self.dR_dXi[0]).tocsr().dot(self.dXi_dp[0].tocsr())
     if self.n_inputs > 1:
       for i in range(1,self.n_inputs):
-        dR_dXi_dXi_dp += (self.dR_dXi[i]).tocsr().dot(self.dXi_dp[i])
+        dR_dXi_dXi_dp += (self.dR_dXi[i]).tocsr().dot(self.dXi_dp[i].tocsr())
         
     if self.dc_dXi is None: dc_dXi_dXi_dp = 0.
     else:
