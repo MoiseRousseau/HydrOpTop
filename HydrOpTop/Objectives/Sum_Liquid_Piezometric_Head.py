@@ -92,8 +92,8 @@ class Sum_Liquid_Piezometric_Head:
         out[:] = self.penalizing_power / (self.gravity * self.density) * \
                          pz_head**(self.penalizing_power-1)
       else:
-        out[self.ids_to_sum-1] = self.penalizing_power / (self.gravity * self.density) * \
-                         pz_head**(self.penalizing_power-1)
+        out[self.ids_to_sum-1] = (self.penalizing_power / (self.gravity * self.density) * \
+                         pz_head**(self.penalizing_power-1))[self.ids_to_sum-1]
     return out
   
   def d_objective_d_inputs(self, out=None):

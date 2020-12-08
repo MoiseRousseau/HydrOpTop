@@ -96,6 +96,7 @@ class PFLOTRAN:
     #first cell is at i = 0
     if not h5_file_name: h5_file_name=dataset_name.lower()+'.h5'
     out = h5py.File(h5_file_name, 'w')
+    if X_ids is None: resize_to=False
     if resize_to and self.n_cells != len(X_dataset):
       X_new = np.zeros(self.n_cells, dtype='f8')
       X_new[X_ids-1] = X_dataset
@@ -172,18 +173,6 @@ class PFLOTRAN:
     data = np.genfromtxt(f, skip_header=8, skip_footer=2)
     return data
   
-  def write_cell_variable_XDMF(var, var_name="Var", out_file="out.h5", out_xmf = "out.xmf",
-	                             var_ids = None, link_to_pft_out="", default_val=np.nan):
-	  #open or create output file
-    try:
-      out = h5py.File(out_file, 'r+')
-    except:
-      out = h5py.File(out_file, 'w')
-    #delete var_name dataset if already exist
-    if var_name in list(out.keys()): del out[var_name]
-    out.create_dataset(var_name, data=var)
-    out.close()
-    return
   
   def update_sensitivity(self, var, coo_mat):
     f = self.input_folder + self.dict_var_in[var]

@@ -33,7 +33,7 @@ class Maximum_Volume:
     return
   
   def evaluate(self, p, grad):
-    self.p[self.p_cell_ids] = p
+    self.p[self.p_cell_ids-1] = p
     if self.ids_to_consider is None:
       V_tot = np.sum(self.V)
       constrain = np.sum(self.V*self.p)/V_tot - self.max_v_frac

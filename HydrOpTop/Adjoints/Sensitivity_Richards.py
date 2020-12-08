@@ -75,16 +75,17 @@ class Sensitivity_Richards:
     elif assign_at_ids is None:
       S[:] = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
     else:
-      S[:] = (dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l))[0,assign_at_ids-1]
+      S[:] = (dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l))[assign_at_ids-1]
     return S
   
-  def solve_adjoint(self,method='ilu'):
+  def solve_adjoint(self,method='spsolve'):
     """
     Solve the adjoint problem of the form A*l=b and return x
     """
     #prepare matrix
     b = self.dc_dP 
     if method == 'ilu': 
+      #be careful! this method lead to false result without personalization
       A = (self.dR_dP.transpose()).tocsc() #[L-1]
     else:
       A = (self.dR_dP.transpose()).tocsr()

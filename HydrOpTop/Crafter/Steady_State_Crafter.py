@@ -30,20 +30,35 @@ class Steady_State_Crafter:
     #self.Xi = None #store material properties
     self.adjoint = None
     self.Yi = None #store PFLOTRAN output
+    self.p_ids = None
+    
+    #option
+    self.print_every = 0
+    self.print_every_out = "p.h5"
     
     self.__initialize_IO_array__()
     self.first_call = True
     self.func_eval = 0
     self.last_p = None
+    self.adjoint_algo = None
     return
+  
   def get_problem_size(self): return self.problem_size
   
-  def nlopt_function_to_optimize(self, p, grad):
-    ### IO STUFF ###
-    self.func_eval += 1
-    print(f"\nFonction evaluation {self.func_eval}")
-    self.last_p = np.copy(p)
-    
+  def set_adjoint_problem_algo(self, algo):
+    self.adjoint_algo = algo
+    return
+  
+  def print_density_parameter_every_iteration(self, every_it, out=None):
+    self.print_every = every_it
+    if out is not None: self.print_every_out = out
+    #TODO implement this
+    return
+  
+  
+  
+  
+  def evaluate_objective(self, p):
     ### UPDATE MAT PROPERTIES AND RUN PFLOTRAN ###
     #Given p, update material properties
     for mat_prop in self.mat_props:
@@ -68,35 +83,59 @@ class Steady_State_Crafter:
     # note that we have in place assignement, so we don't have to
     # update the Yi in the objective
     cf = self.obj.evaluate()
+    return cf
+  
+  
+  
+  def compute_gradient(self, p, grad=None):
+    #note: the evaluate_objective function should have been must 
+    # have been called before
+    if grad is None:
+      grad = np.zeros(len(self.p_ids),dtype='f8')
+    ### CREATE ADJOINT ###
+    if self.first_call:
+      self.fist_call = False
+      self.__initialize_adjoint__()
+    ### UPDATE ADJOINT ###
+    #cost derivative to pressure (vector)
+    self.obj.d_objective_dP(self.adjoint.dc_dP)
+    #cost derivative to mat properties (vector)
+    for i,mat_prop in enumerate(self.mat_props):
+      var = mat_prop.get_name()
+      if self.obj.__depend_of_mat_props__(var):
+        self.obj.d_objective_d_inputs(var, self.adjoint.dc_dXi[i].data)
+    #update matrix
+    #note the I,J do not change, only the data
+    #residual according to pressure
+    self.solver.update_sensitivity("LIQUID_PRESSURE", self.adjoint.dR_dP)
+    #residual according to mat_prop
+    for i,mat_prop in enumerate(self.mat_props):
+      self.solver.update_sensitivity(mat_prop.get_name(),
+                                    self.adjoint.dR_dXi[i])
+    #material property deriv according to mat parameter
+    for i,mat_prop in enumerate(self.mat_props):
+      mat_prop.d_mat_properties(p, self.adjoint.dXi_dp[i].data)
+
+    ### COMPUTE ADJOINT ###
+    self.adjoint.compute_sensitivity(grad, assign_at_ids=self.p_ids)
+    return grad
+    
+    
+  ### READY MADE WRAPPER FOR POPULAR LIBRARY ###
+  def nlopt_function_to_optimize(self, p, grad):
+    # IO stuff
+    self.func_eval += 1
+    print(f"\nFonction evaluation {self.func_eval}")
+    # objective
+    cf = self.evaluate_objective(p)
     print(f"Current cost function: {cf}")
     if grad.size > 0:
-      ### CREATE ADJOINT ###
-      if self.first_call:
-        self.fist_call = False
-        self.__initialize_adjoint__()
-      ### UPDATE ADJOINT ###
-      #cost derivative to pressure (vector)
-      self.obj.d_objective_dP(self.adjoint.dc_dP)
-      #cost derivative to mat properties (vector)
-      for i,mat_prop in enumerate(self.mat_props):
-        var = mat_prop.get_name()
-        if self.obj.__depend_of_mat_props__(var):
-          self.obj.d_objective_d_inputs(var, self.adjoint.dc_dXi[i].data)
-      #update matrix
-      #note the I,J do not change, only the data
-      #residual according to pressure
-      self.solver.update_sensitivity("LIQUID_PRESSURE", self.adjoint.dR_dP)
-      #residual according to mat_prop
-      for i,mat_prop in enumerate(self.mat_props):
-        self.solver.update_sensitivity(mat_prop.get_name(),
-                                       self.adjoint.dR_dXi[i])
-      #material property deriv according to mat parameter
-      for i,mat_prop in enumerate(self.mat_props):
-        mat_prop.d_mat_properties(p, self.adjoint.dXi_dp[i].data)
-      
-      ### COMPUTE ADJOINT ###
-      self.adjoint.compute_sensitivity(grad, assign_at_ids=self.p_ids)
+      self.compute_gradient(p,grad)
+    self.last_p = np.copy(p)
     return cf
+    
+  def scipy_function_to_optimize():
+    return
   
   
   
@@ -111,9 +150,12 @@ class Steady_State_Crafter:
             print("Different cell ids to optimize")
             print("Can not use 'total' coupling method")
             exit(1)
-      if X is None: self.problem_size = self.solver.n_cells
-      else: self.problem_size = len(X)
-      self.p_ids = X
+      if X is None: 
+        self.problem_size = self.solver.n_cells
+        self.p_ids = np.arange(1, self.problem_size+1)
+      else: 
+        self.problem_size = len(X)
+        self.p_ids = X
     #elif self.coupling == "none":
     #  self.Xi = 
     else:
@@ -155,6 +197,8 @@ class Steady_State_Crafter:
     #residual derivative to pressure
     dR_dP = self.solver.get_sensitivity("LIQUID_PRESSURE")
     self.adjoint = Sensitivity_Richards(dc_dP, dXi_dp, dc_dXi, dR_dXi, dR_dP)
+    if self.adjoint_algo is not None:
+      self.adjoint.set_adjoint_solving_algo(self.adjoint_algo)
     return
     
 
