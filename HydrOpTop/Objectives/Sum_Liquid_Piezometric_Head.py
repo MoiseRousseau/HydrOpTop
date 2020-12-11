@@ -14,9 +14,10 @@ class Sum_Liquid_Piezometric_Head:
   - the penalizing power (default 1.)
   - gravity: the gravity (constant) (default=9.80665)
   - density: water liquid density (constant) (default=997.16)
+  - reference_pressure: reference pressure for h_pz=0 (default=101325.)
   """
   def __init__(self, ids_to_sum = None, penalizing_power = 1,
-                     gravity=9.80655, density=997.16):
+                     gravity=9.80655, density=997.16, reference_pressure=101325.):
     if isinstance(ids_to_sum, str) and \
              ids_to_sum.lower() == "everywhere":
       self.ids_to_sum = None
@@ -34,7 +35,7 @@ class Sum_Liquid_Piezometric_Head:
     self.gravity = gravity #m2/s
     self.density = density #kg/m3
     self.mat_props_dependance = []
-    #self.reference_pressure = 101325 #Pa
+    self.reference_pressure = reference_pressure #Pa
     return
     
   def set_ids_to_sum(self, x):
@@ -65,7 +66,8 @@ class Sum_Liquid_Piezometric_Head:
     Return a scalar of dimension [L]
     """
     if pz_head is None: 
-      pz_head = self.pressure / (self.gravity * self.density) - self.z 
+      pz_head = (self.pressure-self.reference_pressure) / \
+                             (self.gravity * self.density) - self.z 
     if self.ids_to_sum is None: 
       return np.sum(pz_head**self.penalizing_power)
     else: 
@@ -87,7 +89,8 @@ class Sum_Liquid_Piezometric_Head:
       else:
         out[self.ids_to_sum-1] = deriv
     else:
-      pz_head = self.pressure / (self.gravity * self.density) - self.z 
+      pz_head = (self.pressure-self.reference_pressure) / \
+                                 (self.gravity * self.density) - self.z 
       if self.ids_to_sum is None: 
         out[:] = self.penalizing_power / (self.gravity * self.density) * \
                          pz_head**(self.penalizing_power-1)

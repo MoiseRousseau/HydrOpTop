@@ -1,0 +1,7 @@
+__pycache__/
+*K_Sensitivity.mat
+*PFLOTRAN_simulation.log
+*Rjacobian.mat
+*pflotran*
+*diff.txt
+*.h5

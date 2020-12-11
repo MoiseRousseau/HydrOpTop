@@ -66,7 +66,8 @@ class Steady_State_Crafter:
       self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                     X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
     #run PFLOTRAN
-    self.solver.run_PFLOTRAN()
+    ret_code = self.solver.run_PFLOTRAN()
+    if ret_code: return np.nan
     
     ### GET PFLOTRAN OUTPUT ###
     for i,var in enumerate(self.obj.__get_PFLOTRAN_output_variable_needed__()):

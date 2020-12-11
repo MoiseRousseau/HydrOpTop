@@ -61,7 +61,7 @@ class PFLOTRAN:
           filename = self.input_folder+line[index+1]
           break
     if not filename:
-      print("No regions found in PFLOTRAN input file, stop...")
+      print(f"No region \"{reg_name}\" found in PFLOTRAN input file, stop...")
       exit(1)
     
     if self.mesh_type == "ugi" or self.mesh_type == "uge":
@@ -124,8 +124,7 @@ class PFLOTRAN:
     if ret: 
       print("\n!!! Error occured in PFLOTRAN simulation !!!")
       print(f"Please see {self.input_folder}PFLOTRAN_simulation.log for more details\n")
-      exit()
-    return 
+    return ret
   
   
   # interact with output data

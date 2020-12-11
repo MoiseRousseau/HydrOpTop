@@ -1,8 +1,16 @@
 
-from scipy.sparse import coo_matrix, dia_matrix
-from scipy.sparse.linalg import spsolve, bicgstab, bicg, spilu
+import time
 
-#TODO: maybe have a look to avoid recreate array at each time
+from scipy.sparse import coo_matrix, dia_matrix
+import scipy.sparse.linalg as ssl
+
+try:
+  import cupy as cp
+  import cupyx.scipy.sparse as cpsparse
+  import cupyx.scipy.sparse.linalg as csl
+except:
+  pass
+
 
 class Sensitivity_Richards:
   """
@@ -82,22 +90,44 @@ class Sensitivity_Richards:
     """
     Solve the adjoint problem of the form A*l=b and return x
     """
+    start = time.time()
     #prepare matrix
     b = self.dc_dP 
-    if method == 'ilu': 
-      #be careful! this method lead to false result without personalization
+    if method == 'ilu' or method == 'lu': 
       A = (self.dR_dP.transpose()).tocsc() #[L-1]
+    elif method == 'lu_gpu':
+      b_gpu = cp.array(b)
+      A_gpu = cpsparse.csr_matrix(self.dR_dP.transpose().tocsr())
     else:
       A = (self.dR_dP.transpose()).tocsr()
     #solve
     if method == 'ilu': 
-      LU = spilu(A)
+      #be careful! this method lead to false result without personalization
+      LU = ssl.spilu(A)
+      l = LU.solve(b)
+    elif method == 'lu': 
+      LU = ssl.splu(A)
       l = LU.solve(b)
     elif method == 'spsolve': 
-      l = spsolve(A, b) 
+      l = ssl.spsolve(A, b) 
+    elif method == 'bicgstab': 
+      l, info = ssl.bicgstab(A, b)
+      if info: print("Some error append during BiConjugate Gradient Stabilized solve")
+    elif method == 'bicg': 
+      l, info = ssl.bicg(A, b)
+      if info: print("Some error append during BiConjugate Gradient solve")
+    elif method == 'cg': 
+      l, info = ssl.cg(A, b)
+      if info: print("Some error append during Conjugate Gradient solve")
+    elif method == 'cgs': 
+      l, info = ssl.cgs(A, b)
+      if info: print("Some error append during Conjugate Gradient Squared solve")
+    elif method == 'lu_gpu': 
+      l = csl.lsqr(A_gpu, b_gpu)[0].get()
     else:
       print("Solving method not recognized, stop...")
       exit(1)
+    print(f"Time to solve adjoint using {method}: {(time.time() - start)} s")
     return l
     
 
