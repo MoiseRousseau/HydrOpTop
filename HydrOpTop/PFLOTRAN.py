@@ -16,8 +16,7 @@ class PFLOTRAN:
     self.pft_in = pft_in
     self.input_folder = '/'.join(pft_in.split('/')[:-1])+'/'
     if self.input_folder[0] == '/': self.input_folder = '.' + self.input_folder
-    self.__read_input_file__()
-    self.__parse_regions__()
+    self.__get_input_deck__(self.input_folder + self.pft_in )
     self.__get_mesh_info__()
     self.__get_nvertices_ncells__()
     
@@ -50,6 +49,10 @@ class PFLOTRAN:
   
   # interacting with data #
   def get_region_ids(self, reg_name):
+    """
+    Return the cell ids associated to the given region:
+    - reg_name: the name of the region to get the ids.
+    """
     #look for region in pflotran input
     filename = ""
     for i,line in enumerate(self.input_deck):
@@ -76,6 +79,39 @@ class PFLOTRAN:
         src.close()
         print(f"Region not found in mesh file {filename}")
         exit(1)
+    return cell_ids
+  
+  def get_connections_ids_integral_flux(self, integral_flux_name):
+    """
+    Return the cell ids associated to the given integral flux
+    Argument:
+    - integral_flux_name: the name of the integral flux to get the ids.
+    """
+    found = False
+    #find the integral flux in input deck
+    for i,line in enumerate(self.input_deck):
+      if "INTEGRAL_FLUX" in line:
+        if integral_flux_name in line: 
+          found = True
+          break
+    if not found:
+      print(f"Integral flux {integral_flux_name} not found in input deck")
+      print("Please provide the name directly after the INTEGRAL_FLUX opening card")
+      exit(1)
+    #check if defined by cell ids
+    while "CELL_IDS" in line:
+      i += 1
+      line = self.input_deck[i]
+      for x in ["POLYGON", "COORDINATES_AND_DIRECTIONS", 
+                "PLANE", "VERTICES", "END", "/"]:
+        if x in line:
+          print("Only INTEGRAL_FLUX defined with CELL_IDS are supported at this time")
+          exit(1)
+    cell_ids = []
+    while "/" in line or "END" in line:
+      i += 1
+      line = self.input_deck[i].split()
+      cell_ids.append([line[0],line[1]])
     return cell_ids
   
   def create_cell_indexed_dataset(self, X_dataset, dataset_name, h5_file_name="",
@@ -142,6 +178,14 @@ class PFLOTRAN:
     - timestep: the i-th timestep to extract
     """
     src = h5py.File(self.pft_out, 'r')
+    #treat coordinate separately as they are in Domain/XC
+    if var in ["XC", "YC", "ZC"]:
+      if out is None:
+        out = np.array(src["Domain/"+var])
+      else:
+        out[:] = np.array(src["Domain/"+var])
+      src.close()
+      return out
     timesteps = [x for x in src.keys() if "Time" in x]
     right_time = timesteps[i_timestep]
     key_to_find = self.dict_var_out[var]
@@ -158,6 +202,7 @@ class PFLOTRAN:
       out = np.array(src[right_time + '/' + out_var])
     else:
       out[:] = np.array(src[right_time + '/' + out_var])
+    src.close()
     return out
   
   def get_sensitivity(self, var):
@@ -182,13 +227,33 @@ class PFLOTRAN:
   
   
   ### PRIVATE METHOD ###
-  def __read_input_file__(self):
+  def __get_input_deck__(self, filename):
+    self.input_deck = []
+    self.__read_input_file__(filename)
+    finish = False
+    while not finish:
+      for i,line in enumerate(self.input_deck):
+        if "EXTERNAL_FILE" in line:
+          line = line.split()
+          index = line.index("EXTERNAL_FILE")
+          self.__read_input_file__(line[index+1])
+          break
+      finish = True
+    return
+  
+  def __read_input_file__(self, filename, append_at_pos=0):
     """
     Store input deck
     """
-    input_file = self.input_folder + self.pft_in 
-    src = open(input_file, 'r')
-    self.input_deck = [x for x in src.readlines() if x]
+    src = open(filename, 'r')
+    temp = []
+    for line in src.readlines():
+      line = line.split('#')[0][:-1] #remove commentary and \n
+      if line: temp.append(line) 
+    if not self.input_deck: self.input_deck = temp
+    else:
+      self.input_deck = self.input_deck[:append_at_pos] + \
+                        temp + self.input_deck[append_at_pos:]
     src.close()
     return 
     
@@ -239,9 +304,6 @@ class PFLOTRAN:
       src.close()
       self.n_vertices = -1 #no info about it...
       return
-    
-  def __parse_regions__(self):
-    return
     
     
     

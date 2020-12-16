@@ -20,7 +20,11 @@ class Maximum_Volume:
     self.max_v_frac = max_volume_percentage
     self.V = None
     self.V_tot = None
-    self.p_duplicate = None
+    self.filter = None
+    return
+  
+  def set_filter(self, filter):
+    self.filter = filter
     return
   
   def set_inputs(self, inputs):
@@ -33,7 +37,12 @@ class Maximum_Volume:
     return
   
   def evaluate(self, p, grad):
-    self.p[self.p_cell_ids-1] = p
+    if self.filter:
+      p_bar = self.filter.get_filtered_density(p)
+    else:
+      p_bar = p
+    self.p[self.p_cell_ids-1] = p_bar #self.p spand over all the domain, 
+                                  #but p_bar only on the cell id to optimize
     if self.ids_to_consider is None:
       V_tot = np.sum(self.V)
       constrain = np.sum(self.V*self.p)/V_tot - self.max_v_frac
@@ -45,8 +54,11 @@ class Maximum_Volume:
         grad[:] = self.V/V_tot
       else:
         grad[:] = self.V[self.ids_to_consider-1]/V_tot
+      if self.filter:
+        grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
     print(f"Current volume constrain: {constrain+self.max_v_frac}")
     return constrain
+  
   
   def __get_PFLOTRAN_output_variable_needed__(self):
     return ["VOLUME"]
