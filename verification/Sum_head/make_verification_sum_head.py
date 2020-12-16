@@ -16,6 +16,7 @@ import numpy as np
 from HydrOpTop import PFLOTRAN
 from HydrOpTop.Objectives import Sum_Liquid_Piezometric_Head
 from HydrOpTop.Adjoints import Sensitivity_Richards
+from HydrOpTop.Materials import Permeability
 
 
 def compute_sensitivity_adjoint():
@@ -36,22 +37,18 @@ def compute_sensitivity_adjoint():
   z = pft_model.get_output_variable("Z_COORDINATE")
   objective = Sum_Liquid_Piezometric_Head()
   objective.set_inputs([pressure,z])
-  print(f"Objective: {objective.evaluate()}")
+  print(f"Objective: {objective.evaluate(0.)}")
   
   #compute sensitivity
   print("Compute sensitivity")
-  cost_deriv_pressure = objective.d_objective_dP()
+  objective.d_objective_dP(0.)
+  cost_deriv_pressure = objective.dobj_dP
   #mat_prop_deriv_mat_parameter is unit
   #cost_deriv_mat_prop is null
-  res_deriv_mat_prop= pft_model.get_sensitivity("PERMEABILITY") #Pa.s / m
-  res_deriv_pressure = pft_model.get_sensitivity("LIQUID_PRESSURE") #[-]
-  sens = Sensitivity_Richards(cost_deriv_pressure,
-                              [np.ones(len(pressure))],
-                              None,
-                              [res_deriv_mat_prop],
-                              res_deriv_pressure)
-  sens.set_adjoint_solving_algo("ilu")
-  S_adjoint = sens.compute_sensitivity()
+  mat = Permeability([1.,2.], "everywhere", power=1)
+  sens = Sensitivity_Richards([mat], pft_model,np.arange(0,128))
+  sens.set_adjoint_solving_algo("lu")
+  S_adjoint = sens.compute_sensitivity(0., cost_deriv_pressure, [0.])
   return S_adjoint
   
 
@@ -70,7 +67,7 @@ def compute_sensitivity_finite_difference(pertub = 1e-6):
   z = pft_model.get_output_variable("Z_COORDINATE")
   objective = Sum_Liquid_Piezometric_Head()
   objective.set_inputs([pressure,z])
-  ref_obj = objective.evaluate()
+  ref_obj = objective.evaluate(0.)
   print(f"Current objective: {ref_obj}")
   
   #run finite difference
@@ -83,7 +80,7 @@ def compute_sensitivity_finite_difference(pertub = 1e-6):
                                           "Permeability.h5", cell_ids)
     pft_model.run_PFLOTRAN()
     pft_model.get_output_variable("LIQUID_PRESSURE",out=pressure)
-    cur_obj = objective.evaluate()
+    cur_obj = objective.evaluate(0.)
     deriv[i] = (cur_obj-ref_obj) / (old_perm * pertub)
     perm_field[i] = old_perm
   return deriv
@@ -104,10 +101,10 @@ def print_stat(S_adjoint, S_FD):
 
 
 if __name__ == "__main__":
-  print("Make sensitivity analysis using finite difference")
-  S_FD = compute_sensitivity_finite_difference()
   print("\nMake sensitivity analysis using adjoint equation")
   S_adjoint = compute_sensitivity_adjoint()
+  print("Make sensitivity analysis using finite difference")
+  S_FD = compute_sensitivity_finite_difference()
   print("\n")
   print_stat(S_adjoint, S_FD)
   exit(0)

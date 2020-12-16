@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.sparse import coo_matrix, dia_matrix
 import h5py
 import subprocess
 
@@ -29,7 +30,7 @@ class PFLOTRAN:
     self.dict_var_out = {"VOLUME":"Volume", "FACE_AREA": "Face Area", 
                          "LIQUID_PRESSURE":"Liquid Pressure",
                          "Z_COORDINATE":"Z Coordinate"}
-    self.dict_var_in = {"PERMEABILITY":"K_Sensitivity.mat",
+    self.dict_var_sensitivity = {"PERMEABILITY":"K_Sensitivity.mat",
                         "LIQUID_PRESSURE":"Rjacobian.mat"}
     return
     
@@ -213,16 +214,19 @@ class PFLOTRAN:
     Arguments:
     - var: the input variable (ex: PERMEABILITY)
     """
-    f = self.input_folder + self.dict_var_in[var]
-    data = np.genfromtxt(f, skip_header=8, skip_footer=2)
-    return data
+    f = self.input_folder + self.dict_var_sensitivity[var]
+    src = np.genfromtxt(f, skip_header=8, skip_footer=2)
+    i, j, data = src[:,0], src[:,1], src[:,2]
+    new_mat = coo_matrix( (data,(i.astype('i8')-1,j.astype('i8')-1)), dtype='f8')
+    return new_mat
   
   
   def update_sensitivity(self, var, coo_mat):
-    f = self.input_folder + self.dict_var_in[var]
+    f = self.input_folder + self.dict_var_sensitivity[var]
     data = np.genfromtxt(f, skip_header=8, skip_footer=2)
     coo_mat.data[:] = data[:,2]
-    return 
+    return
+     
   
   
   

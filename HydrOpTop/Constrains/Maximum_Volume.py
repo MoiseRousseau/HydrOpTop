@@ -36,32 +36,43 @@ class Maximum_Volume:
     self.p_cell_ids = cell_ids
     return
   
-  def evaluate(self, p, grad):
+  
+  ### EVALUATION ###
+  def evaluate(self,p):
     if self.filter:
       p_bar = self.filter.get_filtered_density(p)
     else:
       p_bar = p
-    self.p[self.p_cell_ids-1] = p_bar #self.p spand over all the domain, 
+    self.p[self.p_cell_ids] = p_bar #self.p spand over all the domain, 
                                   #but p_bar only on the cell id to optimize
     if self.ids_to_consider is None:
-      V_tot = np.sum(self.V)
-      constrain = np.sum(self.V*self.p)/V_tot - self.max_v_frac
+      self.V_tot = np.sum(self.V)
+      cf = np.sum(self.V*self.p)/self.V_tot - self.max_v_frac
     else:
-      V_tot = np.sum(self.V[self.ids_to_consider-1])
-      constrain = np.sum((self.V*self.p)[self.ids_to_consider-1])/V_tot - self.max_v_frac
-    if grad.size > 0:
-      if self.ids_to_consider is None:
-        grad[:] = self.V/V_tot
-      else:
-        grad[:] = self.V[self.ids_to_consider-1]/V_tot
-      if self.filter:
-        grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
-    print(f"Current volume constrain: {constrain+self.max_v_frac}")
-    return constrain
+      self.V_tot = np.sum(self.V[self.ids_to_consider-1])
+      cf = np.sum((self.V*self.p)[self.ids_to_consider-1])/self.V_tot - self.max_v_frac
+    return cf
+  
+  ### TOTAL DERIVATIVE ###
+  def d_evaluate(self,p,grad):
+    if self.ids_to_consider is None:
+      grad[:] = self.V/self.V_tot
+    else:
+      grad[:] = self.V[self.ids_to_consider-1]/self.V_tot
+    if self.filter:
+      grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
+    return
+  
+  ### WRAPPER ###
+  def nlopt_optimize(self, p, grad):
+    cf = self.evaluate(p)
+    self.d_evaluate(p, grad)
+    print(f"Current volume: {cf+self.max_v_frac}")
+    return cf
   
   
   def __get_PFLOTRAN_output_variable_needed__(self):
     return ["VOLUME"]
-  def __need_p_cell_ids__(self): return True
-  
+  def __require_adjoint__(self): return False
+  def __depend_of_mat_props__(self, var=None): return False
 

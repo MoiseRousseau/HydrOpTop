@@ -1,15 +1,6 @@
-
 import time
-
 from scipy.sparse import coo_matrix, dia_matrix
-import scipy.sparse.linalg as ssl
-
-try:
-  import cupy as cp
-  import cupyx.scipy.sparse as cpsparse
-  import cupyx.scipy.sparse.linalg as csl
-except:
-  pass
+from .adjoint_solving import solve_adjoint
 
 
 class Sensitivity_Richards:
@@ -36,98 +27,96 @@ class Sensitivity_Richards:
   If cost_deriv_mat_prop is None, assume the cost function does not depend on
   the material property distribution.
   """
-  def __init__(self, cost_deriv_pressure, mat_prop_deriv_mat_parameter, 
-               cost_deriv_mat_prop, res_deriv_mat_prop, res_deriv_pressure):
-    #vector
-    self.dc_dP = cost_deriv_pressure #dim = [cost] * L * T2 / M
-    self.dc_dXi = cost_deriv_mat_prop #[cost] / [mat_prop]
-    #diag matrix
-    self.dXi_dp = [dia_matrix((x,0), shape=(len(x),len(x)), dtype='f8') for x 
-                       in mat_prop_deriv_mat_parameter] # dim = [mat_prop] * L * T2 / M
-    #matrix
-    self.dR_dXi = [ coo_matrix((x[:,2],(x[:,0].astype('i8')-1,x[:,1].astype('i8')-1)))
-                      for x in res_deriv_mat_prop] # dim = M / (L2 * T2 * [mat_prop])
-    self.dR_dP = coo_matrix((res_deriv_pressure[:,2], 
-                             (res_deriv_pressure[:,0].astype('i8')-1,
-                              res_deriv_pressure[:,1].astype('i8')-1) ) ) #[L-1]
+  def __init__(self, mat_props, solver, p_ids):
     
-    self.method = 'ilu' #adjoint solving method
-    self.n_inputs = len(self.dXi_dp)
+    #vector
+    #self.dc_dP = cost_deriv_pressure #dim = [cost] * L * T2 / M
+    #self.dc_dXi = cost_deriv_mat_prop #[cost] / [mat_prop]
+    self.mat_props = mat_props
+    self.solver = solver
+    self.assign_at_ids = p_ids
+    
+    self.method = 'lu' #adjoint solving method
+    
+    self.dXi_dp = None
+    self.dR_dXi = None
+    self.dR_dP = None
+    self.initialized = False
     return
   
   def set_adjoint_solving_algo(self,x):
     self.method = x
     return
     
-  def compute_sensitivity(self, S=None, assign_at_ids=None):
+  def update_mat_derivative(self, p):
+    for i,mat_prop in enumerate(self.mat_props):
+      mat_prop.d_mat_properties(p, self.dXi_dp[i])
+    return
+  
+  def update_residual_derivatives(self):
+    self.solver.update_sensitivity("LIQUID_PRESSURE", self.dR_dP)
+    for i,mat_prop in enumerate(self.mat_props):
+      self.solver.update_sensitivity(mat_prop.get_name(),
+                                    self.dR_dXi[i])
+    return 
+  
+  
+  def compute_sensitivity(self, p, dc_dP, dc_dXi):
     """
     Compute the total cost function derivative according to material density
     parameter p.
     """
-    l = self.solve_adjoint(self.method)
-    
-    dR_dXi_dXi_dp = (self.dR_dXi[0]).tocsr().dot(self.dXi_dp[0].tocsr())
-    if self.n_inputs > 1:
-      for i in range(1,self.n_inputs):
-        dR_dXi_dXi_dp += (self.dR_dXi[i]).tocsr().dot(self.dXi_dp[i].tocsr())
-        
-    if self.dc_dXi is None: dc_dXi_dXi_dp = 0.
+    #create or update structures
+    if self.initialized == False:
+      self.__initialize_adjoint__(p)
     else:
-      dc_dXi_dXi_dp = self.dc_dXi[0]*self.dXi_dp[0]
+      self.update_mat_derivative(p)
+      self.update_residual_derivatives()
+    
+    #compute adjoint
+    l = solve_adjoint(self.dR_dP, dc_dP, self.method)
+    
+    #compute dc/dp_bar
+    if self.assign_at_ids is None:
+      dR_dXi_dXi_dp = (self.dR_dXi[0]).tocsr().multiply(self.dXi_dp[0])
       if self.n_inputs > 1:
         for i in range(1,self.n_inputs):
-          dc_dXi_dXi_dp += self.dc_dXi[i]*self.dXi_dp[i]
-      #TODO: got a problem with the numpy axis and output size
-    if S is None:      
-      S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
-    elif assign_at_ids is None:
-      S[:] = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
+          dR_dXi_dXi_dp += (self.dR_dXi[i]).tocsr().multiply(self.dXi_dp[i])
     else:
-      S[:] = (dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l))[assign_at_ids-1]
+      dR_dXi_dXi_dp = \
+              ((self.dR_dXi[0]).tocsc())[:,self.assign_at_ids].dot(self.dXi_dp[0])
+      if self.n_inputs > 1:
+        for i in range(1,self.n_inputs):
+          dR_dXi_dXi_dp += \
+              ((self.dR_dXi[i]).tocsc())[:,self.assign_at_ids].dot(self.dXi_dp[i])
+        
+    if dc_dXi is None: 
+      dc_dXi_dXi_dp = 0.
+    else:
+      dc_dXi_dXi_dp = dc_dXi[0]*self.dXi_dp[0]
+      if self.n_inputs > 1:
+        for i in range(1,self.n_inputs):
+          dc_dXi_dXi_dp += dc_dXi[i]*self.dXi_dp[i]
+      
+    if self.assign_at_ids is None:
+      S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
+    else:
+      S = (dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l))[self.assign_at_ids]
+    
     return S
   
-  def solve_adjoint(self,method='spsolve'):
-    """
-    Solve the adjoint problem of the form A*l=b and return x
-    """
-    start = time.time()
-    #prepare matrix
-    b = self.dc_dP 
-    if method == 'ilu' or method == 'lu': 
-      A = (self.dR_dP.transpose()).tocsc() #[L-1]
-    elif method == 'lu_gpu':
-      b_gpu = cp.array(b)
-      A_gpu = cpsparse.csr_matrix(self.dR_dP.transpose().tocsr())
-    else:
-      A = (self.dR_dP.transpose()).tocsr()
-    #solve
-    if method == 'ilu': 
-      #be careful! this method lead to false result without personalization
-      LU = ssl.spilu(A)
-      l = LU.solve(b)
-    elif method == 'lu': 
-      LU = ssl.splu(A)
-      l = LU.solve(b)
-    elif method == 'spsolve': 
-      l = ssl.spsolve(A, b) 
-    elif method == 'bicgstab': 
-      l, info = ssl.bicgstab(A, b)
-      if info: print("Some error append during BiConjugate Gradient Stabilized solve")
-    elif method == 'bicg': 
-      l, info = ssl.bicg(A, b)
-      if info: print("Some error append during BiConjugate Gradient solve")
-    elif method == 'cg': 
-      l, info = ssl.cg(A, b)
-      if info: print("Some error append during Conjugate Gradient solve")
-    elif method == 'cgs': 
-      l, info = ssl.cgs(A, b)
-      if info: print("Some error append during Conjugate Gradient Squared solve")
-    elif method == 'lu_gpu': 
-      l = csl.lsqr(A_gpu, b_gpu)[0].get()
-    else:
-      print("Solving method not recognized, stop...")
-      exit(1)
-    print(f"Time to solve adjoint using {method}: {(time.time() - start)} s")
-    return l
+  
+  def __initialize_adjoint__(self,p): 
+    self.dXi_dp = [mat_prop.d_mat_properties(p) for mat_prop in self.mat_props] 
+               # dim = [mat_prop] * L * T2 / M
+    self.n_inputs = len(self.dXi_dp)
+      
+    self.dR_dXi = [self.solver.get_sensitivity(mat_prop.get_name()) 
+                                            for mat_prop in self.mat_props]
+                      
+    self.dR_dP = self.solver.get_sensitivity("LIQUID_PRESSURE")
+    
+    self.initialized = True
+    return
     
 

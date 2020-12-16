@@ -18,6 +18,8 @@ class Sum_Liquid_Piezometric_Head:
   """
   def __init__(self, ids_to_sum = None, penalizing_power = 1,
                      gravity=9.80655, density=997.16, reference_pressure=101325.):
+                     
+    #objective argument
     if isinstance(ids_to_sum, str) and \
              ids_to_sum.lower() == "everywhere":
       self.ids_to_sum = None
@@ -29,13 +31,22 @@ class Sum_Liquid_Piezometric_Head:
     else:
       self.penalizing_power = penalizing_power
     
+    #inputs for function evaluation (the Xi's)
     self.head = None
     self.z = None
-    
+    #argument from pflotran simulation
     self.gravity = gravity #m2/s
     self.density = density #kg/m3
-    self.mat_props_dependance = []
     self.reference_pressure = reference_pressure #Pa
+    
+    #function derivative for adjoint
+    self.dobj_dP = None
+    self.dobj_dmat_prop = None
+    self.adjoint = None
+    self.filter = None
+    
+    #required for problem crafting
+    self.mat_props_dependance = []
     return
     
   def set_ids_to_sum(self, x):
@@ -57,58 +68,100 @@ class Sum_Liquid_Piezometric_Head:
     self.pressure = inputs[0]
     self.z = inputs[1]
     return
+  
+  def set_p_cell_ids(self,p_ids):
+    return #not needed
+    
+  def set_filter(self, filter):
+    self.filter = filter
+    return
+  
+  def set_adjoint_problem(self, x):
+    self.adjoint = x
+    return
 
   
-  ### COST FUNCTION AND ITS DERIVATIVE
-  def evaluate(self, pz_head=None):
+  ### COST FUNCTION ###
+  def evaluate(self, p):
     """
     Evaluate the cost function
     Return a scalar of dimension [L]
     """
-    if pz_head is None: 
-      pz_head = (self.pressure-self.reference_pressure) / \
+    pz_head = (self.pressure-self.reference_pressure) / \
                              (self.gravity * self.density) - self.z 
     if self.ids_to_sum is None: 
       return np.sum(pz_head**self.penalizing_power)
     else: 
       return np.sum(pz_head[self.ids_to_sum-1]**self.penalizing_power)
-   
-  def d_objective_dP(self, out=None): 
+  
+  
+  ### PARTIAL DERIVATIVES ###
+  def d_objective_dP(self,p): 
     """
-    Evaluate the derivative of the cost function according to the piezometric head
-    If a numpy array is provided, derivative will be copied in this array
-    Else create a new numpy array
-    Derivative have no dimension [-]
+    Evaluate the derivative of the cost function according to the pressure.
+    If a numpy array is provided, derivative will be copied 
+    in this array, else create a new numpy array.
+    Derivative have unit m/Pa
     """
-    if out is None:
-      out = np.zeros(len(self.z), dtype='f8')
+    if self.dobj_dP is None:
+      self.dobj_dP = np.zeros(len(self.z), dtype='f8')
     deriv = 1. / (self.gravity * self.density)
     if self.penalizing_power == 1:
       if self.ids_to_sum is None: 
-        out[:] = deriv
+        self.dobj_dP[:] = deriv
       else:
-        out[self.ids_to_sum-1] = deriv
+        self.dobj_dP[self.ids_to_sum-1] = deriv
     else:
       pz_head = (self.pressure-self.reference_pressure) / \
                                  (self.gravity * self.density) - self.z 
       if self.ids_to_sum is None: 
-        out[:] = self.penalizing_power / (self.gravity * self.density) * \
+        self.dobj_dP[:] = self.penalizing_power / (self.gravity * self.density) * \
                          pz_head**(self.penalizing_power-1)
       else:
-        out[self.ids_to_sum-1] = (self.penalizing_power / (self.gravity * self.density) * \
+        self.dobj_dP[self.ids_to_sum-1] = \
+                         (self.penalizing_power / (self.gravity * self.density) * \
                          pz_head**(self.penalizing_power-1))[self.ids_to_sum-1]
-    return out
+    return
   
-  def d_objective_d_inputs(self, out=None):
+  
+  def d_objective_d_inputs(self,p):
     # Does not depend on other variable
     # TODO: add density dependance ?
     return None
-    
   
+  
+  
+  ### TOTAL DERIVATIVE ###
+  def d_objective_dp(self, p, out=None): 
+    """
+    Evaluate the derivative of the cost function according to the density
+    parameter p. If a numpy array is provided, derivative will be copied 
+    in this array, else create a new numpy array.
+    Derivative have a length dimension [L]
+    """
+    if out is None:
+      out = np.zeros(len(self.z), dtype='f8')
+    self.d_objective_dP(p) #update objective derivative wrt pressure
+    self.d_objective_d_inputs(p) #update objective derivative wrt mat prop
+    out[:] = self.adjoint.compute_sensitivity(p, self.dobj_dP, self.dobj_dmat_prop)
+    if self.filter:
+      out[:] = self.filter.get_filter_derivative(p).transpose().dot(out)
+    return out
+  
+  
+  ### WRAPPER FOR NLOPT ###
+  def nlopt_optimize(self,p,grad):
+    cf = self.evaluate(p)
+    if grad.size > 0:
+      self.d_objective_dp(p,grad)
+    print(f"Current head sum: {cf}")
+    return cf
+  
+  
+  ### REQUIRED FOR CRAFTING ###
+  def __require_adjoint__(self): return "RICHARDS"
   def __get_PFLOTRAN_output_variable_needed__(self):
     return ["LIQUID_PRESSURE", "Z_COORDINATE"]
-  def __is_steady_state__(self): 
-    return True
   def __depend_of_mat_props__(self, var=None):
     if var is None: return self.mat_props_dependance
     if var in self.mat_props_dependance: return True

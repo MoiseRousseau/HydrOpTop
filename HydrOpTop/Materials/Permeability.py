@@ -50,6 +50,15 @@ class Permeability:
         # of the data structure in scipy.sparse.dia_matrix
         out[0,self.cell_ids-1] = self.power * (self.max_K-self.min_K) * p**(self.power-1)
       return
+      
+  def convert_mat_properties_to_p(self, mat_prop_val):
+    if np.min(mat_prop_val) >= self.min_K and \
+          np.max(mat_prop_val) <= self.max_K :
+      return ( (mat_prop_val - self.min_K) / ( self.max_K - self.min_K) ) ** (1/self.power)
+    else:
+      print("Min and max permeability value not in the range of material \
+             properties")
+      return None
   
   def get_name(self):
     return "PERMEABILITY"

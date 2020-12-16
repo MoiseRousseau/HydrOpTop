@@ -30,12 +30,11 @@ class Steady_State_Crafter:
     self.filter = filter
     self.coupling = coupling
     
-    #self.Xi = None #store material properties
-    self.adjoint = None
+    #self.Xi = None #store material properties (solver inputs)
+    self.Yi = None #store solver outputs
     self.filter_i = None #filter inputs
-    self.Yi = None #store PFLOTRAN output
-    self.p_ids = None
-    self.d_pbar_dp = None #derivative of filtered density to raw density
+    self.p_ids = None #correspondance between p index and cell ids in the solver
+                      #i.e. p[0] parametrize cell X, p[1] cell Y, ...
     
     #option
     self.print_every = 0
@@ -64,7 +63,7 @@ class Steady_State_Crafter:
   
   
   
-  def evaluate_objective(self, p):
+  def pre_evaluation_objective(self, p):
     ###FILTERING: convert p to p_bar
     if self.filter is None:
       p_bar = p
@@ -92,62 +91,9 @@ class Steady_State_Crafter:
     count = 0
     for constrain in self.constrains:
       for var in constrain.__get_PFLOTRAN_output_variable_needed__():
-        self.solver.get_output_variable(var, self.constrain_arrays[count], -1)
+        self.solver.get_output_variable(var, self.constrain_inputs_arrays[count], -1)
         count += 1
-    
-    ### EVALUATE COST FUNCTION AND ITS DERIVATIVE ###
-    # note that we have in place assignement, so we don't have to
-    # update the Yi in the objective
-    cf = self.obj.evaluate()
-    
-    self.first_call_evaluation = False
-    return cf
-  
-  
-  
-  def compute_gradient(self, p, grad=None):
-    #note: the evaluate_objective function must have been called before
-    if self.func_eval < 1:
-      print("Objective function must have called before computing gradient")
-      exit(1)
-    if grad is None:
-      grad = np.zeros(len(self.p_ids),dtype='f8')
-      
-    ### CREATE ADJOINT ###
-    if self.first_call_gradient:
-      self.__initialize_adjoint__()
-      
-    ### UPDATE ADJOINT ###
-    #cost derivative to pressure (vector)
-    self.obj.d_objective_dP(self.adjoint.dc_dP)
-    
-    #cost derivative to mat properties (vector)
-    for i,mat_prop in enumerate(self.mat_props):
-      var = mat_prop.get_name()
-      if self.obj.__depend_of_mat_props__(var):
-        self.obj.d_objective_d_inputs(var, self.adjoint.dc_dXi[i])
-        
-    #update matrix
-    #note the I,J do not change, only the data
-    #residual according to pressure
-    self.solver.update_sensitivity("LIQUID_PRESSURE", self.adjoint.dR_dP)
-    #residual according to mat_prop
-    for i,mat_prop in enumerate(self.mat_props):
-      self.solver.update_sensitivity(mat_prop.get_name(),
-                                    self.adjoint.dR_dXi[i])
-    #material property deriv according to mat parameter
-    for i,mat_prop in enumerate(self.mat_props):
-      mat_prop.d_mat_properties(p, self.adjoint.dXi_dp[i].data)
-
-    ### COMPUTE GRADIENT ###
-    self.adjoint.compute_sensitivity(grad, assign_at_ids=self.p_ids)
-    
-    ### DERIVE ACCORDING TO FILTER ###
-    if self.filter:
-      self.filter.get_filter_derivative(p, self.d_pbar_dp)
-      grad[:] = self.d_pbar_dp.transpose().dot(grad)
-    self.first_call_gradient = False
-    return grad
+    return
     
     
   ### READY MADE WRAPPER FOR POPULAR LIBRARY ###
@@ -155,11 +101,10 @@ class Steady_State_Crafter:
     # IO stuff
     self.func_eval += 1
     print(f"\nFonction evaluation {self.func_eval}")
-    # objective
-    cf = self.evaluate_objective(p)
-    print(f"Current cost function: {cf}")
-    if grad.size > 0:
-      self.compute_gradient(p,grad)
+    ### PRE-EVALUATION ###
+    self.pre_evaluation_objective(p)
+    ### OBJECTIVE EVALUATION AND DERIVATIVE ###
+    cf = self.obj.nlopt_optimize(p,grad)
     self.last_p = np.copy(p)
     return cf
     
@@ -170,41 +115,51 @@ class Steady_State_Crafter:
   
   def __initialize_IO_array__(self):
     print("Initialization...")
-    #create material parameter p
-    if self.coupling == "total":
-      #verify if each ids are the same
-      X = self.mat_props[0].get_cell_ids_to_parametrize()
-      if len(self.mat_props) > 1:
-        for x in self.mat_props:
-          if x.get_ids_to_optimize() != X: 
-            print("Different cell ids to optimize")
-            print("Can not use 'total' coupling method")
-            exit(1)
-      if X is None: 
-        self.problem_size = self.solver.n_cells
-        self.p_ids = np.arange(1, self.problem_size+1) #in pflotran indexing
-      else: 
-        self.problem_size = len(X)
-        self.p_ids = X
-    #elif self.coupling == "none":
-    #  self.Xi = 
-    else:
-      print("Error: Other coupling method not yet implemented")
-      exit(1)
+    #verify if each cells to parametrize are the same
+    X = self.mat_props[0].get_cell_ids_to_parametrize()
+    if len(self.mat_props) > 1:
+      for x in self.mat_props:
+        if x.get_ids_to_optimize() != X: 
+          print("Different cell ids to optimize")
+          print("HydrOpTop require the different mat properties to parametrize the same cell ids")
+          exit(1)
+    #create correspondance and problem size
+    if X is None: #i.e. parametrize all cell in the simulation
+      self.problem_size = self.solver.n_cells
+      self.p_ids = None#np.arange(0, self.problem_size) 
+    else: 
+      self.problem_size = len(X)
+      self.p_ids = X-1 #0 based indexing
     
-    #initialize output
+    #initialize solver output for objective function
     n_outputs = len(self.obj.__get_PFLOTRAN_output_variable_needed__())
     self.Yi = [np.zeros(self.solver.n_cells, dtype='f8') for x in range(n_outputs)]
     self.obj.set_inputs(self.Yi)
+    #initialize adjoint for objective function
+    if self.obj.__require_adjoint__():
+      which = self.obj.__require_adjoint__()
+      if which == "RICHARDS":
+        adjoint = Sensitivity_Richards(self.mat_props, self.solver, self.p_ids)
+        self.obj.set_adjoint_problem(adjoint)
+    self.obj.set_p_cell_ids(self.p_ids)
+    if filter:
+      self.obj.set_filter(self.filter)
     
     #initialize constrains
-    self.constrain_arrays = []
+    #TODO: initialize constrains
+    #TODO: change self.p_ids that go through 0 and not 1
+    self.constrain_inputs_arrays = []
     for constrain in self.constrains:
       for i,dep in enumerate(constrain.__get_PFLOTRAN_output_variable_needed__()):
-        self.constrain_arrays.append(np.zeros(self.solver.n_cells, dtype='f8'))
-      constrain.set_inputs(self.constrain_arrays[-i-1:])
-      if constrain.__need_p_cell_ids__():
-        constrain.set_p_cell_ids(self.p_ids)
+        self.constrain_inputs_arrays.append(np.zeros(self.solver.n_cells, dtype='f8'))
+      constrain.set_inputs(self.constrain_inputs_arrays[-i-1:])
+      if constrain.__require_adjoint__():
+        which = self.obj.__require_adjoint__()
+        if which == "RICHARDS":
+          adjoint = Sensitivity_Richards(self.mat_props, self.solver, self.p_ids)
+          constrain.set_adjoint_problem(adjoint)
+      constrain.set_p_cell_ids(self.p_ids)
+      if self.filter:
         constrain.set_filter(self.filter)
     return
     
@@ -217,7 +172,7 @@ class Steady_State_Crafter:
     if self.filter is None:
       return
       
-    self.filter.set_p_ids(self.p_ids)
+    self.filter.set_p_cell_ids(self.p_ids)
     n_inputs = len(self.filter.__get_PFLOTRAN_output_variable_needed__())
     
     #TODO: refactor below as I don't like to make one iteration just for
@@ -240,33 +195,6 @@ class Steady_State_Crafter:
     self.filter.set_inputs(self.filter_i)
     self.filter.initialize()
     self.d_pbar_dp = self.filter.get_filter_derivative(p_bar)
-    return
-  
-  
-  
-  def __initialize_adjoint__(self):
-    #deferred initialization because we need the structure of the jacobian matrix
-    # created after PFLOTRAN first call
-    #cost derivative to pressure (vector)
-    dc_dP = np.zeros(self.solver.n_cells, dtype='f8')
-    #cost derivative to mat properties (vector)
-    if self.obj.__depend_of_mat_props__(): 
-      dc_dXi = [np.zeros(self.solver.n_cells, dtype='f8') for x in 
-                                 self.obj.__depend_of_mat_props__()]
-    else:
-      dc_dXi = None
-    #mat properties derivative to parameter (diag matrix)
-    dXi_dp = [np.zeros(self.solver.n_cells, dtype='f8') 
-                                 for mat_prop in self.mat_props]
-    #residual derivtive to mat prop (matrix)
-    dR_dXi = []
-    for mat_prop in self.mat_props:
-      dR_dXi.append(self.solver.get_sensitivity(mat_prop.get_name()))
-    #residual derivative to pressure
-    dR_dP = self.solver.get_sensitivity("LIQUID_PRESSURE")
-    self.adjoint = Sensitivity_Richards(dc_dP, dXi_dp, dc_dXi, dR_dXi, dR_dP)
-    if self.adjoint_algo is not None:
-      self.adjoint.set_adjoint_solving_algo(self.adjoint_algo)
     return
     
 
