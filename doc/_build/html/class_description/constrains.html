@@ -1,0 +1,150 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Constrain classes &#8212; HydrOpTop  documentation</title>
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/language_data.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Adjoints classes" href="adjoints.html" />
+    <link rel="prev" title="Crafter classes" href="crafter.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="constrain-classes">
+<span id="objectives"></span><h1>Constrain classes<a class="headerlink" href="#constrain-classes" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="constrain">
+<h2>Constrain<a class="headerlink" href="#constrain" title="Permalink to this headline">¶</a></h2>
+<p>The constrain class implements the optimization constrains (equality or
+inequality) of the topology optimization problem.</p>
+</div>
+<div class="section" id="available-constrains">
+<h2>Available constrains<a class="headerlink" href="#available-constrains" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><cite>Maximum_Volume(cell_ids_to_consider, max_volume)</cite>: Constrain
+the material defined by <cite>p=1</cite> to occupy at most <cite>max_volume*100</cite> % of the considered domain).
+<cite>cell_ids_to_consider</cite> is a list of cell ids on which to constrain the maximum
+volume and <cite>max_volume</cite> the maximum volume fraction allowed on the given cell
+ids.</li>
+</ul>
+</div>
+<div class="section" id="implement-yours">
+<h2>Implement yours<a class="headerlink" href="#implement-yours" title="Permalink to this headline">¶</a></h2>
+<p>You can create your own constrains and pass it directly to the optimizer of
+your choice. However, if you want to use it in the <cite>Crafter</cite> class, each new
+constrain class are required to have several methods in HydrOpTop. They are:</p>
+<ul class="simple">
+<li><cite>__need_p_cell_ids__(self)</cite> which should return <cite>True</cite> if the correspondance
+between <cite>p</cite> and the PFLOTRAN cell ids is needed, <cite>False</cite> in the opposite case.</li>
+<li><cite>__get_PFLOTRAN_output_variable_needed__(self)</cite> which return a list of the
+PFLOTRAN output variables needed for your new class operation. Variable should
+be orthographied as in OUTPUT card.</li>
+<li><cite>set_inputs(self, inputs)</cite></li>
+<li><cite>set_p_cell_ids(self, cell_ids)</cite></li>
+<li><cite>set_filter(self, filter)</cite></li>
+</ul>
+<p>The following method is required by the <cite>nlopt</cite> library:</p>
+<ul class="simple">
+<li><cite>evaluate(self, p, grad)</cite> where <cite>p</cite> and <cite>grad</cite> are the argument passed by
+<cite>nlopt</cite> optimizer. <cite>p</cite> is the material density parameter in the region to
+optimize and <cite>grad</cite> the gradient of the constrain w.r.t. <cite>p</cite>. This function
+should return the constrain value and the its derivative w.r.t. the density
+parameter <cite>p</cite>.</li>
+</ul>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">HydrOpTop</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/topology_optimization.html">About topology optimization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/your_first_optimization.html">Your first optimization using HydrOpTop</a></li>
+<li class="toctree-l1"><a class="reference internal" href="how_it_work.html">HydrOpTop machinery</a></li>
+<li class="toctree-l1"><a class="reference internal" href="objectives.html">Objective classes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="materials.html">Material classes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="crafter.html">Crafter classes</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Constrain classes</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#constrain">Constrain</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#available-constrains">Available constrains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#implement-yours">Implement yours</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="adjoints.html">Adjoints classes</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="crafter.html" title="previous chapter">Crafter classes</a></li>
+      <li>Next: <a href="adjoints.html" title="next chapter">Adjoints classes</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2020, Moise Rousseau.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.5</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.8</a>
+      
+      |
+      <a href="../_sources/class_description/constrains.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
