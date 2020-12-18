@@ -3,5 +3,6 @@ __pycache__/
 *PFLOTRAN_simulation.log
 *Rjacobian.mat
 *pflotran*
+!*pflotran.in
 *diff.txt
 *.h5

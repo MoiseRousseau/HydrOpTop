@@ -36,7 +36,7 @@ Thus, possible to use to optimize 2 materials distribution
 
 While forward sensitivity analysis is best suited to the situation of finding the sensitivities of a potentially large number of solution variables with respect to a small number of parameters, reverse (adjoint) sensitivity analysis is best suited to the complementary situation of finding the sensitivity of a scalar (or small-dimensional) function of the solution with respect to a large number of parameter (Cao et al. 2003).
 
-Some problems require the sensitivities with respect to a large number of parameters. For these problems, particularly if the number of state variables is also large, the forward sensitivity approach is intractable. These problems can often be handled more efficiently by the adjoint method (Errico 1997). From (Cao et al. 2003)
+Some problems require the sensitivities with respect to a large number of parameters. For these problems, particularly if the number of state variables is also large, the forward sensitivity approach is intractable. These problems can often be handled more efficiently by the adjoint method (Errico 1997). From (Cao et al. 2003) 
 
 
 
@@ -50,7 +50,7 @@ Topology optimization for finite volume method:
 Three field topology optimization:
 %https://link.springer.com/article/10.1007/s00158-010-0602-y (the main article which describe it all)
 Also, in this article, expression of the derivative (!!!):
-%https://link.springer.com/article/10.1007/s00158-009-0452-7#ref-CR9
+%https://link.springer.com/article/10.1007/s00158-009-0452-7
 
 
 
@@ -151,7 +151,7 @@ Therefore, the total derivative of the cost function writes:
 
 
 
-\subsection{Implementation}
+\section{HydrOpTop implementation}
 
 "Rather than on in-house codes, the car industry relies almost exclusively on commercial CFD software." obstacle for implementing adjoint method. %https://mathematicsinindustry.springeropen.com/articles/10.1186/2190-5983-4-6
 
@@ -165,6 +165,13 @@ The proposed method was implemented into the open-source finite volume code PFLO
 \end{figure}
 
 Sensitivity are computed using finite difference method, which allow to reuse FORTRAN subroutine computing the derivatives of the residual.
+
+Implementation in Python
+Purpose: made a wrapper for popular optimization library
+Easily plugable
+
+Density filter
+Use Grispy
 
 
 
