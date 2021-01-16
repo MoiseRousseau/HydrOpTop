@@ -14,7 +14,7 @@ from HydrOpTop.Materials import Permeability
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop import PFLOTRAN
 
-from HydrOpTop.debug import compare_adjoint_with_FD
+#from HydrOpTop.debug import compare_adjoint_with_FD
 
 if __name__ == "__main__":
   #create PFLOTRAN simulation object
@@ -52,7 +52,7 @@ if __name__ == "__main__":
   
   #initial guess
   p = np.zeros(crafted_problem.get_problem_size(),dtype='f8')
-  p[:] = 0.1
+  p[:] = 0.15
   
   #f = h5py.File("p_opt.h5",'r')
   #p = np.array(f["Density parameter optimized"])

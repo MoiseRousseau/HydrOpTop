@@ -2,7 +2,6 @@
 # Verification of the sensitivity computed via the adjoint equation
 # versus finite difference for the Sum_Liquid_Piezometric_Head objective
 #
-#TODO update
 
 import sys
 import os
@@ -23,6 +22,7 @@ def compute_sensitivity_adjoint():
   #initialize model field
   print("Initialize PFLOTRAN model with the given permeability field")
   pft_model = PFLOTRAN("pflotran.in")
+  #pft_model.set_parallel_calling_command(4,"mpiexec.mpich")
   perm_data = np.genfromtxt("permeability_field.csv", comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   pft_model.create_cell_indexed_dataset(perm_field, "permeability", 
@@ -86,8 +86,15 @@ def compute_sensitivity_finite_difference(pertub = 1e-6):
   return deriv
 
 
-
-def print_stat(S_adjoint, S_FD):
+def make_verification():
+  #make simulation
+  print("\nMake sensitivity analysis using adjoint equation")
+  S_adjoint = compute_sensitivity_adjoint()
+  print("Make sensitivity analysis using finite difference")
+  S_FD = compute_sensitivity_finite_difference()
+  print("\n")
+  
+  #print stats to screen
   rel_diff = 1 - np.abs(S_adjoint/S_FD)
   print(f"Max relative diff (must be close to 0): {np.max(rel_diff)}")
   print("Output sensitivities in diff.txt")
@@ -96,15 +103,13 @@ def print_stat(S_adjoint, S_FD):
   for i in range(len(S_adjoint)):
     out.write(f"{i+1} {S_adjoint[i]} {S_FD[i]} {rel_diff[i]}\n")
   out.close()
-  return
+  
+  #1 mean error, 0 success
+  if np.max(rel_diff) > 0.01: return 1
+  else: return 0
+  
+  
   
 
-
 if __name__ == "__main__":
-  print("\nMake sensitivity analysis using adjoint equation")
-  S_adjoint = compute_sensitivity_adjoint()
-  print("Make sensitivity analysis using finite difference")
-  S_FD = compute_sensitivity_finite_difference()
-  print("\n")
-  print_stat(S_adjoint, S_FD)
-  exit(0)
+  err = make_verification()

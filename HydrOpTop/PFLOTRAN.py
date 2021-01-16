@@ -2,6 +2,7 @@ import numpy as np
 from scipy.sparse import coo_matrix, dia_matrix
 import h5py
 import subprocess
+import os
 
 default_gravity = 9.8068
 default_viscosity = 8.904156e-4
@@ -16,10 +17,13 @@ class PFLOTRAN:
     #input related
     self.pft_in = pft_in
     self.input_folder = '/'.join(pft_in.split('/')[:-1])+'/'
+    self.prefix = (self.pft_in.split('/')[-1]).split('.')[0]
+    self.output_sensitivity_format = "HDF5" #default
     if self.input_folder[0] == '/': self.input_folder = '.' + self.input_folder
     self.__get_input_deck__(self.input_folder + self.pft_in )
     self.__get_mesh_info__()
     self.__get_nvertices_ncells__()
+    self.__get_sensitivity_info__()
     
     #running
     self.mpicommand = ""
@@ -27,14 +31,17 @@ class PFLOTRAN:
     
     #output
     self.pft_out = '.'.join(pft_in.split('.')[:-1])+'.h5'
+    self.pft_out_sensitivity = '.'.join(pft_in.split('.')[:-1]) + "-sensitivity-flow"
     self.dict_var_out = {"VOLUME":"Volume", "FACE_AREA": "Face Area", 
                          "LIQUID_PRESSURE":"Liquid Pressure",
                          "Z_COORDINATE":"Z Coordinate"}
-    self.dict_var_sensitivity = {"PERMEABILITY":"K_Sensitivity.mat",
-                        "LIQUID_PRESSURE":"Rjacobian.mat"}
+    self.dict_var_sensitivity_matlab = \
+         {"PERMEABILITY":"permeability","LIQUID_PRESSURE":"pressure"}
+    self.dict_var_sensitivity_hdf5 = \
+         {"PERMEABILITY":"Permeability []","LIQUID_PRESSURE":"Pressure []"}
     return
     
-  def parallel_calling_command(self, processes, command):
+  def set_parallel_calling_command(self, processes, command):
     """
     Specify the command line argument for running PFLOTRAN related to 
     parallelization.
@@ -154,7 +161,7 @@ class PFLOTRAN:
     Run PFLOTRAN. No argument method
     """
     if self.mpicommand:
-      cmd = [self.mpicommand, "-n", self.nproc, "pflotran", "-pflotranin", self.pft_in]
+      cmd = [self.mpicommand, "-n", str(self.nproc), "pflotran", "-pflotranin", self.pft_in]
     else:
       cmd = ["pflotran", "-pflotranin", self.pft_in]
     ret = subprocess.call(cmd, stdout=open("PFLOTRAN_simulation.log",'w'))
@@ -197,7 +204,7 @@ class PFLOTRAN:
         break
     if not found:
       print(f"\nOutput variable \"{self.dict_var_out[var]}\" not found in PFLOTRAN output")
-      print(f"Have you forgot to add the \"{var}\" output variable under the OUTPUT card?\n")
+      print(f"Do you forgot to add the \"{var}\" output variable under the OUTPUT card?\n")
       exit(1)
     if out is None:
       out = np.array(src[right_time + '/' + out_var])
@@ -206,27 +213,46 @@ class PFLOTRAN:
     src.close()
     return out
   
-  def get_sensitivity(self, var):
+  def get_sensitivity(self, var, timestep=None, coo_mat=None):
+    # TODO: change the name of the dict_var_sensitivity to match the new output
     """
     Return a (3,n) shaped numpy array (I, J, data) representing the derivative
     of the residual according to the inputed variable. Input variable must be 
-    consistent with a material property in the input deck
+    consistent with a material property in the input deck.
+    Sensitivity outputed by PFLOTRAN is supposed to be in matlab format
     Arguments:
     - var: the input variable (ex: PERMEABILITY)
     """
-    f = self.input_folder + self.dict_var_sensitivity[var]
-    src = np.genfromtxt(f, skip_header=8, skip_footer=2)
-    i, j, data = src[:,0], src[:,1], src[:,2]
-    new_mat = coo_matrix( (data,(i.astype('i8')-1,j.astype('i8')-1)), dtype='f8')
-    return new_mat
-  
-  
-  def update_sensitivity(self, var, coo_mat):
-    f = self.input_folder + self.dict_var_sensitivity[var]
-    data = np.genfromtxt(f, skip_header=8, skip_footer=2)
-    coo_mat.data[:] = data[:,2]
+    if self.output_sensitivity_format == "HDF5":
+       f = self.pft_out_sensitivity + '.h5'
+       src = h5py.File(f, 'r')
+       i = np.array(src["Mat Structure/Row Indices"])
+       j = np.array(src["Mat Structure/Column Indices"])
+       if timestep is None: timestep = -1
+       list_timestep = list(src.keys())
+       temp_str = list_timestep[timestep] + '/' + self.dict_var_sensitivity_hdf5[var]
+       data = np.array(src[ temp_str ])
+       src.close()
+    elif self.output_sensitivity_format == "MATLAB":
+      if timestep is None:
+        output_file = [x[:-4] for x in os.listdir(self.input_folder) if x[-4:] == '.mat']
+        output_file = [x for x in output_file if self.prefix+'-sensitivity-flow-' in x]
+        output_file = [int(x.split('-')[-1]) for x in output_file]
+        timestep = max(output_file)
+      if timestep < 10: timestep = "00"+str(timestep)
+      elif timestep < 100: timestep = "0"+str(timestep)
+      else: timestep = str(timestep)
+      f = self.pft_out_sensitivity + '-' + self.dict_var_sensitivity_matlab[var] \
+            + '-' + timestep + '.mat'
+      src = np.genfromtxt(f, skip_header=8, skip_footer=2)
+      i, j, data = src[:,0], src[:,1], src[:,2]
+    if coo_mat is None:
+      new_mat = coo_matrix( (data,(i.astype('i8')-1,j.astype('i8')-1)), dtype='f8')
+      return new_mat
+    else:
+      coo_mat.data[:] = data
     return
-     
+  
   
   
   
@@ -308,6 +334,15 @@ class PFLOTRAN:
       src.close()
       self.n_vertices = -1 #no info about it...
       return
+  
+  def __get_sensitivity_info__(self):
+    for i,line in enumerate(self.input_deck):
+      if "SENSITIVITY_OUTPUT_FORMAT" in line:
+        line = line.split()
+        index = line.index("SENSITIVITY_OUTPUT_FORMAT")
+        self.output_sensitivity_format = line[index+1].upper()
+        break
+    return
     
     
     

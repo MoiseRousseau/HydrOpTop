@@ -54,10 +54,9 @@ class Sensitivity_Richards:
     return
   
   def update_residual_derivatives(self):
-    self.solver.update_sensitivity("LIQUID_PRESSURE", self.dR_dP)
+    self.solver.get_sensitivity("LIQUID_PRESSURE", coo_mat=self.dR_dP)
     for i,mat_prop in enumerate(self.mat_props):
-      self.solver.update_sensitivity(mat_prop.get_name(),
-                                    self.dR_dXi[i])
+      self.solver.get_sensitivity(mat_prop.get_name(), coo_mat=self.dR_dXi[i])
     return 
   
   
@@ -84,11 +83,11 @@ class Sensitivity_Richards:
           dR_dXi_dXi_dp += (self.dR_dXi[i]).tocsr().multiply(self.dXi_dp[i])
     else:
       dR_dXi_dXi_dp = \
-              ((self.dR_dXi[0]).tocsc())[:,self.assign_at_ids].multiply(self.dXi_dp[0])
+              ((self.dR_dXi[0]).tocsr())[:,self.assign_at_ids].multiply(self.dXi_dp[0])
       if self.n_inputs > 1:
         for i in range(1,self.n_inputs):
           dR_dXi_dXi_dp += \
-              ((self.dR_dXi[i]).tocsc())[:,self.assign_at_ids].multiply(self.dXi_dp[i])
+              ((self.dR_dXi[i]).tocsr())[:,self.assign_at_ids].multiply(self.dXi_dp[i])
         
     if dc_dXi is None: 
       dc_dXi_dXi_dp = 0.
@@ -97,7 +96,7 @@ class Sensitivity_Richards:
       if self.n_inputs > 1:
         for i in range(1,self.n_inputs):
           dc_dXi_dXi_dp += dc_dXi[i]*self.dXi_dp[i]
-      
+
     S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
     
     return S
