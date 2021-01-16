@@ -40,15 +40,7 @@ class Permeability:
     if out is None:
       return self.power * (self.max_K-self.min_K) * p**(self.power-1)
     else:
-      #if out is provided, we must match its dimension
-      # out size of the input domain size, while the cell id to parametrize
-      # can be subset
-      if self.cell_ids is None:
-        out[:] = self.power * (self.max_K-self.min_K) * p**(self.power-1)
-      else:
-        #we add the 0 in indexing since array is of shape (1,n) because
-        # of the data structure in scipy.sparse.dia_matrix
-        out[0,self.cell_ids-1] = self.power * (self.max_K-self.min_K) * p**(self.power-1)
+      out[:] = (self.power * (self.max_K-self.min_K) * p**(self.power-1))
       return
       
   def convert_mat_properties_to_p(self, mat_prop_val):

@@ -6,11 +6,15 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE RICHARDS
     /
+    SENSITIVITY_ANALYSIS sensitivity
+      SENSITIVITY_FLOW
+      #SENSITIVITY_TRANSPORT 
+    /
   /
 END
 
-SUBSURFACE
 
+SUBSURFACE
 
 #=========================== solver ========================================
 NUMERICAL_METHODS FLOW
@@ -42,11 +46,13 @@ EOS WATER
   VISCOSITY CONSTANT 8.904156d-4 Pa-s
 END
 
+SKIP
 DEBUG
   PRINT_JACOBIAN
   PRINT_PERMEABILITY_SENSITIVITY
   FORMAT MATLAB
 END
+NOSKIP
 
 #=========================== material properties ==============================
 DATASET permeability
@@ -155,3 +161,13 @@ STRATA
 END
 
 END_SUBSURFACE
+
+
+SENSITIVITY_RICHARDS
+  FORMAT MATLAB
+  VARIABLES
+    PERMEABILITY
+    PRESSURE
+  /
+  OUTPUT_TIME PERIODIC_TIMESTEP 1
+END

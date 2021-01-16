@@ -8,8 +8,8 @@ import h5py
 
 import nlopt
                                   
-from HydrOpTop.Objectives import Sum_Liquid_Piezometric_Head
-from HydrOpTop.Constrains import Maximum_Volume
+from HydrOpTop.Functions import Sum_Liquid_Piezometric_Head
+from HydrOpTop.Functions import Maximum_Volume
 from HydrOpTop.Materials import Permeability
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop import PFLOTRAN
@@ -44,7 +44,7 @@ if __name__ == "__main__":
   opt.set_min_objective(crafted_problem.nlopt_function_to_optimize)
   
   #define constrain
-  opt.add_inequality_constraint(max_vol.evaluate, 0.001) #function, tolerance
+  opt.add_inequality_constraint(max_vol.nlopt_optimize, 0.001) #function, tolerance
   opt.set_lower_bounds(np.zeros(crafted_problem.get_problem_size(), dtype='f8')+0.001)
   opt.set_upper_bounds(np.ones(crafted_problem.get_problem_size(), dtype='f8'))
   

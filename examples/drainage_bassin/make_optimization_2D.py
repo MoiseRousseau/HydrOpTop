@@ -8,8 +8,8 @@ import h5py
 
 import nlopt
                                   
-from HydrOpTop.Objectives import Sum_Liquid_Piezometric_Head
-from HydrOpTop.Constrains import Maximum_Volume
+from HydrOpTop.Functions import Sum_Liquid_Piezometric_Head #objective
+from HydrOpTop.Functions import Maximum_Volume #constrain
 from HydrOpTop.Materials import Permeability
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop import PFLOTRAN
@@ -48,15 +48,15 @@ if __name__ == "__main__":
   
   #define stop criterion
   opt.set_ftol_rel(0.000001)
-  opt.set_maxeval(200)
+  opt.set_maxeval(1)
   
   #initial guess
   p = np.zeros(crafted_problem.get_problem_size(),dtype='f8')
   p[:] = 0.1
   
-  f = h5py.File("p_opt.h5",'r')
-  p = np.array(f["Density parameter optimized"])
-  f.close()
+  #f = h5py.File("p_opt.h5",'r')
+  #p = np.array(f["Density parameter optimized"])
+  #f.close()
   #compare_adjoint_with_FD(crafted_problem, p, [855,857,860,861])
   
   

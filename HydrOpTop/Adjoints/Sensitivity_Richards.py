@@ -84,11 +84,11 @@ class Sensitivity_Richards:
           dR_dXi_dXi_dp += (self.dR_dXi[i]).tocsr().multiply(self.dXi_dp[i])
     else:
       dR_dXi_dXi_dp = \
-              ((self.dR_dXi[0]).tocsc())[:,self.assign_at_ids].dot(self.dXi_dp[0])
+              ((self.dR_dXi[0]).tocsc())[:,self.assign_at_ids].multiply(self.dXi_dp[0])
       if self.n_inputs > 1:
         for i in range(1,self.n_inputs):
           dR_dXi_dXi_dp += \
-              ((self.dR_dXi[i]).tocsc())[:,self.assign_at_ids].dot(self.dXi_dp[i])
+              ((self.dR_dXi[i]).tocsc())[:,self.assign_at_ids].multiply(self.dXi_dp[i])
         
     if dc_dXi is None: 
       dc_dXi_dXi_dp = 0.
@@ -98,10 +98,7 @@ class Sensitivity_Richards:
         for i in range(1,self.n_inputs):
           dc_dXi_dXi_dp += dc_dXi[i]*self.dXi_dp[i]
       
-    if self.assign_at_ids is None:
-      S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
-    else:
-      S = (dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l))[self.assign_at_ids]
+    S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
     
     return S
   
