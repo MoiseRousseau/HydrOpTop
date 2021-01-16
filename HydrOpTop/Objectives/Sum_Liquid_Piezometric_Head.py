@@ -154,7 +154,7 @@ class Sum_Liquid_Piezometric_Head:
     cf = self.evaluate(p)
     if grad.size > 0:
       self.d_objective_dp(p,grad)
-    print(f"Current head sum: {cf}")
+    print(f"Current head sum: {cf:.6e}")
     return cf
   
   
