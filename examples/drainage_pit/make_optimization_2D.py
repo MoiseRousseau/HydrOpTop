@@ -14,7 +14,7 @@ from HydrOpTop.Materials import Permeability
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop import PFLOTRAN
 
-#from HydrOpTop.debug import compare_adjoint_with_FD
+from HydrOpTop.debug import compare_adjoint_with_FD
 
 
 if __name__ == "__main__":

@@ -29,8 +29,8 @@ class Density_Filter:
     if self.p_ids is None:
       print("ERROR: p_ids should be firstly initialized through set_p_ids()")
       exit(1)
-    self.volume = inputs[3][self.p_ids] #just need those in the optimized domain
-    self.mesh_center = np.array(inputs[:3])[:,self.p_ids].transpose() #same here
+    self.volume = inputs[3][self.p_ids-1] #just need those in the optimized domain
+    self.mesh_center = np.array(inputs[:3])[:,self.p_ids-1].transpose() #same here
     return
   
   def initialize(self):

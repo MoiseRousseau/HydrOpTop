@@ -9,7 +9,7 @@ def compare_adjoint_with_FD(craft_objet, p, cell_ids_to_check, pertub=1e-3):
   
   #compute finite difference for cell_ids_to_check
   grad_FD = np.zeros(len(cell_ids_to_check), dtype='f8')
-  if craft_objet.p_ids:
+  if craft_objet.p_ids is not None:
     cell_index = [np.where(craft_objet.p_ids == x-1)[0][0]
                                  for x in cell_ids_to_check]
   else: 

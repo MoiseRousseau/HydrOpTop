@@ -13,7 +13,7 @@ import numpy as np
 
 
 from HydrOpTop import PFLOTRAN
-from HydrOpTop.Objectives import Sum_Liquid_Piezometric_Head
+from HydrOpTop.Functions import Sum_Liquid_Piezometric_Head
 from HydrOpTop.Adjoints import Sensitivity_Richards
 from HydrOpTop.Materials import Permeability
 
@@ -53,7 +53,7 @@ def compute_sensitivity_adjoint():
   
 
 
-def compute_sensitivity_finite_difference(pertub = 1e-6):
+def compute_sensitivity_finite_difference(cell_ids_to_test=None, pertub = 1e-6):
   #initiate data for calculating finite difference
   pft_model = PFLOTRAN("pflotran.in")
   perm_data = np.genfromtxt("permeability_field.csv", comments='#')
@@ -71,38 +71,40 @@ def compute_sensitivity_finite_difference(pertub = 1e-6):
   print(f"Current objective: {ref_obj}")
   
   #run finite difference
-  deriv = np.zeros(len(pressure),dtype='f8')
-  for i in range(len(pressure)):
-    print("Compute derivative of head sum for element {}".format(i+1))
-    old_perm = perm_field[i]
-    perm_field[i] += old_perm * pertub
+  if cell_ids_to_test is None: cell_ids_to_test = np.arange(1,len(pressure)+1)
+  deriv = np.zeros(len(cell_ids_to_test),dtype='f8')
+  for i,cell in enumerate(cell_ids_to_test):
+    print(f"Compute derivative of head sum for element {cell}")
+    old_perm = perm_field[cell-1]
+    perm_field[cell-1] += old_perm * pertub
     pft_model.create_cell_indexed_dataset(perm_field, "permeability", 
                                           "Permeability.h5", cell_ids)
     pft_model.run_PFLOTRAN()
     pft_model.get_output_variable("LIQUID_PRESSURE",out=pressure)
     cur_obj = objective.evaluate(0.)
     deriv[i] = (cur_obj-ref_obj) / (old_perm * pertub)
-    perm_field[i] = old_perm
+    perm_field[cell-1] = old_perm
   return deriv
 
 
-def make_verification():
+def make_verification(cell_ids=None):
+  #length is the number of cell to compare
   #make simulation
   print("\nMake sensitivity analysis using adjoint equation")
   S_adjoint = compute_sensitivity_adjoint()
   print("Make sensitivity analysis using finite difference")
-  S_FD = compute_sensitivity_finite_difference()
-  print("\n")
+  S_FD = compute_sensitivity_finite_difference(cell_ids)
+  print("")
   
   #print stats to screen
-  rel_diff = 1 - np.abs(S_adjoint/S_FD)
-  print(f"Max relative diff (must be close to 0): {np.max(rel_diff)}")
-  print("Output sensitivities in diff.txt")
-  out = open("diff.txt",'w')
-  out.write("Cell_Id S_adjoint S_finite_diff Relative_difference\n")
-  for i in range(len(S_adjoint)):
-    out.write(f"{i+1} {S_adjoint[i]} {S_FD[i]} {rel_diff[i]}\n")
-  out.close()
+  rel_diff = 1 - np.abs(S_adjoint[[x-1 for x in cell_ids]]/S_FD)
+  #out = open("diff.txt",'w')
+  print("Cell_Id S_adjoint S_finite_diff Relative_difference")
+  for i in range(len(S_FD)):
+    cell = cell_ids[i]
+    print(f"{i+1} {S_adjoint[cell-1]:.6e} {S_FD[i]:.6e} {rel_diff[i]:.6e}")
+  #out.close()
+  print(f"\nMax relative diff (must be close to 0): {np.max(rel_diff)}")
   
   #1 mean error, 0 success
   if np.max(rel_diff) > 0.01: return 1
@@ -112,4 +114,6 @@ def make_verification():
   
 
 if __name__ == "__main__":
-  err = make_verification()
+  err = make_verification([15,22,34,69,78,104,125])
+  if err: exit(1)
+  else: exit(0)

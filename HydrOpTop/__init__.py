@@ -1,6 +1,5 @@
 from .Adjoints import *
 from .Crafter import *
-from .Constrains import *
 from .Materials import *
 from .Functions import *
 from .Filters import *

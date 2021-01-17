@@ -8,10 +8,6 @@ SIMULATION
     /
     SENSITIVITY_ANALYSIS sensitivity
       SENSITIVITY_FLOW
-<<<<<<< HEAD
-      #SENSITIVITY_TRANSPORT 
-=======
->>>>>>> master
     /
   /
 END

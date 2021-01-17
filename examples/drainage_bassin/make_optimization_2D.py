@@ -48,7 +48,7 @@ if __name__ == "__main__":
   
   #define stop criterion
   opt.set_ftol_rel(0.000001)
-  opt.set_maxeval(1)
+  opt.set_maxeval(50)
   
   #initial guess
   p = np.zeros(crafted_problem.get_problem_size(),dtype='f8')
