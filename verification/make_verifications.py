@@ -3,9 +3,11 @@ import subprocess
 
 def make_verifications():
   tests = {
-    "Adjoint Derivative" : "adjoint_derivative/compare_adjoint_derivative.py",
-    "Run PFLOTRAN Implicit Grid" : "pflotran_grid/make_optimization_imp.py",
-    "Run PFLOTRAN Explicit Grid" : "pflotran_grid/make_optimization_exp.py",
+    "Adjoint Derivative Standalone" : "adjoint_derivative/compare_adjoint_derivative.py",
+    "Adjoint Derivative Subset with Debug" : 
+              "adjoint_derivative/subset/compare_adjoint_derivative_subset.py",
+    "Run Optimization Implicit Grid" : "pflotran_grid/make_optimization_imp.py",
+    "Run Optimization Explicit Grid" : "pflotran_grid/make_optimization_exp.py",
     "Density Filter" : "test_filter/test_density_filter.py"
   }
   

@@ -46,7 +46,7 @@ def compute_sensitivity_adjoint():
   #mat_prop_deriv_mat_parameter is unit
   #cost_deriv_mat_prop is null
   mat = Permeability([1.,2.], "everywhere", power=1)
-  sens = Sensitivity_Richards([mat], pft_model,np.arange(0,128))
+  sens = Sensitivity_Richards([mat], pft_model,None)
   sens.set_adjoint_solving_algo("lu")
   S_adjoint = sens.compute_sensitivity(0., cost_deriv_pressure, [0.])
   return S_adjoint
@@ -97,17 +97,22 @@ def make_verification(cell_ids=None):
   print("")
   
   #print stats to screen
-  rel_diff = 1 - np.abs(S_adjoint[[x-1 for x in cell_ids]]/S_FD)
+  if cell_ids is not None:
+    rel_diff = 1 - S_adjoint[[x-1 for x in cell_ids]]/S_FD
+  else:
+    rel_diff = 1 - S_adjoint/S_FD
+    
   #out = open("diff.txt",'w')
   print("Cell_Id S_adjoint S_finite_diff Relative_difference")
   for i in range(len(S_FD)):
-    cell = cell_ids[i]
-    print(f"{i+1} {S_adjoint[cell-1]:.6e} {S_FD[i]:.6e} {rel_diff[i]:.6e}")
+    if cell_ids is None: cell = i+1
+    else: cell = cell_ids[i]
+    print(f"{cell} {S_adjoint[cell-1]:.6e} {S_FD[i]:.6e} {rel_diff[i]:.6e}")
   #out.close()
-  print(f"\nMax relative diff (must be close to 0): {np.max(rel_diff)}")
+  print(f"\nMax relative diff (must be close to 0): {np.max(abs(rel_diff))}")
   
   #1 mean error, 0 success
-  if np.max(rel_diff) > 0.01: return 1
+  if np.max(abs(rel_diff)) > 0.01: return 1
   else: return 0
   
   

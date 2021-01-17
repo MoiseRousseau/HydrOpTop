@@ -129,7 +129,7 @@ class Steady_State_Crafter:
       self.p_ids = None#np.arange(0, self.problem_size) 
     else: 
       self.problem_size = len(X)
-      self.p_ids = X-1 #0 based indexing
+      self.p_ids = X #from 0 based indexing to PFLOTRAN indexing
     
     #initialize solver output for objective function
     n_outputs = len(self.obj.__get_PFLOTRAN_output_variable_needed__())

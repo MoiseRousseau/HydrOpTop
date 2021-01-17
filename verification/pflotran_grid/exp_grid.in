@@ -1,0 +1,141 @@
+#Description: Tracer test for determining the fracture and matrix porosity
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SENSITIVITY_ANALYSIS sensitivity
+      SENSITIVITY_FLOW
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== discretization ===================================
+GRID
+  TYPE UNSTRUCTURED_EXPLICIT ./../meshes/2D_voronoi/mesh_2D.uge
+  UPWIND_FRACTION_METHOD ABSOLUTE_DISTANCE
+END
+REGION inj
+  FILE ./../meshes/2D_voronoi/pit_2D.vs
+END
+REGION ext
+  FILE ./../meshes/2D_voronoi/xmax_2D.ex
+END
+
+
+#=========================== EOS ===================================
+EOS WATER
+  #simplified value for hydraulic conductivity computation
+  DENSITY CONSTANT 997.16d0 kg/m^3
+  VISCOSITY CONSTANT 8.904156d-4 Pa-s
+END
+
+#=========================== material properties ==============================
+DATASET permeability
+  FILENAME permeability.h5
+END
+
+MATERIAL_PROPERTY mater
+  ID 1
+  POROSITY 0.3
+  TORTUOSITY 0.1
+  SATURATION_FUNCTION default
+  PERMEABILITY
+    DATASET permeability
+  /
+END
+
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  DEFAULT
+END
+
+
+#=========================== output options ===================================
+OUTPUT
+  FORMAT HDF5
+  VARIABLES
+    LIQUID_PRESSURE
+    VOLUME
+    Z_COORDINATE
+  /
+  NO_PRINT_INITIAL
+END
+
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 50 y
+  INITIAL_TIMESTEP_SIZE 100 y
+  MAXIMUM_TIMESTEP_SIZE 1000 y
+END
+
+
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1e6 -1e6 -1e6
+    1e6 1e6  1e6
+  /
+END
+
+
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE hydrostatic
+  /
+  DATUM 0 0 10
+  PRESSURE 101325.
+END
+FLOW_CONDITION inj
+  TYPE
+    RATE MASS_RATE
+  /
+  RATE 1e-4
+END
+
+
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+SOURCE_SINK inj
+  FLOW_CONDITION inj
+  REGION inj
+END
+BOUNDARY_CONDITION ext
+  FLOW_CONDITION initial
+  REGION ext
+END
+
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL mater
+END
+
+END_SUBSURFACE
+
+#=========================== sensitivity analysis =============================
+SENSITIVITY_FLOW
+  OUTPUT 
+    PERIODIC_TIMESTEP 1
+  /
+  VARIABLES
+    PRESSURE
+    PERMEABILITY
+  /
+  SENSITIVITY_OUTPUT_FORMAT HDF5
+END

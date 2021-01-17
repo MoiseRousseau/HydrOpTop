@@ -34,7 +34,7 @@ class Sensitivity_Richards:
     #self.dc_dXi = cost_deriv_mat_prop #[cost] / [mat_prop]
     self.mat_props = mat_props
     self.solver = solver
-    self.assign_at_ids = p_ids
+    self.assign_at_ids = p_ids #in PFLOTRAN format!
     
     self.method = 'lu' #adjoint solving method
     
@@ -83,11 +83,11 @@ class Sensitivity_Richards:
           dR_dXi_dXi_dp += (self.dR_dXi[i]).tocsr().multiply(self.dXi_dp[i])
     else:
       dR_dXi_dXi_dp = \
-              ((self.dR_dXi[0]).tocsr())[:,self.assign_at_ids].multiply(self.dXi_dp[0])
+              ((self.dR_dXi[0]).tocsr())[:,self.assign_at_ids-1].multiply(self.dXi_dp[0])
       if self.n_inputs > 1:
         for i in range(1,self.n_inputs):
           dR_dXi_dXi_dp += \
-              ((self.dR_dXi[i]).tocsr())[:,self.assign_at_ids].multiply(self.dXi_dp[i])
+              ((self.dR_dXi[i]).tocsr())[:,self.assign_at_ids-1].multiply(self.dXi_dp[i])
         
     if dc_dXi is None: 
       dc_dXi_dXi_dp = 0.
