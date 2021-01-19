@@ -1,13 +1,10 @@
-#Description: Tracer test for determining the fracture and matrix porosity
+#toy problem to create the inputs needed to verify the functions derivative
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
   PROCESS_MODELS
     SUBSURFACE_FLOW flow
       MODE RICHARDS
-    /
-    SENSITIVITY_ANALYSIS sensitivity
-      SENSITIVITY_FLOW
     /
   /
 END
@@ -18,20 +15,15 @@ SUBSURFACE
 
 #=========================== discretization ===================================
 GRID
-  TYPE UNSTRUCTURED ./../meshes/quad_128/struct_quad_128.ugi
+  TYPE UNSTRUCTURED ./../../meshes/quad_128/struct_quad_128.ugi
 END
-
 REGION ymin
-  FILE ./../meshes/quad_128/ymin.ss
+  FILE ./../../meshes/quad_128/ymin.ss
 END
-
 REGION ymax
-  FILE ./../meshes/quad_128/ymax.ss
+  FILE ./../../meshes/quad_128/ymax.ss
 END
 
-REGION top
-  FILE ./../meshes/quad_128/top.ss
-END
 
 
 #=========================== EOS ===================================
@@ -43,7 +35,7 @@ END
 
 #=========================== material properties ==============================
 DATASET permeability
-  FILENAME permeability.h5
+  FILENAME Permeability.h5
 END
 
 MATERIAL_PROPERTY mater
@@ -67,12 +59,12 @@ END
 OUTPUT
   FORMAT HDF5
   VARIABLES
-    LIQUID_PRESSURE
     VOLUME
+    LIQUID_PRESSURE
+    PERMEABILITY_X
     Z_COORDINATE
   /
   NO_PRINT_INITIAL
-  #NO_PRINT_FINAL
 END
 
 
@@ -107,13 +99,6 @@ FLOW_CONDITION initial
   PRESSURE 101325.
 END
 
-FLOW_CONDITION inj_rain
-  TYPE
-    FLUX NEUMANN
-  /
-  FLUX 500d-8
-END
-
 
 
 #=========================== condition couplers ===============================
@@ -133,11 +118,6 @@ BOUNDARY_CONDITION east
   REGION ymax
 END
 
-BOUNDARY_CONDITION rain
-  FLOW_CONDITION inj_rain
-  REGION top
-END
-
 
 #=========================== stratigraphy couplers ============================
 STRATA
@@ -147,13 +127,3 @@ END
 
 END_SUBSURFACE
 
-SENSITIVITY_FLOW
-  OUTPUT 
-    PERIODIC_TIMESTEP 4
-  /
-  VARIABLES
-    PRESSURE
-    PERMEABILITY
-  /
-  SENSITIVITY_OUTPUT_FORMAT HDF5
-END

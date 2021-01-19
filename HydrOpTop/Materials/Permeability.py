@@ -10,7 +10,7 @@ class Permeability:
   !When p=0 -> k=bound[0]
   !When p=1 -> k=bound[1]
   """
-  def __init__(self, bound, cell_ids_to_parametrize=None, power=3):
+  def __init__(self, bound, cell_ids_to_parametrize=None, power=3, name="PERMEABILITY"):
     if isinstance(cell_ids_to_parametrize, str) and \
              cell_ids_to_parametrize.lower() == "everywhere":
       self.cell_ids = None
@@ -19,6 +19,8 @@ class Permeability:
     self.min_K = bound[0]
     self.max_K = bound[1]
     self.power = power
+    self.name= name #note: Permeability class could be used to
+                    # parametrize PERMEABILITY_X, PERMEABILITY_Y, ...
     return
   
   def get_cell_ids_to_parametrize(self):

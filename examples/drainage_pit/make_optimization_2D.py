@@ -9,7 +9,7 @@ import h5py
 import nlopt
                                   
 from HydrOpTop.Functions import Sum_Liquid_Piezometric_Head
-from HydrOpTop.Functions import Maximum_Volume
+from HydrOpTop.Functions import Volume_Percentage
 from HydrOpTop.Materials import Permeability
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop import PFLOTRAN
@@ -31,7 +31,7 @@ if __name__ == "__main__":
   cf = Sum_Liquid_Piezometric_Head(ids_to_sum=pit_ids, penalizing_power=3)
   
   #define maximum volume constrains
-  max_vol = Maximum_Volume(pit_ids, 0.2)
+  max_vol = Volume_Percentage(pit_ids, 0.2)
   
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...

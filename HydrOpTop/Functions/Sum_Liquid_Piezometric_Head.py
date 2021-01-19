@@ -6,9 +6,9 @@ import h5py
 
 class Sum_Liquid_Piezometric_Head:
   """
-  Class that define the objective function as the sum of the liquid piezometric head
+  Function which return the sum of the liquid piezometric head
   with a penalizing power in a given region.
-  Primarly intended to be used in saturated mode. Assumed a constant water density
+  Assumed a constant water density (personalizable)
   Take as input:
   - the cell ids where to compute the piezometric head sum (default all)
   - the penalizing power (default 1.)
@@ -17,7 +17,7 @@ class Sum_Liquid_Piezometric_Head:
   - reference_pressure: reference pressure for h_pz=0 (default=101325.)
   """
   def __init__(self, ids_to_sum = None, penalizing_power = 1,
-                     gravity=9.80655, density=997.16, reference_pressure=101325.):
+                     gravity=9.8068, density=997.16, reference_pressure=101325.):
                      
     #objective argument
     if isinstance(ids_to_sum, str) and \
@@ -31,8 +31,8 @@ class Sum_Liquid_Piezometric_Head:
     else:
       self.penalizing_power = penalizing_power
     
-    #inputs for function evaluation (the Xi's)
-    self.head = None
+    #inputs for function evaluation 
+    self.pressure = None
     self.z = None
     #argument from pflotran simulation
     self.gravity = gravity #m2/s
@@ -41,12 +41,13 @@ class Sum_Liquid_Piezometric_Head:
     
     #function derivative for adjoint
     self.dobj_dP = None
-    self.dobj_dmat_prop = None
+    self.dobj_dmat_props = None
+    self.dobj_dp_partial = None
     self.adjoint = None
     self.filter = None
     
     #required for problem crafting
-    self.mat_props_dependance = []
+    self.output_variable_needed = ["LIQUID_PRESSURE", "Z_COORDINATE"]
     return
     
   def set_ids_to_sum(self, x):
@@ -68,6 +69,9 @@ class Sum_Liquid_Piezometric_Head:
     self.pressure = inputs[0]
     self.z = inputs[1]
     return
+    
+  def get_inputs(self):
+    return [self.pressure, self.z]
   
   def set_p_cell_ids(self,p_ids):
     return #not needed
@@ -98,7 +102,7 @@ class Sum_Liquid_Piezometric_Head:
   ### PARTIAL DERIVATIVES ###
   def d_objective_dP(self,p): 
     """
-    Evaluate the derivative of the cost function according to the pressure.
+    Evaluate the derivative of the function according to the pressure.
     If a numpy array is provided, derivative will be copied 
     in this array, else create a new numpy array.
     Derivative have unit m/Pa
@@ -124,26 +128,38 @@ class Sum_Liquid_Piezometric_Head:
     return
   
   
-  def d_objective_d_inputs(self,p):
+  def d_objective_d_mat_props(self,p):
     # Does not depend on other variable
     # TODO: add density dependance ?
+    self.dobj_dmat_props = [0., 0.]
+    return None
+  
+  
+  def d_objective_dp_partial(self,p): 
+    """
+    Evaluate the PARTIAL derivative of the function according to the density
+    parameter p.
+    """
+    self.dobj_dp_partial = 0.
     return None
   
   
   
   ### TOTAL DERIVATIVE ###
-  def d_objective_dp(self, p, out=None): 
+  def d_objective_dp_total(self, p, out=None): 
     """
-    Evaluate the derivative of the cost function according to the density
+    Evaluate the TOTAL derivative of the function according to the density
     parameter p. If a numpy array is provided, derivative will be copied 
     in this array, else create a new numpy array.
     Derivative have a length dimension [L]
     """
     if out is None:
-      out = np.zeros(len(self.z), dtype='f8')
+      out = np.zeros(len(p), dtype='f8')
     self.d_objective_dP(p) #update objective derivative wrt pressure
-    self.d_objective_d_inputs(p) #update objective derivative wrt mat prop
-    out[:] = self.adjoint.compute_sensitivity(p, self.dobj_dP, self.dobj_dmat_prop)
+    self.d_objective_d_mat_props(p) #update objective derivative wrt mat prop
+    self.d_objective_dp_partial(p)
+    out[:] = self.adjoint.compute_sensitivity(p, self.dobj_dP, 
+               self.dobj_dmat_props, self.output_variable_needed) + self.dobj_dp_partial
     if self.filter:
       out[:] = self.filter.get_filter_derivative(p).transpose().dot(out)
     return out
@@ -153,7 +169,7 @@ class Sum_Liquid_Piezometric_Head:
   def nlopt_optimize(self,p,grad):
     cf = self.evaluate(p)
     if grad.size > 0:
-      self.d_objective_dp(p,grad)
+      self.d_objective_dp_total(p,grad)
     print(f"Current head sum: {cf:.6e}")
     return cf
   
@@ -161,10 +177,6 @@ class Sum_Liquid_Piezometric_Head:
   ### REQUIRED FOR CRAFTING ###
   def __require_adjoint__(self): return "RICHARDS"
   def __get_PFLOTRAN_output_variable_needed__(self):
-    return ["LIQUID_PRESSURE", "Z_COORDINATE"]
-  def __depend_of_mat_props__(self, var=None):
-    if var is None: return self.mat_props_dependance
-    if var in self.mat_props_dependance: return True
-    else: return False
+    return self.output_variable_needed
 
                       

@@ -36,6 +36,9 @@ class Steady_State_Crafter:
     self.p_ids = None #correspondance between p index and cell ids in the solver
                       #i.e. p[0] parametrize cell X, p[1] cell Y, ...
     
+    self.adjoint_algo = None
+    self.adjoint_tol = None
+    
     #option
     self.print_every = 0
     self.print_every_out = "p.h5"
@@ -46,13 +49,16 @@ class Steady_State_Crafter:
     self.first_call_gradient = True
     self.func_eval = 0
     self.last_p = None
-    self.adjoint_algo = None
     return
   
   def get_problem_size(self): return self.problem_size
   
-  def set_adjoint_problem_algo(self, algo):
-    self.adjoint_algo = algo
+  def set_adjoint_problem_algo(self, algo, tol=None):
+    if self.obj.__require_adjoint__():
+      self.obj.adjoint.set_adjoint_solving_algo(algo, tol)
+    for constrain in self.constrains:
+      if constrain.__require_adjoint__():
+        constrain.adjoint.set_adjoint_solving_algo(algo, tol)
     return
   
   def print_density_parameter_every_iteration(self, every_it, out=None):

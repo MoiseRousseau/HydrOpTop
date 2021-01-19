@@ -9,11 +9,12 @@ except:
   pass
 
 
-def solve_adjoint(A, b, method='spsolve'):
+def solve_adjoint(A, b, method='spsolve',tol=None):
     """
     Solve the adjoint problem of the form A*l=b and return x
     """
     
+    print(f"Solve adjoint equation using {method}")
     start = time.time()
     #prepare matrix
     if method == 'ilu' or method == 'lu': 
@@ -50,5 +51,5 @@ def solve_adjoint(A, b, method='spsolve'):
     else:
       print("Solving method not recognized, stop...")
       exit(1)
-    print(f"Time to solve adjoint using {method}: {(time.time() - start)} s")
+    print(f"Time to solve adjoint: {(time.time() - start)} s")
     return l

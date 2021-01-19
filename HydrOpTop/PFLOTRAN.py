@@ -20,7 +20,7 @@ class PFLOTRAN:
     self.prefix = (self.pft_in.split('/')[-1]).split('.')[0]
     self.output_sensitivity_format = "HDF5" #default
     if self.input_folder[0] == '/': self.input_folder = '.' + self.input_folder
-    self.__get_input_deck__(self.input_folder + self.pft_in )
+    self.__get_input_deck__(self.pft_in )
     self.__get_mesh_info__()
     self.__get_nvertices_ncells__()
     self.__get_sensitivity_info__()
@@ -32,9 +32,13 @@ class PFLOTRAN:
     #output
     self.pft_out = '.'.join(pft_in.split('.')[:-1])+'.h5'
     self.pft_out_sensitivity = '.'.join(pft_in.split('.')[:-1]) + "-sensitivity-flow"
-    self.dict_var_out = {"VOLUME":"Volume", "FACE_AREA": "Face Area", 
-                         "LIQUID_PRESSURE":"Liquid Pressure",
-                         "Z_COORDINATE":"Z Coordinate"}
+    self.dict_var_out = {"FACE_AREA" : "Face Area", 
+                         "FACE_DISTANCE_BETWEEN_CENTER" : "",
+                         "FACE_UPWIND_FRACTION" : "",
+                         "LIQUID_CONDUCTIVITY" : "Liquid Conductivity",
+                         "LIQUID_PRESSURE" : "Liquid Pressure",
+                         "VOLUME" : "Volume", 
+                         "Z_COORDINATE" : "Z Coordinate"}
     self.dict_var_sensitivity_matlab = \
          {"PERMEABILITY":"permeability","LIQUID_PRESSURE":"pressure"}
     self.dict_var_sensitivity_hdf5 = \
@@ -52,6 +56,9 @@ class PFLOTRAN:
     self.mpicommand = command
     self.nproc = processes
     return
+    
+  def get_grid_size(self):
+    return self.n_cells
   
   
   

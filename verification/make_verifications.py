@@ -3,9 +3,14 @@ import subprocess
 
 def make_verifications():
   tests = {
-    "Adjoint Derivative Standalone" : "adjoint_derivative/compare_adjoint_derivative.py",
-    "Adjoint Derivative Subset with Debug" : 
+    "Functions derivative wrt p" : "test_functions/dfunction_dp.py",
+    "Functions derivative wrt pressure" : "test_functions/dfunction_dpressure.py",
+    "Functions derivative wrt inputs" : "test_functions/dfunction_dinputs.py",
+    "Adjoint Total Derivative Standalone" : "adjoint_derivative/compare_adjoint_derivative.py",
+    "Adjoint Total Derivative Subset with Debug" : 
               "adjoint_derivative/subset/compare_adjoint_derivative_subset.py",
+    # TODO "Adjoint Total Derivative with Filter" : "",
+    # TODO "Sum_Flux function comparison with PFLOTRAN" : "",
     "Run Optimization Implicit Grid" : "pflotran_grid/make_optimization_imp.py",
     "Run Optimization Explicit Grid" : "pflotran_grid/make_optimization_exp.py",
     "Density Filter" : "test_filter/test_density_filter.py"

@@ -9,7 +9,7 @@ import h5py
 import nlopt
                                   
 from HydrOpTop.Functions import Sum_Liquid_Piezometric_Head #objective
-from HydrOpTop.Functions import Maximum_Volume #constrain
+from HydrOpTop.Functions import Volume_Percentage #constrain
 from HydrOpTop.Materials import Permeability
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop import PFLOTRAN
@@ -29,7 +29,7 @@ if __name__ == "__main__":
   cf = Sum_Liquid_Piezometric_Head(ids_to_sum="everywhere", penalizing_power=1)
   
   #define maximum volume constrains
-  max_vol = Maximum_Volume("everywhere", 0.2)
+  max_vol = Volume_Percentage("everywhere", 0.2)
   
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
@@ -47,14 +47,19 @@ if __name__ == "__main__":
   opt.set_upper_bounds(np.ones(crafted_problem.get_problem_size(), dtype='f8'))
   
   #define stop criterion
-  opt.set_ftol_rel(0.000001)
+  opt.set_ftol_rel(0.001)
   opt.set_maxeval(4)
   
   #initial guess
   p = np.zeros(crafted_problem.get_problem_size(),dtype='f8')
   p[:] = 0.15
   
+  #initial objective
+  objective_ini = crafted_problem.nlopt_function_to_optimize(p, np.zeros(0))
   p_opt = opt.optimize(p)
+  objective_final = crafted_problem.nlopt_function_to_optimize(p_opt, np.zeros(0))
   
-  exit(0)
+  print(f"\nObjective Initial vs Final: {objective_ini} vs {objective_final}")
+  if objective_final < objective_ini: exit(0)
+  else: exit(1)
   
