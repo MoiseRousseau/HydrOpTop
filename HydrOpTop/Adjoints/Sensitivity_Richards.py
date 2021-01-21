@@ -1,6 +1,7 @@
 import time
 from scipy.sparse import coo_matrix, dia_matrix
 from .adjoint_solving import solve_adjoint
+import numpy as np
 
 
 class Sensitivity_Richards:
@@ -93,8 +94,8 @@ class Sensitivity_Richards:
       for j,name in enumerate(Xi_name):
         if name == mat_prop.name:
           dc_dXi_dXi_dp += dc_dXi[j]*self.dXi_dp[i]
-    if self.assign_at_ids is not None and dc_dXi_dXi_dp:
-      dc_dXi_dXi_dp = dc_dXi_dXi_dp[self.assign_at_ids-1]
+    #if self.assign_at_ids is not None and isinstance(dc_dXi_dXi_dp,np.ndarray):
+    #  dc_dXi_dXi_dp = dc_dXi_dXi_dp[self.assign_at_ids-1]
       
     S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
     

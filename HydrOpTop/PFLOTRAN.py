@@ -3,6 +3,7 @@ from scipy.sparse import coo_matrix, dia_matrix
 import h5py
 import subprocess
 import os
+import time
 
 default_gravity = 9.8068
 default_viscosity = 8.904156e-4
@@ -33,10 +34,11 @@ class PFLOTRAN:
     self.pft_out = '.'.join(pft_in.split('.')[:-1])+'.h5'
     self.pft_out_sensitivity = '.'.join(pft_in.split('.')[:-1]) + "-sensitivity-flow"
     self.dict_var_out = {"FACE_AREA" : "Face Area", 
-                         "FACE_DISTANCE_BETWEEN_CENTER" : "",
-                         "FACE_UPWIND_FRACTION" : "",
+                         "FACE_DISTANCE_BETWEEN_CENTER" : "Face Distance Between Center",
+                         "FACE_UPWIND_FRACTION" : "Face Upwind Fraction",
                          "LIQUID_CONDUCTIVITY" : "Liquid Conductivity",
                          "LIQUID_PRESSURE" : "Liquid Pressure",
+                         "PERMEABILITY" : "Permeability",
                          "VOLUME" : "Volume", 
                          "Z_COORDINATE" : "Z Coordinate"}
     self.dict_var_sensitivity_matlab = \
@@ -114,7 +116,7 @@ class PFLOTRAN:
       print("Please provide the name directly after the INTEGRAL_FLUX opening card")
       exit(1)
     #check if defined by cell ids
-    while "CELL_IDS" in line:
+    while "CELL_IDS" not in line:
       i += 1
       line = self.input_deck[i]
       for x in ["POLYGON", "COORDINATES_AND_DIRECTIONS", 
@@ -123,10 +125,15 @@ class PFLOTRAN:
           print("Only INTEGRAL_FLUX defined with CELL_IDS are supported at this time")
           exit(1)
     cell_ids = []
-    while "/" in line or "END" in line:
+    i += 1
+    line = self.input_deck[i].split()
+    while "/" not in line and "END" not in line:
+      cell_ids.append([int(line[0]),int(line[1])])
       i += 1
       line = self.input_deck[i].split()
-      cell_ids.append([line[0],line[1]])
+    if len(cell_ids) == 0:
+      print(f"No connections found in the INTEGRAL_FLUX card \"{integral_flux_name}\"")
+      exit(1)
     return cell_ids
   
   def create_cell_indexed_dataset(self, X_dataset, dataset_name, h5_file_name="",
@@ -146,11 +153,15 @@ class PFLOTRAN:
     """
     #first cell is at i = 0
     if not h5_file_name: h5_file_name=dataset_name.lower()+'.h5'
+    h5_file_name = self.input_folder + h5_file_name
     out = h5py.File(h5_file_name, 'w')
     if X_ids is None: resize_to=False
     if resize_to and self.n_cells != len(X_dataset):
+      if X_ids is None:
+        print("Error: user must provide the cell ids corresponding to the dataset since the length of the dataset length does not match the number of cell in the grid")
+        exit(1)
       X_new = np.zeros(self.n_cells, dtype='f8')
-      X_new[X_ids-1] = X_dataset
+      X_new[X_ids.astype('i8')-1] = X_dataset
       X_dataset = X_new
       X_ids = None
     out.create_dataset(dataset_name, data=X_dataset)
@@ -167,20 +178,41 @@ class PFLOTRAN:
     """
     Run PFLOTRAN. No argument method
     """
+    print("Running PFLOTRAN: ",end='')
     if self.mpicommand:
       cmd = [self.mpicommand, "-n", str(self.nproc), "pflotran", "-pflotranin", self.pft_in]
     else:
       cmd = ["pflotran", "-pflotranin", self.pft_in]
+    tstart = time.time()
     ret = subprocess.call(cmd, stdout=open("PFLOTRAN_simulation.log",'w'))
+    print(f"{time.time() - tstart} s to run simulation")
     if ret: 
       print("\n!!! Error occured in PFLOTRAN simulation !!!")
       print(f"Please see {self.input_folder}PFLOTRAN_simulation.log for more details\n")
     return ret
   
   
-  # interact with output data
+  ### INTERACT WITH OUTPUT DATA ###
   def initiate_output_cell_variable(self):
     return np.zeros(self.n_cells, dtype='f8')
+  
+  
+  def get_internal_connections(self, out=None):
+    """
+    Return the internal connection of the mesh
+    """
+    src = h5py.File(self.pft_out, 'r')
+    if "Domain" in list(src.keys()): prefix = "Domain/"
+    else: prefix = ""
+    try:
+      out = np.array(src[prefix+"Connection Ids"])
+    except:
+      print(f"\nOutput variable \"Domain/Connection Ids\" not found in PFLOTRAN output")
+      print(f"Do you forgot to add the \"PRINT_CONNECTION_IDS\" output variable under \
+              the OUTPUT,SNAPSHOT_FILE card?\n")
+      exit(1)
+    src.close()
+    return out
   
   
   def get_output_variable(self, var, out=None, i_timestep=-1):
@@ -269,13 +301,16 @@ class PFLOTRAN:
     self.__read_input_file__(filename)
     finish = False
     while not finish:
+      restart = False
       for i,line in enumerate(self.input_deck):
         if "EXTERNAL_FILE" in line:
-          line = line.split()
-          index = line.index("EXTERNAL_FILE")
-          self.__read_input_file__(line[index+1])
+          self.input_deck.pop(i)
+          line_split = line.split()
+          index = line_split.index("EXTERNAL_FILE")
+          self.__read_input_file__(self.input_folder+line_split[index+1],append_at_pos=i)
+          restart = True
           break
-      finish = True
+      if not restart: finish = True
     return
   
   def __read_input_file__(self, filename, append_at_pos=0):
@@ -285,7 +320,8 @@ class PFLOTRAN:
     src = open(filename, 'r')
     temp = []
     for line in src.readlines():
-      line = line.split('#')[0][:-1] #remove commentary and \n
+      line = line.split('#')[0] #remove commentary and \n
+      if len(line)>0 and line[-1] == '\n': line = line[:-1]
       if line: temp.append(line) 
     if not self.input_deck: self.input_deck = temp
     else:

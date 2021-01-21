@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 import nlopt
+import functools
 
 from HydrOpTop.Adjoints import Sensitivity_Richards
 
@@ -70,18 +71,10 @@ class Steady_State_Crafter:
   
   
   def pre_evaluation_objective(self, p):
-    ###FILTERING: convert p to p_bar
-    if self.filter is None:
-      p_bar = p
-    else: 
-      for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
-        self.solver.get_output_variable(var, self.filter_i[i], -1) #last timestep
-      p_bar = self.filter.get_filtered_density(p)
-    
     ### UPDATE MAT PROPERTIES AND RUN PFLOTRAN ###
     #Given p, update material properties
     for mat_prop in self.mat_props:
-      X = mat_prop.convert_p_to_mat_properties(p_bar)
+      X = mat_prop.convert_p_to_mat_properties(p)
       self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                     X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
     
@@ -89,9 +82,22 @@ class Steady_State_Crafter:
     ret_code = self.solver.run_PFLOTRAN()
     if ret_code: return np.nan
     
-    ### GET PFLOTRAN OUTPUT ###
-    for i,var in enumerate(self.obj.__get_PFLOTRAN_output_variable_needed__()):
-      self.solver.get_output_variable(var, self.Yi[i], -1) #last timestep
+    ### UPDATE OBJECTIVE ###
+    if self.Yi is None: #need to initialize
+      self.Yi = []
+      for i,var in enumerate(self.obj.__get_PFLOTRAN_output_variable_needed__()):
+        if var == "CONNECTION_IDS":
+          self.Yi.append(self.solver.get_internal_connections())
+          continue
+        self.Yi.append(self.solver.get_output_variable(var))
+      self.obj.set_inputs(self.Yi)
+    else: 
+      for i,var in enumerate(self.obj.__get_PFLOTRAN_output_variable_needed__()):
+        if var == "CONNECTION_IDS":
+          self.solver.get_internal_connections(self.Yi[i])
+          continue
+        else:
+          self.solver.get_output_variable(var, self.Yi[i], -1) #last timestep
       
     ### UPDATE CONSTRAINS ###
     count = 0
@@ -104,15 +110,49 @@ class Steady_State_Crafter:
     
   ### READY MADE WRAPPER FOR POPULAR LIBRARY ###
   def nlopt_function_to_optimize(self, p, grad):
+    """
+    Cost function to pass to NLopt method "set_min/max_objective()"
+    """
     # IO stuff
     self.func_eval += 1
     print(f"\nFonction evaluation {self.func_eval}")
-    ### PRE-EVALUATION ###
-    self.pre_evaluation_objective(p)
-    ### OBJECTIVE EVALUATION AND DERIVATIVE ###
-    cf = self.obj.nlopt_optimize(p,grad)
+    ###FILTERING: convert p to p_bar
+    if self.filter is None:
+      p_bar = p
+    else: 
+      for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
+        self.solver.get_output_variable(var, self.filter_i[i], -1) #last timestep
+      p_bar = self.filter.get_filtered_density(p)
+    ### PRE-EVALUATION
+    self.pre_evaluation_objective(p_bar)
+    ### OBJECTIVE EVALUATION AND DERIVATIVE
+    cf = self.obj.nlopt_optimize(p_bar,grad)
+    if self.filter and grad.size > 0:
+      grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
     self.last_p = np.copy(p)
     return cf
+    
+  
+  def nlopt_constrain(self, i):
+    """
+    Function defining the ith constrains to pass to nlopt "set_(in)equality_constrain()"
+    """
+    return functools.partial(self.__nlopt_generic_constrain_to_optimize__, iconstrain=i)
+  
+  def __nlopt_generic_constrain_to_optimize__(self, p, grad, iconstrain=0):
+    ###FILTERING: convert p to p_bar
+    if self.filter is None:
+      p_bar = p
+    else: 
+      for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
+        self.solver.get_output_variable(var, self.filter_i[i], -1) #last timestep
+      p_bar = self.filter.get_filtered_density(p)
+    constrain = self.constrains[iconstrain].nlopt_optimize(p_bar,grad)
+    if self.filter:
+      grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
+    return constrain
+    
+  
     
   def scipy_function_to_optimize():
     return
@@ -127,27 +167,30 @@ class Steady_State_Crafter:
       for x in self.mat_props:
         if x.get_ids_to_optimize() != X: 
           print("Different cell ids to optimize")
-          print("HydrOpTop require the different mat properties to parametrize the same cell ids")
+          print("HydrOpTop require the different mat properties to parametrize \
+                 the same cell ids")
           exit(1)
     #create correspondance and problem size
     if X is None: #i.e. parametrize all cell in the simulation
       self.problem_size = self.solver.n_cells
-      self.p_ids = None#np.arange(0, self.problem_size) 
+      self.p_ids = np.arange(1, self.problem_size+1) 
     else: 
       self.problem_size = len(X)
       self.p_ids = X #from 0 based indexing to PFLOTRAN indexing
     
     #initialize solver output for objective function
-    n_outputs = len(self.obj.__get_PFLOTRAN_output_variable_needed__())
-    self.Yi = [np.zeros(self.solver.n_cells, dtype='f8') for x in range(n_outputs)]
-    self.obj.set_inputs(self.Yi)
+    #do not set inputs array because we don't know the size of the connection_ids
+    #in case of face output
+#    n_outputs = len(self.obj.__get_PFLOTRAN_output_variable_needed__())
+#    self.Yi = [np.zeros(self.solver.n_cells, dtype='f8') for x in range(n_outputs)]
+#    self.obj.set_inputs(self.Yi)
     #initialize adjoint for objective function
     if self.obj.__require_adjoint__():
       which = self.obj.__require_adjoint__()
       if which == "RICHARDS":
         adjoint = Sensitivity_Richards(self.mat_props, self.solver, self.p_ids)
         self.obj.set_adjoint_problem(adjoint)
-    self.obj.set_p_cell_ids(self.p_ids)
+    self.obj.set_p_to_cell_ids(self.p_ids)
     if filter:
       self.obj.set_filter(self.filter)
     
@@ -164,9 +207,7 @@ class Steady_State_Crafter:
         if which == "RICHARDS":
           adjoint = Sensitivity_Richards(self.mat_props, self.solver, self.p_ids)
           constrain.set_adjoint_problem(adjoint)
-      constrain.set_p_cell_ids(self.p_ids)
-      if self.filter:
-        constrain.set_filter(self.filter)
+      constrain.set_p_to_cell_ids(self.p_ids)
     return
     
   
@@ -178,7 +219,7 @@ class Steady_State_Crafter:
     if self.filter is None:
       return
       
-    self.filter.set_p_cell_ids(self.p_ids)
+    self.filter.set_p_to_cell_ids(self.p_ids)
     n_inputs = len(self.filter.__get_PFLOTRAN_output_variable_needed__())
     
     #TODO: refactor below as I don't like to make one iteration just for
@@ -187,7 +228,7 @@ class Steady_State_Crafter:
       #run pflotran to get its output
       
       #Given p, update material properties
-      p_bar = np.zeros(len(self.p_ids), dtype='f4')
+      p_bar = np.zeros(self.problem_size, dtype='f4')
       for mat_prop in self.mat_props:
         X = mat_prop.convert_p_to_mat_properties(p_bar)
         self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
@@ -202,5 +243,21 @@ class Steady_State_Crafter:
     self.filter.initialize()
     self.d_pbar_dp = self.filter.get_filter_derivative(p_bar)
     return
+    
+  
+  def __print_information__(self):
+    print("""
+\t===================================
+\t
+\t            HydrOpTop
+\t
+\t   Topology optimization tool for
+\t      hydrogeological problem
+\t
+\t               by
+\t       Moise Rousseau (2021)
+\t
+\t===================================
+    """)
     
 

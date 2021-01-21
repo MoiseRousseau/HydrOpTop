@@ -1,4 +1,3 @@
-#Description: Tracer test for determining the fracture and matrix porosity
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -14,16 +13,23 @@ END
 
 SUBSURFACE
 
+
 #=========================== discretization ===================================
 GRID
-  TYPE UNSTRUCTURED_EXPLICIT ./../meshes/2D_voronoi/mesh_2D.uge
+  TYPE UNSTRUCTURED ./mesh.ugi
   UPWIND_FRACTION_METHOD ABSOLUTE_DISTANCE
 END
-REGION inj
-  FILE ./../meshes/2D_voronoi/pit_2D.vs
+REGION xmin
+  FILE ./xmin.ss
 END
-REGION ext
-  FILE ./../meshes/2D_voronoi/xmax_2D.ex
+REGION xmax
+  FILE ./xmax.ss
+END
+REGION pit
+  FILE ./Pit.vs
+END
+REGION rock
+  FILE ./Rock.vs
 END
 
 
@@ -34,6 +40,7 @@ EOS WATER
   VISCOSITY CONSTANT 8.904156d-4 Pa-s
 END
 
+
 #=========================== material properties ==============================
 DATASET permeability
   FILENAME permeability.h5
@@ -41,12 +48,29 @@ END
 
 MATERIAL_PROPERTY mater
   ID 1
-  POROSITY 0.3
-  TORTUOSITY 0.1
   SATURATION_FUNCTION default
+  POROSITY 0.3
   PERMEABILITY
     DATASET permeability
   /
+END
+
+MATERIAL_PROPERTY rock
+  ID 2
+  SATURATION_FUNCTION default
+  POROSITY 0.1
+  PERMEABILITY
+    PERM_ISO 1e-12
+  /
+END
+
+
+#=========================== integral flux ====================================
+INTEGRAL_FLUX barrier
+  EXTERNAL_FILE barrier.txt
+END
+INTEGRAL_FLUX inside
+  EXTERNAL_FILE inside.txt
 END
 
 
@@ -60,19 +84,28 @@ END
 OUTPUT
   FORMAT HDF5
   VARIABLES
+    PERMEABILITY_X
     LIQUID_PRESSURE
     VOLUME
     Z_COORDINATE
+    FACE_AREA
+    FACE_DISTANCE_BETWEEN_CENTER
+    FACE_UPWIND_FRACTION
+  /
+  SNAPSHOT_FILE
+    PRINT_CONNECTION_IDS
   /
   NO_PRINT_INITIAL
+  #NO_PRINT_FINAL
+  PERIODIC_OBSERVATION TIMESTEP 1 
 END
 
 
 #=========================== times ============================================
 TIME
   FINAL_TIME 50 y
-  INITIAL_TIMESTEP_SIZE 100 y
-  MAXIMUM_TIMESTEP_SIZE 1000 y
+  INITIAL_TIMESTEP_SIZE 50 y
+  MAXIMUM_TIMESTEP_SIZE 1e3 y
 END
 
 
@@ -92,14 +125,18 @@ FLOW_CONDITION initial
   TYPE
     PRESSURE hydrostatic
   /
-  DATUM 0 0 10
+  DATUM 0 0 100
+  GRADIENT 
+    PRESSURE -0.01 0. 0.
+  /
   PRESSURE 101325.
 END
-FLOW_CONDITION inj
+
+FLOW_CONDITION inj_rain
   TYPE
     RATE MASS_RATE
   /
-  RATE 1e-4
+  RATE 5d-6
 END
 
 
@@ -110,32 +147,45 @@ INITIAL_CONDITION
   FLOW_CONDITION initial
   REGION all
 END
-SOURCE_SINK inj
-  FLOW_CONDITION inj
-  REGION inj
-END
-BOUNDARY_CONDITION ext
+
+
+BOUNDARY_CONDITION west
   FLOW_CONDITION initial
-  REGION ext
+  REGION xmin
+END
+
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial
+  REGION xmax
+END
+
+SOURCE_SINK in_pit
+  FLOW_CONDITION inj_rain
+  REGION pit
 END
 
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  REGION all
+  REGION rock
+  MATERIAL rock
+END
+
+STRATA
+  REGION pit
   MATERIAL mater
 END
 
 END_SUBSURFACE
 
-#=========================== sensitivity analysis =============================
+
 SENSITIVITY_FLOW
-  OUTPUT 
-    PERIODIC_TIMESTEP 1
-  /
+  SENSITIVITY_OUTPUT_FORMAT HDF5
   VARIABLES
     PRESSURE
     PERMEABILITY
   /
-  SENSITIVITY_OUTPUT_FORMAT HDF5
+  OUTPUT
+    PERIODIC_TIMESTEP 1
+  /
 END

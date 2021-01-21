@@ -27,11 +27,14 @@ def compare_dfunction_dp_with_FD(obj, p, pertub=1e-6):
   diff = abs(deriv - deriv_fd)
   diff[mask] = abs(1-deriv_fd[mask]/deriv[mask])
   index_max = np.argmax(diff)
-  print(f"Max difference: {diff[index_max]} at id {index_max}")
+  print(f"Max difference: {diff[index_max]} at id {index_max+1}")
   if diff[index_max] < 1e-4: 
     print("OK")
     return 0
   else: 
-    print("X")
+    print("X\n")
+    print("Cell id\tBuilt-in\tFinite Diff\tError")
+    for i in range(len(deriv_fd)):
+      print(f"{i+1}\t{deriv[i]:.6e}\t{deriv_fd[i]:.6e}\t{diff[i]:.6e}")
     return 1
     

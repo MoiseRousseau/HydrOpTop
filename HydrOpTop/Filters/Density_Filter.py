@@ -19,18 +19,21 @@ class Density_Filter:
     self.mesh_center = None
     self.neighbors = None
     self.initialized = False
+    
+    self.output_variable_needed = ["XC", "YC", "ZC", "VOLUME"]
     return
   
-  def set_p_cell_ids(self, p_ids):
-    self.p_ids = p_ids
+  def set_p_to_cell_ids(self, p_ids):
+    self.p_ids = p_ids #if None, this mean all the cell are parametrized
     return
   
   def set_inputs(self, inputs):
     if self.p_ids is None:
-      print("ERROR: p_ids should be firstly initialized through set_p_ids()")
-      exit(1)
-    self.volume = inputs[3][self.p_ids-1] #just need those in the optimized domain
-    self.mesh_center = np.array(inputs[:3])[:,self.p_ids-1].transpose() #same here
+      self.volume = inputs[3]
+      self.mesh_center = np.array(inputs[:3]).transpose()
+    else:
+      self.volume = inputs[3][self.p_ids-1] #just need those in the optimized domain
+      self.mesh_center = np.array(inputs[:3])[:,self.p_ids-1].transpose() #same here
     return
   
   def initialize(self):
@@ -71,9 +74,6 @@ class Density_Filter:
     return out
   
   def __get_PFLOTRAN_output_variable_needed__(self):
-    return ["XC", "YC", "ZC", "VOLUME"]
-  def __depend_of_mat_props__(self, var=None):
-    if var is None: return []
-    else: return False
+    return self.output_variable_needed 
   
 

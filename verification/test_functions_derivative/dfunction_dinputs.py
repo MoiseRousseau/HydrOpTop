@@ -4,11 +4,11 @@
 # calculation
 #
 
-from dfunction_dp import common_compare
+from common_compare import common_compare
 from HydrOpTop.debug import compare_dfunction_dinputs_with_FD
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":         
   err = common_compare(compare_dfunction_dinputs_with_FD)
   if err: exit(1)
   else: exit(0)

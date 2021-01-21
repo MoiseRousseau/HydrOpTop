@@ -33,6 +33,7 @@ def compare_adjoint_with_FD(craft_objet, p, cell_ids_to_check, pertub=1e-3):
   print("\n  Cell id\tGradient Adjoint\tGradient FD\tDifference")
   for i,cell_id in enumerate(cell_ids_to_check):
     index = cell_index[i]
+    if index == -1: continue
     diff = 1 - np.abs(grad_FD[i]/grad_adjoint[index])
     if diff > max_error: max_error = diff
     print(f"  {cell_id}\t\t{grad_adjoint[index]:.6E}\t\t{grad_FD[i]:.6E}\t{diff:.3%}")

@@ -8,10 +8,12 @@ class Volume_Percentage:
   - ids_to_sum_volume: the cell ids where to calculate the percentage (default: everywhere)
   - max_volume_percentage: the maximum volume percentage (default: 0.2)
   """
-  def __init__(self, ids_to_sum_volume="everywhere", max_volume_percentage=0.2):
-    if isinstance(ids_to_sum_volume, str) and \
-               ids_to_sum_volume.lower() == "everywhere":
-      self.ids_to_consider = None
+  def __init__(self, ids_to_sum_volume="parametrized_cell", max_volume_percentage=0.2):
+    if isinstance(ids_to_sum_volume, str):
+      if ids_to_sum_volume.lower() == "parametrized_cell":
+        self.ids_to_consider = None
+      else:
+        print("Non-recognized option for ids_to_sum_volume: " + ids_to_sum_volume)
     else:
       self.ids_to_consider = ids_to_sum_volume
     self.max_v_frac = max_volume_percentage
@@ -28,16 +30,12 @@ class Volume_Percentage:
     self.dobj_dmat_props = [0.]
     self.dobj_dp_partial = None
     self.adjoint = None
-    self.filter = None
     
     
     
     self.output_variable_needed = ["VOLUME"] 
     return
   
-  def set_filter(self, filter):
-    self.filter = filter
-    return
   
   def set_inputs(self, inputs):
     self.V = inputs[0]
@@ -46,7 +44,7 @@ class Volume_Percentage:
   def get_inputs(self):
     return [self.V]
     
-  def set_p_cell_ids(self, cell_ids):
+  def set_p_to_cell_ids(self, cell_ids):
     self.p_cell_ids = cell_ids
     return
   
@@ -65,9 +63,10 @@ class Volume_Percentage:
     #p[self.p_cell_ids] = p_bar #self.p spand over all the domain, 
                                   #but p_bar only on the cell id to optimize
     if self.ids_to_consider is None:
-      cf = np.sum(self.V*p)/self.V_tot - self.max_v_frac
+      #sum on all parametrized cell
+      cf = np.sum(self.V[self.p_cell_ids-1]*p)/self.V_tot - self.max_v_frac
     else:
-      cf = np.sum((self.V*p)[self.ids_to_consider-1])/self.V_tot - self.max_v_frac
+      cf = np.sum((self.V[self.ids_to_consider-1]*p))/self.V_tot - self.max_v_frac
     return cf
   
   
@@ -89,12 +88,10 @@ class Volume_Percentage:
       out = np.zeros(len(p), dtype='f8')
       
     if self.ids_to_consider is None:
-      out[:] = self.V/self.V_tot
+      out[:] = self.V[self.p_cell_ids-1]/self.V_tot
     else:
       out[:] = self.V[self.ids_to_consider-1]/self.V_tot
       
-    #if self.filter:
-    #  out[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
     return out
     
   
@@ -115,7 +112,7 @@ class Volume_Percentage:
     """
     self.initialized = True
     if self.ids_to_consider is None:
-      self.V_tot = np.sum(self.V)
+      self.V_tot = np.sum(self.V[self.p_cell_ids-1])
     else:
       self.V_tot = np.sum(self.V[self.ids_to_consider-1])
     return

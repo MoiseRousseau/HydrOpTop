@@ -4,12 +4,12 @@
 # calculation
 #
 
-from dfunction_dp import common_compare
-from HydrOpTop.debug import compare_dfunction_dpressure_with_FD
+from common_compare import common_compare
+from HydrOpTop.debug import compare_dfunction_dp_with_FD
 
 
 if __name__ == "__main__":
-  err = common_compare(compare_dfunction_dpressure_with_FD)
+  err = common_compare(compare_dfunction_dp_with_FD)
   if err: exit(1)
   else: exit(0)
 

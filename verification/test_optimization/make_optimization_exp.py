@@ -18,18 +18,19 @@ from HydrOpTop import PFLOTRAN
 
 if __name__ == "__main__":
   #create PFLOTRAN simulation object
-  pflotranin = "exp_grid.in"
+  pflotranin = "../PFLOTRAN_problems/pit_voronoi/pflotran.in"
   sim = PFLOTRAN(pflotranin)
   
   #get cell ids in the region to optimize and parametrize permeability
   #same name than in pflotran input file
-  perm = Permeability([1e-14, 1e-10], cell_ids_to_parametrize="everywhere", power=3)
+  pit_ids = sim.get_region_ids("pit")
+  perm = Permeability([1e-14, 1e-10], cell_ids_to_parametrize=pit_ids, power=3)
   
   #define cost function as sum of the head in the pit
   cf = Sum_Liquid_Piezometric_Head(ids_to_sum="everywhere", penalizing_power=1)
   
   #define maximum volume constrains
-  max_vol = Volume_Percentage("everywhere", 0.2)
+  max_vol = Volume_Percentage("parametrized_cell", 0.2)
   
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
@@ -59,7 +60,7 @@ if __name__ == "__main__":
   p_opt = opt.optimize(p)
   objective_final = crafted_problem.nlopt_function_to_optimize(p_opt, np.zeros(0))
   
-  print(f"Objective Initial vs Final: {objective_ini} vs {objective_final}")
+  print(f"\nObjective Initial vs Final: {objective_ini} vs {objective_final}")
   
   if objective_final < objective_ini: exit(0)
   else: exit(1)

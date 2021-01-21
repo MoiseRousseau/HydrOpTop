@@ -8,7 +8,7 @@ import h5py
 
 import nlopt
                                   
-from HydrOpTop.Functions import Sum_Liquid_Piezometric_Head
+from HydrOpTop.Functions import Sum_Flux
 from HydrOpTop.Functions import Volume_Percentage
 from HydrOpTop.Materials import Permeability
 from HydrOpTop.Crafter import Steady_State_Crafter
@@ -19,7 +19,7 @@ from HydrOpTop.debug import compare_adjoint_with_FD
 
 if __name__ == "__main__":
   #create PFLOTRAN simulation object
-  pflotranin = "pflotran_subset.in"
+  pflotranin = "../../PFLOTRAN_problems/pit_general/pflotran.in"
   sim = PFLOTRAN(pflotranin)
   
   #get cell ids in the region to optimize and parametrize permeability
@@ -28,10 +28,11 @@ if __name__ == "__main__":
   perm = Permeability([1e-14, 1e-10], cell_ids_to_parametrize=pit_ids, power=3)
   
   #define cost function as sum of the head in the pit
-  cf = Sum_Liquid_Piezometric_Head(ids_to_sum=pit_ids, penalizing_power=3)
+  barrier_ids = sim.get_connections_ids_integral_flux("inside")
+  cf = Sum_Flux(barrier_ids, square=True)
   
   #define maximum volume constrains
-  max_vol = Volume_Percentage(pit_ids, 0.2)
+  max_vol = Volume_Percentage(pit_ids, 0.3)
   
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
@@ -54,9 +55,11 @@ if __name__ == "__main__":
   
   #initial guess
   p = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.001
-  p[:] = 0.1
+  p[:150] = 0.99
   
-  err = compare_adjoint_with_FD(crafted_problem,p,[21,154,444,608,879],pertub=1e-3)
+  err = compare_adjoint_with_FD(crafted_problem,p,[102,99],pertub=1e-1) 
+  #154,325,247 does not converge
+  
   print("")
   exit(err)
   

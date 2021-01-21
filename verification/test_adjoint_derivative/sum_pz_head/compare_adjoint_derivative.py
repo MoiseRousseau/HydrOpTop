@@ -5,7 +5,7 @@
 
 import sys
 import os
-path = os.getcwd() + '/../../'
+path = os.getcwd() + '/../../../'
 sys.path.append(path)
 
 import h5py
@@ -18,15 +18,19 @@ from HydrOpTop.Adjoints import Sensitivity_Richards
 from HydrOpTop.Materials import Permeability
 
 
+pft_pb = "./../../PFLOTRAN_problems/quad_128_hetero/"
+pft_in = "./../../PFLOTRAN_problems/quad_128_hetero/pflotran.in"
+
+
 def compute_sensitivity_adjoint():
   #initialize model field
   print("Initialize PFLOTRAN model with the given permeability field")
-  pft_model = PFLOTRAN("pflotran.in")
+  pft_model = PFLOTRAN(pft_in)
   #pft_model.set_parallel_calling_command(4,"mpiexec.mpich")
-  perm_data = np.genfromtxt("permeability_field.csv", comments='#')
+  perm_data = np.genfromtxt(pft_pb+"permeability_field.csv", comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   pft_model.create_cell_indexed_dataset(perm_field, "permeability", 
-                                        "Permeability.h5", cell_ids)
+                                        "permeability.h5", cell_ids)
   #run model
   print("Run model")
   pft_model.run_PFLOTRAN()
@@ -55,11 +59,11 @@ def compute_sensitivity_adjoint():
 
 def compute_sensitivity_finite_difference(cell_ids_to_test=None, pertub = 1e-6):
   #initiate data for calculating finite difference
-  pft_model = PFLOTRAN("pflotran.in")
-  perm_data = np.genfromtxt("permeability_field.csv", comments='#')
+  pft_model = PFLOTRAN(pft_in)
+  perm_data = np.genfromtxt(pft_pb+"permeability_field.csv", comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   pft_model.create_cell_indexed_dataset(perm_field, "permeability", 
-                                        "Permeability.h5", cell_ids)
+                                        "permeability.h5", cell_ids)
   
   #run model for current objective
   pft_model.run_PFLOTRAN()
@@ -78,7 +82,7 @@ def compute_sensitivity_finite_difference(cell_ids_to_test=None, pertub = 1e-6):
     old_perm = perm_field[cell-1]
     perm_field[cell-1] += old_perm * pertub
     pft_model.create_cell_indexed_dataset(perm_field, "permeability", 
-                                          "Permeability.h5", cell_ids)
+                                          "permeability.h5", cell_ids)
     pft_model.run_PFLOTRAN()
     pft_model.get_output_variable("LIQUID_PRESSURE",out=pressure)
     cur_obj = objective.evaluate(0.)
