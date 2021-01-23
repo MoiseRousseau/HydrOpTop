@@ -1,7 +1,7 @@
 import numpy as np 
 
 
-def compare_adjoint_with_FD(craft_objet, p, cell_ids_to_check, pertub=1e-3):
+def compare_adjoint_with_FD(craft_objet, p, cell_ids_to_check, pertub=1e-3, accept=1e-2):
   #compute gradient using adjoint
   print("Compute gradient using adjoint method")
   grad_adjoint = np.zeros(len(p), dtype="f8")
@@ -34,9 +34,9 @@ def compare_adjoint_with_FD(craft_objet, p, cell_ids_to_check, pertub=1e-3):
   for i,cell_id in enumerate(cell_ids_to_check):
     index = cell_index[i]
     if index == -1: continue
-    diff = 1 - np.abs(grad_FD[i]/grad_adjoint[index])
+    diff = abs(1 - grad_FD[i]/grad_adjoint[index])
     if diff > max_error: max_error = diff
     print(f"  {cell_id}\t\t{grad_adjoint[index]:.6E}\t\t{grad_FD[i]:.6E}\t{diff:.3%}")
   
-  if max_error > 0.01: return 1
+  if max_error > accept: return 1
   else: return 0

@@ -63,7 +63,7 @@ def compute_sensitivity_finite_difference(cell_ids_to_test=None, pertub = 1e-6):
   perm_data = np.genfromtxt(pft_pb+"permeability_field.csv", comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   pft_model.create_cell_indexed_dataset(perm_field, "permeability", 
-                                        "permeability.h5", cell_ids)
+                                        "permeability.h5")
   
   #run model for current objective
   pft_model.run_PFLOTRAN()
@@ -107,11 +107,11 @@ def make_verification(cell_ids=None):
     rel_diff = 1 - S_adjoint/S_FD
     
   #out = open("diff.txt",'w')
-  print("Cell_Id S_adjoint S_finite_diff Relative_difference")
+  print("Cell_Id\tS_adjoint\tS_finite_diff\tRelative_difference")
   for i in range(len(S_FD)):
     if cell_ids is None: cell = i+1
     else: cell = cell_ids[i]
-    print(f"{cell} {S_adjoint[cell-1]:.6e} {S_FD[i]:.6e} {rel_diff[i]:.6e}")
+    print(f"{cell}\t{S_adjoint[cell-1]:.6e}\t{S_FD[i]:.6e}\t{rel_diff[i]:.6e}")
   #out.close()
   print(f"\nMax relative diff (must be close to 0): {np.max(abs(rel_diff))}")
   

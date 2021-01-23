@@ -5,3 +5,4 @@ __pycache__/
 *.xmf
 *.h5
 *diff.txt
+*out.txt

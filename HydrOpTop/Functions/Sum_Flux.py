@@ -27,7 +27,7 @@ class Sum_Flux:
         print("Something went wrong with the connections provided:")
         print(connections)
         exit(1)
-      if (True in self.connections_to_sum < 0):
+      if (True in (self.connections_to_sum < 0)):
         print("Error: some connections implied a cell id <= 0")
         exit(1)
     self.squared = square
@@ -62,6 +62,7 @@ class Sum_Flux:
                                    "PERMEABILITY", "FACE_UPWIND_FRACTION", 
                                    "FACE_DISTANCE_BETWEEN_CENTER",
                                    "Z_COORDINATE", "CONNECTION_IDS"] 
+    self.name = "Flux Sum"
     return
     
   def set_ids_to_consider(self, x):
@@ -77,13 +78,14 @@ class Sum_Flux:
     in-place, so that function will never be called again...
     """
     #parse input at each iteration
+    no_bc_connections = (inputs[6][:,0] > 0) * (inputs[6][:,1] > 0)
     self.pressure = inputs[0]
-    self.areas = inputs[1]
+    self.areas = inputs[1][no_bc_connections]
     self.k = inputs[2]
-    self.d_fraction = inputs[3]
-    self.distance = inputs[4]
+    self.d_fraction = inputs[3][no_bc_connections]
+    self.distance = inputs[4][no_bc_connections]
     self.z = inputs[5]
-    self.connection_ids = inputs[6]
+    self.connection_ids = inputs[6][no_bc_connections]
     return
   
   def get_inputs(self):
@@ -99,13 +101,11 @@ class Sum_Flux:
     self.p_ids = p_ids
     #here we need the reverse, i.e. we know the cell id in PFLOTRAN 
     #and we need the index in p
+    #self.ids_p = np.zeros(len(p_ids),dtype='i8')
+    #self.ids_p[self.p_ids] = np.arange(len(self.p_ids))
     self.ids_p = {}
     for i,x in enumerate(self.p_ids): self.ids_p[x] = i #conversion from PFLOTRAN to zeros based
     return 
-    
-  def set_filter(self, filter):
-    self.filter = filter
-    return
   
   def set_adjoint_problem(self, x):
     """
@@ -264,7 +264,7 @@ class Sum_Flux:
     cf = self.evaluate(p)
     if grad.size > 0:
       self.d_objective_dp_total(p,grad)
-    print(f"Current flux: {cf:.6e}")
+    print(f"Current {self.name}: {cf:.6e}")
     return cf
   
   
@@ -277,11 +277,25 @@ class Sum_Flux:
     print("Initializing Sum_Flux function...")
     self.initialized = True
     if self.connections_to_sum is None:
-      no_bc_connections = (self.connection_ids[:,0] > 0) * (self.connection_ids[:,1] > 0)
-      self.connections_to_sum = self.connection_ids[no_bc_connections] - 1
+      #no_bc_connections = (self.connection_ids[:,0] > 0) * (self.connection_ids[:,1] > 0)
+      #self.connections_to_sum = self.connection_ids[no_bc_connections] - 1
+      self.connections_to_sum = self.connection_ids - 1
       self.mask = np.arange(0,len(self.connections_to_sum))
     #compute derived quantities
     #extracted quantities
+    #mask = np.isin(self.connection_ids[:,0]-1,self.connections_to_sum[:,0]) * \
+    #                  np.isin(self.connection_ids[:,1]-1,self.connections_to_sum[:,1])
+    #print(mask)
+    #mask += np.isin(self.connection_ids[:,1]-1,self.connections_to_sum[:,0]) + \
+    #                  np.isin(self.connection_ids[:,0]-1,self.connections_to_sum[:,1])
+    #print(np.isin(self.connection_ids[:,1]-1,self.connections_to_sum[:,0]) + \
+    #                  np.isin(self.connection_ids[:,0]-1,self.connections_to_sum[:,1]))
+    #print(mask)
+    #self.mask = np.where(mask)
+    #print(self.connection_ids, self.connections_to_sum+1, self.mask)
+    #test = len(self.connections_to_sum) - len(self.mask)
+    #if test:
+    #  print("Warning! Some connections were missed!")
     if self.mask is None:
       self.mask = np.zeros(len(self.connections_to_sum),dtype='i8')-1
       count = -1
@@ -297,6 +311,7 @@ class Sum_Flux:
         if not found:
           print(f"Warning! Connection {i+1,j+1} missed !")
           print("This could be a non-existing connection")
+      
     if self.area_con is None: self.area_con = self.areas[self.mask]
     if self.distance_con is None: self.distance_con = self.distance[self.mask]
     if self.d_fraction_con is None: self.d_fraction_con = self.d_fraction[self.mask]
@@ -313,9 +328,5 @@ class Sum_Flux:
   def __require_adjoint__(self): return "RICHARDS"
   def __get_PFLOTRAN_output_variable_needed__(self):
     return self.output_variable_needed
-#  def __depend_of_mat_props__(self, var=None):
-#    if var is None: return self.mat_props_dependance
-#    if var in self.mat_props_dependance: return True
-#    else: return False
+  def __get_name__(self): return self.name
 
-                      

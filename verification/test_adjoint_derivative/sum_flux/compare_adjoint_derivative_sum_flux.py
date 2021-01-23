@@ -28,11 +28,11 @@ if __name__ == "__main__":
   perm = Permeability([1e-14, 1e-10], cell_ids_to_parametrize=pit_ids, power=3)
   
   #define cost function as sum of the head in the pit
-  barrier_ids = sim.get_connections_ids_integral_flux("inside")
+  barrier_ids = sim.get_connections_ids_integral_flux("barrier")
   cf = Sum_Flux(barrier_ids, square=True)
   
   #define maximum volume constrains
-  max_vol = Volume_Percentage(pit_ids, 0.3)
+  max_vol = Volume_Percentage(pit_ids, 0.8)
   
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
@@ -51,14 +51,13 @@ if __name__ == "__main__":
   
   #define stop criterion
   opt.set_ftol_rel(0.000001)
-  opt.set_maxeval(1)
+  opt.set_maxeval(100)
   
   #initial guess
-  p = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.001
-  p[:150] = 0.99
+  #p = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.001
+  p = np.random.random(crafted_problem.get_problem_size())
   
-  err = compare_adjoint_with_FD(crafted_problem,p,[102,99],pertub=1e-1) 
-  #154,325,247 does not converge
+  err = compare_adjoint_with_FD(crafted_problem,p,[102,247,154,325],pertub=1e-3,accept=1e-1)
   
   print("")
   exit(err)

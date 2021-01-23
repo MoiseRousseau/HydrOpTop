@@ -9,7 +9,7 @@ from HydrOpTop.debug import compare_dfunction_dinputs_with_FD
 
 
 if __name__ == "__main__":         
-  err = common_compare(compare_dfunction_dinputs_with_FD)
+  err = common_compare(compare_dfunction_dinputs_with_FD, pertub=1e-8, accept=1e-3)
   if err: exit(1)
   else: exit(0)
 

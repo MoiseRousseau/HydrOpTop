@@ -34,10 +34,10 @@ class My_Function:
                                    #same size than self.output_variable_needed (see below)
     self.dobj_dp_partial = 0. #derivative of the function wrt material parameter
     self.adjoint = None #attribute storing adjoint
-    self.filter = None #store the filter object
     
     #required for problem crafting
     self.output_variable_needed = ["LIQUID_PRESSURE", "DUMMY_VARIABLE"] #a list of the needed pflotran output variable
+    self.name = "Template" #function name for output
     return
     
   def set_ids_to_consider(self, x):
@@ -50,6 +50,8 @@ class My_Function:
     variables to the objective
     Inputs argument have the same size and in the same order given in
     "self.output_variable_needed".
+    Note that the inputs will be passed one time only, and will after be changed
+    in-place, so that function will never be called again...
     """
     self.X0 = inputs[0]
     self.X1 = inputs[1]
@@ -63,18 +65,18 @@ class My_Function:
     #note X0 was linked to inputs[0], and X1 to inputs[1]
     return [self.X0, self.X1]
   
-  def set_p_cell_ids(self,p_ids):
+  def set_p_to_cell_ids(self,p_ids):
     """
     Method that pass the correspondance between the index in p and the
     PFLOTRAN cell ids.
     Required by the Crafter
     """
     self.p_ids = p_ids
+    #self.ids_p = -np.ones(np.max(p_ids),dtype='i8') #-1 mean not optimized
+    #self.ids_p[self.p_ids-1] = np.arange(len(self.p_ids))
+    #with the above, we can assess the index in p of optimized PFLOTRAN cell with 
+    # p_index = self.ids_p[PFLOTRAN_index-1]
     return 
-    
-  def set_filter(self, filter):
-    self.filter = filter
-    return
   
   def set_adjoint_problem(self, x):
     self.adjoint = x
@@ -156,8 +158,6 @@ class My_Function:
     self.d_objective_dp_partial(p) #update function derivative wrt mat parameter p
     out[:] = self.adjoint.compute_sensitivity(p, self.dobj_dP, 
                  self.dobj_dmat_props, self.output_variable_needed) + self.dobj_dp_partial
-    if self.filter:
-      out[:] = self.filter.get_filter_derivative(p).transpose().dot(out)
     return out
   
   
@@ -171,7 +171,7 @@ class My_Function:
     cf = self.evaluate(p)
     if grad.size > 0:
       self.d_objective_dp_total(p,grad)
-    print(f"Current head sum: {cf}")
+    print(f"Current {self.name}: {cf}:.6e")
     return cf
   
   
@@ -189,5 +189,5 @@ class My_Function:
   def __require_adjoint__(self): return False #"RICHARDS" or "TRANSPORT" or False if not required
   def __get_PFLOTRAN_output_variable_needed__(self):
     return self.output_variable_needed 
-
-                      
+  def __get_name__(self): return self.name
+                       

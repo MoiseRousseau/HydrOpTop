@@ -24,6 +24,7 @@ class Steady_State_Crafter:
             (a fitler class instance) (None by default).
   """
   def __init__(self, objectif, solver, mat_props, constrains, filter=None, coupling="total"):
+    self.__print_information__()
     self.mat_props = mat_props
     self.solver = solver
     self.obj = objectif
@@ -41,8 +42,14 @@ class Steady_State_Crafter:
     self.adjoint_tol = None
     
     #option
+    #hdf5 file storing the material parameter p
     self.print_every = 0
-    self.print_every_out = "p.h5"
+    self.print_out = "HydrOpTop.h5"
+    self.first_out = True
+    self.print_gradient = False
+    #ascii file storing the optimization path
+    self.record_opt_value_to = "out.txt"
+    self.first_record = True
     
     self.__initialize_IO_array__()
     self.__initialize_filter__()
@@ -62,14 +69,70 @@ class Steady_State_Crafter:
         constrain.adjoint.set_adjoint_solving_algo(algo, tol)
     return
   
-  def print_density_parameter_every_iteration(self, every_it, out=None):
+  
+  
+  ### OUTPUT ###
+  def output_every_iteration(self, every_it, out=None):
+    """
+    Define the periodic iteration at which to output the material parameter p, the gradient, and the material properties (default 0, no output).
+    """
     self.print_every = every_it
-    if out is not None: self.print_every_out = out
-    #TODO implement this
+    if out is not None: self.print_out = out
+    return
+    
+  def output_gradient(self,x=True):
+    """
+    Enable output the gradient of the cost function wrt p (default False)
+    """
+    self.print_gradient = x
+    return
+    
+  def __save_p_to_output_file__(self,p):
+    if self.first_out:
+      out = h5py.File(self.print_out, "w")
+      out.create_dataset("Cell Ids", data=self.p_ids)
+      self.first_out = False
+    else:
+      out = h5py.File(self.print_out, "a")
+    #save p
+    out.create_dataset(f"Density parameter p/Iteration {self.func_eval}", data=p)
+    #save parametrized material
+    for mat_prop in self.mat_props:
+      X = mat_prop.convert_p_to_mat_properties(p)
+      name = mat_prop.get_name()
+      out.create_dataset(f"{name}/Iteration {self.func_eval}", data=X)
+    out.close()
     return
   
+  def __save_gradient_to_file__(self,grad):
+    out = h5py.File(self.print_out, "a")
+    out.create_dataset(f"Gradient df_dp/Iteration {self.func_eval}", data=grad)
+    out.close()
+    return
   
+  def __record_optimization_value__(self, cf):
+    if self.first_record:
+      self.first_record = False
+      out = open(self.record_opt_value_to, 'w')
+      out.write(f"Iteration\t{self.obj.__get_name__()}")
+      for constrain in self.constrains:
+        out.write(f"\t{constrain.__get_name__()}")
+      out.write('\n')
+    else:
+      out = open(self.record_opt_value_to, 'a')
+      out.write("\n")
+    out.write(f"{self.func_eval}\t{cf:.6e}")
+    out.close()
+    return
+    
+  def  __record_optimization_value_constrain__(self, cf):
+    out = open(self.record_opt_value_to, 'a')
+    out.write(f"\t{cf:.6e}")
+    out.close()
+    return
+    
   
+  ### PRE-EVALUATION ###
   def pre_evaluation_objective(self, p):
     ### UPDATE MAT PROPERTIES AND RUN PFLOTRAN ###
     #Given p, update material properties
@@ -107,7 +170,8 @@ class Steady_State_Crafter:
         count += 1
     return
     
-    
+  
+  
   ### READY MADE WRAPPER FOR POPULAR LIBRARY ###
   def nlopt_function_to_optimize(self, p, grad):
     """
@@ -116,6 +180,8 @@ class Steady_State_Crafter:
     # IO stuff
     self.func_eval += 1
     print(f"\nFonction evaluation {self.func_eval}")
+    if self.print_every != 0 and (self.func_eval % self.print_every) == 0:
+      self.__save_p_to_output_file__(p)
     ###FILTERING: convert p to p_bar
     if self.filter is None:
       p_bar = p
@@ -130,6 +196,11 @@ class Steady_State_Crafter:
     if self.filter and grad.size > 0:
       grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
     self.last_p = np.copy(p)
+    if self.print_gradient and self.print_every and self.func_eval % self.print_every:
+      self.__save_gradient_to_output_file__(p)
+    self.__record_optimization_value__(cf)
+    if self.print_every != 0 and (self.func_eval % self.print_every) == 0:
+      self.__save_gradient_to_file__(grad)
     return cf
     
   
@@ -150,15 +221,17 @@ class Steady_State_Crafter:
     constrain = self.constrains[iconstrain].nlopt_optimize(p_bar,grad)
     if self.filter:
       grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
+    self.__record_optimization_value_constrain__(constrain)
     return constrain
     
-  
-    
+   
   def scipy_function_to_optimize():
     return
   
   
   
+  
+  ### INITIALIZATION ###
   def __initialize_IO_array__(self):
     print("Initialization...")
     #verify if each cells to parametrize are the same
@@ -191,8 +264,6 @@ class Steady_State_Crafter:
         adjoint = Sensitivity_Richards(self.mat_props, self.solver, self.p_ids)
         self.obj.set_adjoint_problem(adjoint)
     self.obj.set_p_to_cell_ids(self.p_ids)
-    if filter:
-      self.obj.set_filter(self.filter)
     
     #initialize constrains
     #TODO: initialize constrains
@@ -246,7 +317,7 @@ class Steady_State_Crafter:
     
   
   def __print_information__(self):
-    print("""
+    print("""\n
 \t===================================
 \t
 \t            HydrOpTop

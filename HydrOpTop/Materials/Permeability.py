@@ -57,5 +57,22 @@ class Permeability:
   def get_name(self):
     return "PERMEABILITY"
     
+  def plot_K_vs_p(self):
+    try:
+      import matplotlib.pyplot as plt
+    except:
+      print("Plot requires the matplotlib library")
+      return
+    p = np.arange(0,101)/100
+    K = self.convert_p_to_mat_properties(p)
+    fig, ax = plt.subplots()
+    ax.plot(p,K,'r')
+    ax.set_xlabel("Material parameter p")
+    ax.set_yscale("log")
+    ax.set_ylabel("Permeability [m^2]")
+    ax.grid()
+    plt.show()
+    return
+    
 
 

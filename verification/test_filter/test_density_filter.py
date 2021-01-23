@@ -25,7 +25,7 @@ if __name__ == "__main__":
   bounding_box = [0.,1.,0.,1.]
   mesh = utils.voronoi_bounded(points,bounding_box)
   #update filter
-  filter.set_p_cell_ids(np.arange(1,n_pts+1))
+  filter.set_p_to_cell_ids(np.arange(1,n_pts+1))
   filter.set_inputs([points[:,0], points[:,1], np.zeros(n_pts,dtype='f8'), mesh.areas])
   
   #compare initial p and filtered p_bar

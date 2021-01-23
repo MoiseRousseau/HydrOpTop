@@ -48,6 +48,7 @@ class Sum_Liquid_Piezometric_Head:
     
     #required for problem crafting
     self.output_variable_needed = ["LIQUID_PRESSURE", "Z_COORDINATE"]
+    self.name = "Head Sum"
     return
     
   def set_ids_to_sum(self, x):
@@ -170,7 +171,7 @@ class Sum_Liquid_Piezometric_Head:
     cf = self.evaluate(p)
     if grad.size > 0:
       self.d_objective_dp_total(p,grad)
-    print(f"Current head sum: {cf:.6e}")
+    print(f"Current {self.name}: {cf:.6e}")
     return cf
   
   
@@ -178,5 +179,5 @@ class Sum_Liquid_Piezometric_Head:
   def __require_adjoint__(self): return "RICHARDS"
   def __get_PFLOTRAN_output_variable_needed__(self):
     return self.output_variable_needed
-
+  def __get_name__(self): return self.name
                       

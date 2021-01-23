@@ -13,7 +13,7 @@ import HydrOpTop.Functions as Functions
 from HydrOpTop import PFLOTRAN
 
 
-def common_compare(debug_function):
+def common_compare(debug_function, pertub=1e-6, accept=1e-3):
   # get the function to tests
   functions_to_test = inspect.getmembers(Functions, predicate=inspect.isclass)
   print(f"{len(functions_to_test)} HydrOpTop functions to test")
@@ -24,6 +24,7 @@ def common_compare(debug_function):
   sim = PFLOTRAN(pflotranin)
   #create a random material parameter
   p = np.random.random(sim.get_grid_size())
+  #p = np.ones(sim.get_grid_size())
   perm_data = np.genfromtxt("../PFLOTRAN_problems/quad_128_hetero/permeability_field.csv",
                              comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
@@ -49,7 +50,7 @@ def common_compare(debug_function):
     obj.set_inputs(inputs)
     obj.set_p_to_cell_ids(np.arange(1,sim.n_cells+1))
     #compare
-    ret_code = debug_function(obj, p)
+    ret_code = debug_function(obj, p, pertub=pertub, accept=accept)
     if ret_code: err = True
     #except:
     #  print("Error occuring during function evaluation")

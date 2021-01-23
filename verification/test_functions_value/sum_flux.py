@@ -27,7 +27,7 @@ if __name__ == "__main__":
   #get integral flux result
   src = open("../PFLOTRAN_problems/pit_general/pflotran-int.dat", 'r')
   line = src.readlines()[-1]
-  flux_pft = float(line.split()[-1]) / (3600*24*365.25) / default_water_density
+  flux_pft = float(line.split()[3]) / (3600*24*365.25) / default_water_density
   print(f"PFLOTRAN flux: {flux_pft:.6e} m3/s")
   
   #compare with the objective sum flux

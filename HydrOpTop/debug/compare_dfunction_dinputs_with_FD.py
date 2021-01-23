@@ -2,7 +2,7 @@ import numpy as np
 #import ..Materials as Materials
 
 
-def compare_dfunction_dinputs_with_FD(obj, p, cell_to_check=None, pertub=1e-6, 
+def compare_dfunction_dinputs_with_FD(obj, p, cell_to_check=None, pertub=1e-6, accept=1e-3,
                                       detailed_info = False):
   """
   Test if the derivative computed by the function d_objective_dP() in a Function
@@ -47,7 +47,7 @@ def compare_dfunction_dinputs_with_FD(obj, p, cell_to_check=None, pertub=1e-6,
     diff = diff[cell_to_check]
     index_max = np.argmax(diff)
     print(f"Max difference for variable \"{name}\": {diff[index_max]} at id {index_max+1}")
-    if diff[index_max] < 1e-4 and not detailed_info: 
+    if diff[index_max] < accept and not detailed_info: 
       print("OK")
     else: 
       print("X\n")

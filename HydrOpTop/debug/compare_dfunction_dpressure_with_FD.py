@@ -1,7 +1,7 @@
 import numpy as np 
 
 
-def compare_dfunction_dpressure_with_FD(obj, p, pertub=1e-6):
+def compare_dfunction_dpressure_with_FD(obj, p, pertub=1e-6, accept=1e-3):
   """
   Test if the derivative computed by the function d_objective_dP() in a Function
   instance is correct versus finite difference
@@ -39,7 +39,7 @@ def compare_dfunction_dpressure_with_FD(obj, p, pertub=1e-6):
   diff[mask] = abs(1-deriv_fd[mask]/deriv[mask])
   index_max = np.argmax(diff)
   print(f"Max difference: {diff[index_max]} at id {index_max+1}")
-  if diff[index_max] < 1e-4: 
+  if diff[index_max] < accept: 
     print("OK")
     return 0
   else: 
