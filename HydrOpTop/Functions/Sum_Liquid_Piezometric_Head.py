@@ -75,7 +75,8 @@ class Sum_Liquid_Piezometric_Head:
     return [self.pressure, self.z]
   
   def set_p_to_cell_ids(self,p_ids):
-    return #not needed
+    self.p_ids = p_ids
+    return
     
   def set_filter(self, filter):
     self.filter = filter

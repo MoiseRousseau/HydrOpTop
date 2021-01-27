@@ -23,8 +23,8 @@ def common_compare(debug_function, pertub=1e-6, accept=1e-3):
   pflotranin = "../PFLOTRAN_problems/quad_128_hetero/pflotran.in"
   sim = PFLOTRAN(pflotranin)
   #create a random material parameter
-  p = np.random.random(sim.get_grid_size())
-  #p = np.ones(sim.get_grid_size())
+  #p = np.random.random(sim.get_grid_size())
+  p = np.ones(sim.get_grid_size())
   perm_data = np.genfromtxt("../PFLOTRAN_problems/quad_128_hetero/permeability_field.csv",
                              comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]

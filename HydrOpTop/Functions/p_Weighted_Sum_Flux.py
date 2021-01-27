@@ -43,7 +43,7 @@ In practice, minimise the squared mean flux in material designed by p=1.
     self.ids_p = None
     self.dobj_dP = None #derivative of the function wrt pressure
                       #to be passed to Adjoint class
-    self.dobj_dmat_props = [0.,0.,0.,0.,0.,0.,0.] #derivative of the function wrt mat properties
+    self.dobj_dmat_props = [0.,0.,None,0.,0.,0.,0.] #derivative of the function wrt mat properties
                                    #to be passed to Adjoint class
                                    #same size than self.output_variable_needed (see below)
     self.dobj_dp_partial = None #derivative of the function wrt material parameter
@@ -90,10 +90,6 @@ In practice, minimise the squared mean flux in material designed by p=1.
     Required by the Crafter
     """
     self.p_ids = p_ids #p to PFLOTRAN index
-    self.ids_p = -np.ones(np.max(p_ids),dtype='i8') #-1 mean not optimized
-    self.ids_p[self.p_ids-1] = np.arange(len(self.p_ids))
-    #here, we can assess the index in p of optimized PFLOTRAN cell with 
-    # p_index = self.ids_p[PFLOTRAN_index-1]
     if self.cell_ids_to_consider is None: #sum on all parametrized cell
       self.cell_ids_to_consider = p_ids
     else: #check if all the cell to consider are parametrized (p is defined)
@@ -153,12 +149,31 @@ In practice, minimise the squared mean flux in material designed by p=1.
     """
     if not self.initialized: self.__initialize__()
     flux_con = self.get_flux_at_connection()
-    flux_sum = np.sum(p[self.connections1_to_p] * flux_con[self.connection_is_to_sum_1])
-    flux_sum += np.sum(p[self.connections2_to_p] * flux_con[self.connection_is_to_sum_2])
+    flux_sum = np.sum( (p[self.connections1_to_p] * flux_con)[self.connection_is_to_sum_1] )
+    flux_sum += np.sum( (p[self.connections2_to_p] * flux_con)[self.connection_is_to_sum_2] )
     return flux_sum
   
   
   ### PARTIAL DERIVATIVES ###
+  def __cumsum_from_connection_to_array__(self, array_out, sum_at, values, sorted_index=None):
+    """
+    Sum the values array in array out at the index defined by sum_at
+    This is equivalent to array_out[sum_at] += values where sum_at can have redudant indices
+    sum_at must be a zeros based array. negative index are ignored
+    """
+    values_ = values[sum_at >= 0]
+    sum_at_ = sum_at[sum_at >= 0] #remove -1
+    if sorted_index is None:
+      sorted_index = np.argsort(sum_at_)
+    #bincount sum_at+1 so there is no 0 and the output array[0] = 0
+    tosum = np.bincount(sum_at_+1, minlength=len(array_out))
+    n_to_sum = np.cumsum(tosum)[:-1]
+    n_to_sum[n_to_sum == len(sum_at_)] = len(sum_at_) - 1 #post treatment for end missing cell ids
+    where_to_add = np.where(tosum[1:] != 0)[0]
+    array_out[where_to_add] += np.add.reduceat(values_[sorted_index], n_to_sum)[where_to_add]
+    return 
+    
+  
   def d_objective_dP(self,p): 
     """
     Evaluate the derivative of the function according to the pressure.
@@ -172,16 +187,27 @@ In practice, minimise the squared mean flux in material designed by p=1.
       self.dobj_dP[:] = 0.
     #compute derivative at all the connection
     d_flux_con = 2 * self.get_flux_at_connection(False) / self.distance
-    for icon,ids in enumerate(self.connection_ids):
-      if self.connection_is_to_sum_1[icon]:
-        self.dobj_dP[ids[0]-1] += d_flux_con[icon] * p[self.ids_p[ids[0]-1]]
-        self.dobj_dP[ids[1]-1] -= d_flux_con[icon] * p[self.ids_p[ids[0]-1]]
-      if self.connection_is_to_sum_2[icon]: #bc
-        self.dobj_dP[ids[0]-1] += d_flux_con[icon] * p[self.ids_p[ids[1]-1]]
-        self.dobj_dP[ids[1]-1] -= d_flux_con[icon] * p[self.ids_p[ids[1]-1]]
+    p_ = np.where(self.connection_is_to_sum_1, p[self.connections1_to_p], 0.)
+    p_ += np.where(self.connection_is_to_sum_2, p[self.connections2_to_p], 0.)
+    d_flux_con *= p_
+    
+    self.__cumsum_from_connection_to_array__(self.dobj_dP, self.connection_ids[:,0]-1,
+                                             d_flux_con, sorted_index=self.sorted_connections1)
+    self.__cumsum_from_connection_to_array__(self.dobj_dP, self.connection_ids[:,1]-1,
+                                             -d_flux_con, sorted_index=self.sorted_connections2)
+    
+    if 0:
+      d_flux_con /= p_
+      self.dobj_dP[:] = 0.
+      for icon,ids in enumerate(self.connection_ids):
+        if self.connection_is_to_sum_1[icon]:
+          self.dobj_dP[ids[0]-1] += d_flux_con[icon] * p[self.ids_p[ids[0]-1]]
+          self.dobj_dP[ids[1]-1] -= d_flux_con[icon] * p[self.ids_p[ids[0]-1]]
+        if self.connection_is_to_sum_2[icon]: #bc
+          self.dobj_dP[ids[0]-1] += d_flux_con[icon] * p[self.ids_p[ids[1]-1]]
+          self.dobj_dP[ids[1]-1] -= d_flux_con[icon] * p[self.ids_p[ids[1]-1]]
     return
     
-  
   
   def d_objective_d_mat_props(self, p):
     """
@@ -201,7 +227,6 @@ In practice, minimise the squared mean flux in material designed by p=1.
     """
     #initialize
     if not self.initialized: self.__initialize__()
-    deriv = np.zeros(len(p),dtype='f8')
     K1 = self.k[self.connection_ids[:,0]-1] 
     K2 = self.k[self.connection_ids[:,1]-1]
     den = (self.d_fraction*K1 + (1-self.d_fraction)*K2)**2
@@ -211,18 +236,40 @@ In practice, minimise the squared mean flux in material designed by p=1.
                    default_gravity * self.d_z_con)**2 / (self.distance**2 * default_viscosity)
     dK1 = prefactor * K2**2 * (1-self.d_fraction) / den 
     dK2 = prefactor * K1**2 * self.d_fraction / den
+    
     #build derivative
-    for icon,ids in enumerate(self.connection_ids):
-      i,j = -1, -1
-      if ids[0] <= len(self.ids_p): i = self.ids_p[ids[0]-1]
-      if ids[1] <= len(self.ids_p): j = self.ids_p[ids[1]-1]
-      if self.connection_is_to_sum_1[icon]:
-        if i != -1: deriv[i] += dK1[icon] * p[i]
-        if j != -1: deriv[j] += dK2[icon] * p[j]
-      if self.connection_is_to_sum_2[icon]: 
-        if i != -1: deriv[i] += dK1[icon] * p[i]
-        if j != -1: deriv[j] += dK2[icon] * p[j]
-    self.dobj_dmat_props[2] = deriv
+    if self.dobj_dmat_props[2] is None:
+      self.dobj_dmat_props[2] = np.zeros(len(p),dtype='f8')
+    else: 
+      self.dobj_dmat_props[2][:] = 0.
+      
+    p_ = np.where(self.connection_is_to_sum_1, p[self.connections1_to_p], 0.)
+    p_ += np.where(self.connection_is_to_sum_2, p[self.connections2_to_p], 0.)
+    
+    self.__cumsum_from_connection_to_array__(self.dobj_dmat_props[2], self.connections1_to_p, 
+                                             p_*dK1, sorted_index=self.sorted_connections1_to_p)
+    self.__cumsum_from_connection_to_array__(self.dobj_dmat_props[2], self.connections2_to_p,
+                                             p_*dK2, sorted_index=self.sorted_connections2_to_p)
+    
+    if 0:
+      deriv = np.zeros(len(p),dtype='f8')
+      for icon,ids in enumerate(self.connection_ids):
+        i,j = -1, -1
+        if ids[0] <= len(self.ids_p): i = self.ids_p[ids[0]-1]
+        if ids[1] <= len(self.ids_p): j = self.ids_p[ids[1]-1]
+        if self.connection_is_to_sum_1[icon]:
+          deriv[i] += dK1[icon] * p[i]
+          print(ids, dK1[icon] * p[i])
+          if j != -1: 
+            deriv[j] += dK2[icon] * p[j]
+            print("j", ids, dK2[icon] * p[j])
+        if self.connection_is_to_sum_2[icon]: 
+          if i != -1: 
+            deriv[i] += dK1[icon] * p[i]
+            print("i",ids, dK1[icon] * p[i])
+          deriv[j] += dK2[icon] * p[j]
+          print(ids, dK2[icon] * p[j])
+      self.dobj_dmat_props[2] = deriv
     return None
   
   def d_objective_dp_partial(self, p): 
@@ -236,13 +283,18 @@ In practice, minimise the squared mean flux in material designed by p=1.
       self.dobj_dp_partial[:] = 0.
     #compute flux at connection
     flux_con = self.get_flux_at_connection()
-    for icon,ids in enumerate(self.connection_ids):
-      if ids[0] <= len(self.ids_p): 
-        i = self.ids_p[ids[0]-1]
-        if i != -1: self.dobj_dp_partial[i] += flux_con[icon]
-      if ids[1] <= len(self.ids_p): 
-        j = self.ids_p[ids[1]-1]
-        if j != -1: self.dobj_dp_partial[j] += flux_con[icon]
+    self.__cumsum_from_connection_to_array__(self.dobj_dp_partial, self.connections1_to_p, flux_con)
+    self.__cumsum_from_connection_to_array__(self.dobj_dp_partial, self.connections2_to_p, flux_con)
+    
+    if 0:
+      self.dobj_dp_partial[:] = 0.
+      for icon,ids in enumerate(self.connection_ids):
+        if ids[0] <= len(self.ids_p): 
+          i = self.ids_p[ids[0]-1]
+          if i != -1: self.dobj_dp_partial[i] += flux_con[icon]
+        if ids[1] <= len(self.ids_p): 
+          j = self.ids_p[ids[1]-1]
+          if j != -1: self.dobj_dp_partial[j] += flux_con[icon]
     return 
   
   
@@ -281,22 +333,53 @@ In practice, minimise the squared mean flux in material designed by p=1.
     return cf
   
   
+  
   ### INITIALIZER FUNCTION ###
+  def __create_indexes_for_reduce_at__(self, connection_id, con_type):
+    """
+    Sort the connection to sum and create the array of indexes for reduceat()
+    """
+    sorted_index = np.argsort( connection_id[con_type] )
+    non_param = np.sum( connection_id[con_type] == -1 )
+    if non_param:
+      temp_array = np.bincount( connection_id[con_type][sorted_index][non_param:] )
+    else:
+      temp_array = np.bincount( connection_id[con_type][non_param:] )
+    if len(temp_array) > 0:
+      temp_array = temp_array[temp_array > 0]
+      index_reduce_at = np.zeros(len(temp_array),dtype='i8')
+      index_reduce_at[1:] = np.cumsum(temp_array)[:-1]
+      index_reduce_at += non_param
+    else:
+      index_reduce_at = None
+    return sorted_index, index_reduce_at
+  
+  
   def __initialize__(self):
     """
     Initialize the derived quantities from the inputs that must be compute one 
     time only.
     """
     self.initialized = True
+    #build correspondance between the cell ids and index in p
+    #here, we can assess the index in p of optimized PFLOTRAN cell with 
+    # p_cell_i = self.ids_p[cell_i-1]
+    self.ids_p = -np.ones(np.max(self.connection_ids),dtype='i8') #-1 mean not optimized
+    self.ids_p[self.p_ids-1] = np.arange(len(self.p_ids))
     #found the connections belonging to the cell ids to consider
     mask = np.isin(self.connection_ids,self.cell_ids_to_consider)
     self.connection_is_to_sum_1 = mask[:,0] #PFLOTRAN indexing
     self.connection_is_to_sum_2 = mask[:,1]
     #connection cell ids to index in p
-    self.connections1_to_p = self.ids_p[self.connection_ids[self.connection_is_to_sum_1][:,0]-1]
-    self.connections2_to_p = self.ids_p[self.connection_ids[self.connection_is_to_sum_2][:,1]-1]
+    self.connections1_to_p = self.ids_p[self.connection_ids[:,0]-1]
+    self.connections2_to_p = self.ids_p[self.connection_ids[:,1]-1]
     #constant d_z_con
     self.d_z_con = self.z[self.connection_ids[:,0]-1] - self.z[self.connection_ids[:,1]-1] 
+    #sorted indexes
+    self.sorted_connections1 = np.argsort(self.connection_ids[:,0])
+    self.sorted_connections2 = np.argsort(self.connection_ids[:,1])
+    self.sorted_connections1_to_p = np.argsort(self.connections1_to_p[self.connections1_to_p >= 0])
+    self.sorted_connections2_to_p = np.argsort(self.connections2_to_p[self.connections2_to_p >= 0])
     return
   
   ### REQUIRED FOR CRAFTING ###

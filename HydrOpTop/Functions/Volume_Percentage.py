@@ -51,7 +51,7 @@ class Volume_Percentage:
     return [self.V]
     
   def set_p_to_cell_ids(self, cell_ids):
-    self.p_cell_ids = cell_ids
+    self.p_ids = cell_ids
     return
   
   
@@ -72,7 +72,7 @@ class Volume_Percentage:
     else: p_ = p
     if self.ids_to_consider is None:
       #sum on all parametrized cell
-      cf = np.sum(self.V[self.p_cell_ids-1]*p_)/self.V_tot - self.max_v_frac
+      cf = np.sum(self.V[self.p_ids-1]*p_)/self.V_tot - self.max_v_frac
     else:
       cf = np.sum((self.V[self.ids_to_consider-1]*p_))/self.V_tot - self.max_v_frac
     return cf
@@ -99,7 +99,7 @@ class Volume_Percentage:
     if out is None:
       out = np.zeros(len(p), dtype='f8')
     if self.ids_to_consider is None:
-      out[:] = factor * self.V[self.p_cell_ids-1]/self.V_tot
+      out[:] = factor * self.V[self.p_ids-1]/self.V_tot
     else:
       out[:] = factor * self.V[self.ids_to_consider-1]/self.V_tot
       
@@ -123,7 +123,7 @@ class Volume_Percentage:
     """
     self.initialized = True
     if self.ids_to_consider is None:
-      self.V_tot = np.sum(self.V[self.p_cell_ids-1])
+      self.V_tot = np.sum(self.V[self.p_ids-1])
     else:
       self.V_tot = np.sum(self.V[self.ids_to_consider-1])
     return
