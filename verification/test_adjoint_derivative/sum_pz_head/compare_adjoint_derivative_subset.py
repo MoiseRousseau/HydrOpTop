@@ -50,14 +50,14 @@ if __name__ == "__main__":
   
   #define stop criterion
   opt.set_ftol_rel(0.000001)
-  opt.set_maxeval(1)
+  opt.set_maxeval(20)
   
   #initial guess
-  p = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.001
-  p[:] = 0.9
-  p = np.random.random(crafted_problem.get_problem_size())
-  
-  err = compare_adjoint_with_FD(crafted_problem,p,[21,154,444,608,879],pertub=1e-4)
+  p = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.12
+  #p = np.random.random(crafted_problem.get_problem_size())
+  #fix the p value because FD derivative and pertubation depend on p
+                                    
+  err = compare_adjoint_with_FD(crafted_problem,p,[21,154,444,608,879],pertub=1e-3, accept=2e-2)
   print("")
   exit(err)
   

@@ -8,6 +8,7 @@ def compare_dfunction_dp_with_FD(obj, p, cell_to_check=None, pertub=1e-6, accept
   instance is correct versus finite difference
   Note: the function input must be set
   """
+  print("\nDEBUG: compute function derivative wrt material parameter vs finite difference")
   if cell_to_check is None: cell_to_check = np.arange(1,len(p)+1)
   else: cell_to_check = np.array(cell_to_check)
   #compute function derivative

@@ -104,7 +104,7 @@ class Steady_State_Crafter:
     out.close()
     return
   
-  def __save_gradient_to_file__(self,grad):
+  def __save_gradient_to_output_file__(self,grad):
     out = h5py.File(self.print_out, "a")
     out.create_dataset(f"Gradient df_dp/Iteration {self.func_eval}", data=grad)
     out.close()
@@ -140,7 +140,6 @@ class Steady_State_Crafter:
       X = mat_prop.convert_p_to_mat_properties(p)
       self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                     X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
-    
     #run PFLOTRAN
     ret_code = self.solver.run_PFLOTRAN()
     if ret_code: return np.nan
@@ -196,11 +195,9 @@ class Steady_State_Crafter:
     if self.filter and grad.size > 0:
       grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
     self.last_p = np.copy(p)
-    if self.print_gradient and self.print_every and self.func_eval % self.print_every:
+    if self.print_gradient and (self.func_eval % self.print_every) == 0:
       self.__save_gradient_to_output_file__(p)
     self.__record_optimization_value__(cf)
-    if self.print_every != 0 and (self.func_eval % self.print_every) == 0:
-      self.__save_gradient_to_file__(grad)
     return cf
     
   

@@ -9,6 +9,7 @@ def compare_dfunction_dinputs_with_FD(obj, p, cell_to_check=None, pertub=1e-6, a
   instance is correct versus finite difference
   Note: the function inputs must be set
   """
+  print("\nDEBUG: compute function derivative wrt inputs vs finite difference")
   if cell_to_check is None: cell_to_check = np.arange(1,len(p)+1)
   else: cell_to_check = np.array(cell_to_check)
   #compute function derivative

@@ -162,8 +162,6 @@ class Sum_Liquid_Piezometric_Head:
     self.d_objective_dp_partial(p)
     out[:] = self.adjoint.compute_sensitivity(p, self.dobj_dP, 
                self.dobj_dmat_props, self.output_variable_needed) + self.dobj_dp_partial
-    if self.filter:
-      out[:] = self.filter.get_filter_derivative(p).transpose().dot(out)
     return out
   
   

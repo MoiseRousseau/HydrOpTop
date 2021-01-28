@@ -33,7 +33,7 @@ class Volume_Percentage:
     self.V_tot = None
     
     #function derivative for adjoint
-    self.dobj_dP = None
+    self.dobj_dP = 0.
     self.dobj_dmat_props = [0.]
     self.dobj_dp_partial = None
     self.adjoint = None
@@ -62,12 +62,6 @@ class Volume_Percentage:
     Return a scalar of dimension [L**3]
     """
     if not self.initialized: self.__initialize__()
-    #if self.filter:
-    #  p_bar = self.filter.get_filtered_density(p)
-    #else:
-    #  p_bar = p
-    #p[self.p_cell_ids] = p_bar #self.p spand over all the domain, 
-                                  #but p_bar only on the cell id to optimize
     if self.vp0: p_ = 1-p
     else: p_ = p
     if self.ids_to_consider is None:
@@ -86,23 +80,21 @@ class Volume_Percentage:
     return [0.]
   
   def d_objective_dp_partial(self,p): 
-    self.dobj_dp_partial = self.d_objective_dp_total(p)
-    return 0.
+    if self.dobj_dp_partial is None:
+      self.dobj_dp_partial = np.zeros(len(p),dtype='f8')
+    if self.vp0: factor = -1.
+    else: factor = 1.
+    if not self.initialized: self.__initialize__()
+    if self.ids_to_consider is None:
+      self.dobj_dp_partial[:] = factor * self.V[self.p_ids-1]/self.V_tot
+    else:
+      self.dobj_dp_partial[:] = factor * self.V[self.ids_to_consider-1]/self.V_tot
+    return
   
   ### TOTAL DERIVATIVE ###
   def d_objective_dp_total(self, p, out=None):
-    if self.vp0: factor = -1.
-    else: factor = 1.
-    
-    if not self.initialized: self.__initialize__()
-    
-    if out is None:
-      out = np.zeros(len(p), dtype='f8')
-    if self.ids_to_consider is None:
-      out[:] = factor * self.V[self.p_ids-1]/self.V_tot
-    else:
-      out[:] = factor * self.V[self.ids_to_consider-1]/self.V_tot
-      
+    self.d_objective_dp_partial(p)
+    out[:] = self.dobj_dp_partial
     return out
     
   

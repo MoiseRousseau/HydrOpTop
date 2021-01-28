@@ -86,7 +86,6 @@ class PFLOTRAN:
     
     if self.mesh_type == "ugi" or self.mesh_type == "uge":
       cell_ids = np.genfromtxt(filename, dtype='i8')
-      
     elif self.mesh_type == "h5": #h5 region have same name in pflotran
       src = h5py.File(filename, 'r')
       if reg_name in src["Regions"]:
@@ -96,6 +95,8 @@ class PFLOTRAN:
         src.close()
         print(f"Region not found in mesh file {filename}")
         exit(1)
+    elif self.mesh_type == "h5e":
+      cell_ids = np.genfromtxt(filename, dtype='i8')
     return cell_ids
   
   def get_connections_ids_integral_flux(self, integral_flux_name):
@@ -337,7 +338,8 @@ class PFLOTRAN:
     """
     for line in self.input_deck:
       if "TYPE" and "UNSTRUCTURED_EXPLICIT" in line: 
-        self.mesh_type = "uge"
+        if ".h5" in line: self.mesh_type = "h5e"
+        else: self.mesh_type = "uge"
         break
       if "TYPE" and "UNSTRUCTURED" in line: 
         if ".h5" in line: self.mesh_type = "h5"
@@ -374,6 +376,12 @@ class PFLOTRAN:
     elif self.mesh_type == "uge": #unstructured explicit
       src = open(mesh_path, 'r')
       self.n_cells = int(src.readline().split()[1])
+      src.close()
+      self.n_vertices = -1 #no info about it...
+      return
+    elif self.mesh_type == "h5e": #unstructured explicit hdf5
+      src = h5py.File(mesh_path, 'r')
+      self.n_cells = len(src["Domain/Cells/Volumes"])
       src.close()
       self.n_vertices = -1 #no info about it...
       return

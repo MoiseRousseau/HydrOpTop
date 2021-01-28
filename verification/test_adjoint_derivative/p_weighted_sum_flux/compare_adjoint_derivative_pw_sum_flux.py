@@ -25,7 +25,7 @@ if __name__ == "__main__":
   #get cell ids in the region to optimize and parametrize permeability
   #same name than in pflotran input file
   pit_ids = sim.get_region_ids("pit")
-  perm = Permeability([1e-14, 1e-10], cell_ids_to_parametrize=pit_ids, power=3)
+  perm = Permeability([1e-14, 1e-10], cell_ids_to_parametrize=pit_ids, power=3, reverse=True)
   
   #define cost function as sum of the head in the pit
   cf = p_Weighted_Sum_Flux(pit_ids)
@@ -56,7 +56,7 @@ if __name__ == "__main__":
   p = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.001
   p = np.random.random(crafted_problem.get_problem_size())
   
-  err = compare_adjoint_with_FD(crafted_problem,p,[102,99,316],pertub=1e-3,accept=1e-5) 
+  err = compare_adjoint_with_FD(crafted_problem,p,[102,99,316],pertub=1e-4,accept=1e-1) 
   #154,325,247 does not converge
   
   print("")
