@@ -10,8 +10,10 @@ class p_Weighted_Sum_Flux:
 Compute the sum of the squared flux through the connection of the cell given and
 weighted by the material parameter.
 In practice, minimise the squared mean flux in material designed by p=1.
+Can inverse weighting using invert_weighting=True. Therefore, minimise the squared
+flux in material designed by p=0
   """
-  def __init__(self, cell_ids_to_consider=None):
+  def __init__(self, cell_ids_to_consider=None, invert_weighting=False):
     """
     Default is to sum on all parametrized cell
     """
@@ -20,6 +22,7 @@ In practice, minimise the squared mean flux in material designed by p=1.
       self.cell_ids_to_consider = np.array(cell_ids_to_consider) #PFLOTRAN id
     else: 
       self.cell_ids_to_consider = None
+    self.invert_weighting = invert_weighting
                             
     #inputs for function evaluation
     self.d_fraction = None
@@ -96,7 +99,7 @@ In practice, minimise the squared mean flux in material designed by p=1.
       mask = np.isin(self.cell_ids_to_consider, self.p_ids)
       if False in self.cell_ids_to_consider:
         print("Error! Some cell to sum the p-weighted flux are not parametrized (p is not defined at these cell):")
-        print(self.cell_ids_to_consider[mask])
+        print(self.cell_ids_to_consider[~mask])
         exit(1)
     return 
     
@@ -111,8 +114,7 @@ In practice, minimise the squared mean flux in material designed by p=1.
     """
     X_n1 = X[self.connection_ids[:,0]-1]
     X_n2 = X[self.connection_ids[:,1]-1]
-    return X_n1 * X_n2 / (self.d_fraction * X_n2 + (1-self.d_fraction) * X_n1)
-  
+    return X_n1 * X_n2 / ((1-self.d_fraction) * X_n2 + self.d_fraction * X_n1)
   
   def get_connection_ids_to_sum(self):
     """
@@ -123,23 +125,7 @@ In practice, minimise the squared mean flux in material designed by p=1.
     ids_to_sum = np.append(self.connection_ids[self.connection_is_to_sum_1],
                            self.connection_ids[self.connection_is_to_sum_2], axis=0)
     return ids_to_sum
-    
-    
-  def get_flux_at_connection(self, squared=True):
-    """
-    Compute the flux through each grid connection
-    """
-    k_con = self.interpole_at_face(self.k)
-    d_P_con = self.pressure[self.connection_ids[:,0]-1] - \
-                             self.pressure[self.connection_ids[:,1]-1]
-    eg = default_water_density * default_gravity 
-    if squared:
-      flux_con = self.areas * k_con / default_viscosity * \
-                             ( (d_P_con - eg * self.d_z_con) / self.distance)**2
-    else:
-      flux_con = self.areas * k_con / default_viscosity * \
-                                (d_P_con - eg * self.d_z_con) / self.distance
-    return flux_con
+
 
   
   ### COST FUNCTION ###
@@ -148,9 +134,16 @@ In practice, minimise the squared mean flux in material designed by p=1.
     Evaluate the cost function
     """
     if not self.initialized: self.__initialize__()
-    flux_con = self.get_flux_at_connection()
-    flux_sum = np.sum( (p[self.connections1_to_p] * flux_con)[self.connection_is_to_sum_1] )
-    flux_sum += np.sum( (p[self.connections2_to_p] * flux_con)[self.connection_is_to_sum_2] )
+    if self.invert_weighting: pp = 1 - p
+    else: pp = p
+    k_con = self.interpole_at_face(self.k)
+    d_P_con = self.pressure[self.connection_ids[:,1]-1] - \
+                             self.pressure[self.connection_ids[:,0]-1]
+    eg = default_water_density * default_gravity 
+    flux_con = self.areas * k_con / default_viscosity * \
+                           ( (d_P_con + eg * self.d_z_con) / self.distance ) ** 2
+    flux_sum = np.sum( (pp[self.connections1_to_p] * flux_con)[self.connection_is_to_sum_1] )
+    flux_sum += np.sum( (pp[self.connections2_to_p] * flux_con)[self.connection_is_to_sum_2] )
     return flux_sum
   
   
@@ -163,6 +156,7 @@ In practice, minimise the squared mean flux in material designed by p=1.
     """
     values_ = values[sum_at >= 0]
     sum_at_ = sum_at[sum_at >= 0] #remove -1
+    if len(sum_at_) == 0: return #do nothing
     if sorted_index is None:
       sorted_index = np.argsort(sum_at_)
     #bincount sum_at+1 so there is no 0 and the output array[0] = 0
@@ -181,31 +175,27 @@ In practice, minimise the squared mean flux in material designed by p=1.
     """
     #initialize
     if not self.initialized: self.__initialize__()
+    if self.invert_weighting: pp = 1 - p
+    else: pp = p
     if self.dobj_dP is None:
       self.dobj_dP = np.zeros(len(self.pressure), dtype='f8') #pressure size of the grid
     else:
       self.dobj_dP[:] = 0.
     #compute derivative at all the connection
-    d_flux_con = 2 * self.get_flux_at_connection(False) / self.distance
-    p_ = np.where(self.connection_is_to_sum_1, p[self.connections1_to_p], 0.)
-    p_ += np.where(self.connection_is_to_sum_2, p[self.connections2_to_p], 0.)
+    k_con = self.interpole_at_face(self.k)
+    d_P_con = self.pressure[self.connection_ids[:,1]-1] - \
+                             self.pressure[self.connection_ids[:,0]-1]
+    eg = default_water_density * default_gravity
+    d_flux_con =  -2. * self.areas * k_con / default_viscosity * \
+                                   (d_P_con + eg * self.d_z_con) / self.distance**2
+    p_ = np.where(self.connection_is_to_sum_1, pp[self.connections1_to_p], 0.)
+    p_ += np.where(self.connection_is_to_sum_2, pp[self.connections2_to_p], 0.)
     d_flux_con *= p_
     
     self.__cumsum_from_connection_to_array__(self.dobj_dP, self.connection_ids[:,0]-1,
                                              d_flux_con, sorted_index=self.sorted_connections1)
     self.__cumsum_from_connection_to_array__(self.dobj_dP, self.connection_ids[:,1]-1,
                                              -d_flux_con, sorted_index=self.sorted_connections2)
-    
-    if 0:
-      d_flux_con /= p_
-      self.dobj_dP[:] = 0.
-      for icon,ids in enumerate(self.connection_ids):
-        if self.connection_is_to_sum_1[icon]:
-          self.dobj_dP[ids[0]-1] += d_flux_con[icon] * p[self.ids_p[ids[0]-1]]
-          self.dobj_dP[ids[1]-1] -= d_flux_con[icon] * p[self.ids_p[ids[0]-1]]
-        if self.connection_is_to_sum_2[icon]: #bc
-          self.dobj_dP[ids[0]-1] += d_flux_con[icon] * p[self.ids_p[ids[1]-1]]
-          self.dobj_dP[ids[1]-1] -= d_flux_con[icon] * p[self.ids_p[ids[1]-1]]
     return
     
   
@@ -227,62 +217,56 @@ In practice, minimise the squared mean flux in material designed by p=1.
     """
     #initialize
     if not self.initialized: self.__initialize__()
+    if self.invert_weighting: pp = 1 - p
+    else: pp = p
     K1 = self.k[self.connection_ids[:,0]-1] 
     K2 = self.k[self.connection_ids[:,1]-1]
     den = (self.d_fraction*K1 + (1-self.d_fraction)*K2)**2
-    d_P_con = self.pressure[self.connection_ids[:,0]-1] - \
-                             self.pressure[self.connection_ids[:,1]-1]
-    prefactor = self.areas *  (d_P_con - default_water_density * \
-                   default_gravity * self.d_z_con)**2 / (self.distance**2 * default_viscosity)
-    dK1 = prefactor * K2**2 * (1-self.d_fraction) / den 
+    d_P_con = self.pressure[self.connection_ids[:,1]-1] - \
+                             self.pressure[self.connection_ids[:,0]-1]
+    eg = default_water_density * default_gravity
+    prefactor = self.areas / default_viscosity * \
+                             ( (d_P_con + eg * self.d_z_con) / self.distance ) ** 2
+    
+    dK1 = prefactor * K2**2 * (1-self.d_fraction) / den
     dK2 = prefactor * K1**2 * self.d_fraction / den
     
     #build derivative
     if self.dobj_dmat_props[2] is None:
-      self.dobj_dmat_props[2] = np.zeros(len(p),dtype='f8')
+      self.dobj_dmat_props[2] = np.zeros(len(self.pressure),dtype='f8')
     else: 
       self.dobj_dmat_props[2][:] = 0.
       
-    p_ = np.where(self.connection_is_to_sum_1, p[self.connections1_to_p], 0.)
-    p_ += np.where(self.connection_is_to_sum_2, p[self.connections2_to_p], 0.)
+    p_ = np.where(self.connection_is_to_sum_1, pp[self.connections1_to_p], 0.)
+    p_ += np.where(self.connection_is_to_sum_2, pp[self.connections2_to_p], 0.)
     
-    self.__cumsum_from_connection_to_array__(self.dobj_dmat_props[2], self.connections1_to_p, 
-                                             p_*dK1, sorted_index=self.sorted_connections1_to_p)
-    self.__cumsum_from_connection_to_array__(self.dobj_dmat_props[2], self.connections2_to_p,
-                                             p_*dK2, sorted_index=self.sorted_connections2_to_p)
-    
-    if 0:
-      deriv = np.zeros(len(p),dtype='f8')
-      for icon,ids in enumerate(self.connection_ids):
-        i,j = -1, -1
-        if ids[0] <= len(self.ids_p): i = self.ids_p[ids[0]-1]
-        if ids[1] <= len(self.ids_p): j = self.ids_p[ids[1]-1]
-        if self.connection_is_to_sum_1[icon]:
-          deriv[i] += dK1[icon] * p[i]
-          print(ids, dK1[icon] * p[i])
-          if j != -1: 
-            deriv[j] += dK2[icon] * p[j]
-            print("j", ids, dK2[icon] * p[j])
-        if self.connection_is_to_sum_2[icon]: 
-          if i != -1: 
-            deriv[i] += dK1[icon] * p[i]
-            print("i",ids, dK1[icon] * p[i])
-          deriv[j] += dK2[icon] * p[j]
-          print(ids, dK2[icon] * p[j])
-      self.dobj_dmat_props[2] = deriv
+    self.__cumsum_from_connection_to_array__(self.dobj_dmat_props[2], 
+                                    self.connection_ids[:,0]-1, 
+                                    p_*dK1, sorted_index=self.sorted_connections1)
+    self.__cumsum_from_connection_to_array__(self.dobj_dmat_props[2], 
+                                    self.connection_ids[:,1]-1, 
+                                    p_*dK2, sorted_index=self.sorted_connections2)
     return None
+  
   
   def d_objective_dp_partial(self, p): 
     """
     PARTIAL Derivative of the function wrt the material parameter p (in input)
     """
     if not self.initialized: self.__initialize__()
+    if self.invert_weighting: factor = -1.
+    else: factor = 1.
     if self.dobj_dp_partial is None:
       self.dobj_dp_partial = np.zeros(len(p),dtype='f8')
     else:
       self.dobj_dp_partial[:] = 0.
     #compute flux at connection
-    flux_con = self.get_flux_at_connection()
+    k_con = self.interpole_at_face(self.k)
+    d_P_con = self.pressure[self.connection_ids[:,1]-1] - \
+                             self.pressure[self.connection_ids[:,0]-1]
+    eg = default_water_density * default_gravity 
+    flux_con = factor * self.areas * k_con / default_viscosity * \
+                          ( (d_P_con + eg * self.d_z_con) / self.distance ) ** 2
     self.__cumsum_from_connection_to_array__(self.dobj_dp_partial, self.connections1_to_p, flux_con)
     self.__cumsum_from_connection_to_array__(self.dobj_dp_partial, self.connections2_to_p, flux_con)
     
@@ -374,12 +358,10 @@ In practice, minimise the squared mean flux in material designed by p=1.
     self.connections1_to_p = self.ids_p[self.connection_ids[:,0]-1]
     self.connections2_to_p = self.ids_p[self.connection_ids[:,1]-1]
     #constant d_z_con
-    self.d_z_con = self.z[self.connection_ids[:,0]-1] - self.z[self.connection_ids[:,1]-1] 
+    self.d_z_con = self.z[self.connection_ids[:,1]-1] - self.z[self.connection_ids[:,0]-1] 
     #sorted indexes
     self.sorted_connections1 = np.argsort(self.connection_ids[:,0])
     self.sorted_connections2 = np.argsort(self.connection_ids[:,1])
-    self.sorted_connections1_to_p = np.argsort(self.connections1_to_p[self.connections1_to_p >= 0])
-    self.sorted_connections2_to_p = np.argsort(self.connections2_to_p[self.connections2_to_p >= 0])
     return
   
   ### REQUIRED FOR CRAFTING ###

@@ -17,18 +17,17 @@ SUBSURFACE
 #=========================== discretization ===================================
 GRID
   TYPE UNSTRUCTURED ./mesh.ugi
+  MAX_CELLS_SHARING_A_VERTEX 60
+  IMPLICIT_GRID_AREA_CALCULATION TRUE_AREA
 END
-REGION xmin
-  FILE ./xmin.ss
-END
-REGION xmax
-  FILE ./xmax.ss
+REGION frontier
+  FILE ./frontier.ss
 END
 REGION pit
-  FILE ./Pit.vs
+  FILE ./pit.vs
 END
 REGION rock
-  FILE ./Rock.vs
+  FILE ./rock.vs
 END
 
 
@@ -65,11 +64,8 @@ END
 
 
 #=========================== integral flux ====================================
-INTEGRAL_FLUX barrier
-  EXTERNAL_FILE barrier.txt
-END
-INTEGRAL_FLUX inside
-  EXTERNAL_FILE inside.txt
+INTEGRAL_FLUX interface
+  EXTERNAL_FILE interface.txt
 END
 
 
@@ -94,7 +90,7 @@ OUTPUT
   SNAPSHOT_FILE
     PRINT_CONNECTION_IDS
   /
-  NO_PRINT_INITIAL
+  #NO_PRINT_INITIAL
   #NO_PRINT_FINAL
   PERIODIC_OBSERVATION TIMESTEP 1 
 END
@@ -148,20 +144,11 @@ INITIAL_CONDITION
 END
 
 
-BOUNDARY_CONDITION west
+BOUNDARY_CONDITION frontier
   FLOW_CONDITION initial
-  REGION xmin
+  REGION frontier
 END
 
-BOUNDARY_CONDITION east
-  FLOW_CONDITION initial
-  REGION xmax
-END
-
-SOURCE_SINK in_pit
-  FLOW_CONDITION inj_rain
-  REGION pit
-END
 
 
 #=========================== stratigraphy couplers ============================

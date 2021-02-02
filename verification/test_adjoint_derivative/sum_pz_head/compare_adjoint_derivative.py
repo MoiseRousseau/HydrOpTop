@@ -50,7 +50,7 @@ def compute_sensitivity_adjoint():
   #mat_prop_deriv_mat_parameter is unit
   #cost_deriv_mat_prop is null
   mat = Permeability([1.,2.], "everywhere", power=1)
-  sens = Sensitivity_Richards([mat], pft_model,None)
+  sens = Sensitivity_Richards([mat], pft_model,np.arange(1,129))
   sens.set_adjoint_solving_algo("lu")
   S_adjoint = sens.compute_sensitivity(0., cost_deriv_pressure, [0.], [""])
   return S_adjoint

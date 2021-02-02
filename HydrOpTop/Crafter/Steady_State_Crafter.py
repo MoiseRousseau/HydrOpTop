@@ -45,7 +45,7 @@ class Steady_State_Crafter:
     #hdf5 file storing the material parameter p
     self.print_every = 0
     self.print_out = "HydrOpTop.h5"
-    self.first_out = True
+    self.print_number = 0
     self.print_gradient = False
     #ascii file storing the optimization path
     self.record_opt_value_to = "out.txt"
@@ -57,6 +57,8 @@ class Steady_State_Crafter:
     self.first_call_gradient = True
     self.func_eval = 0
     self.last_p = None
+    self.do_not_run = False
+    self.first_cf = None
     return
   
   def get_problem_size(self): return self.problem_size
@@ -67,6 +69,10 @@ class Steady_State_Crafter:
     for constrain in self.constrains:
       if constrain.__require_adjoint__():
         constrain.adjoint.set_adjoint_solving_algo(algo, tol)
+    return
+    
+  def do_not_run_simulation(self, x=True):
+    self.do_not_run = x
     return
   
   
@@ -87,27 +93,39 @@ class Steady_State_Crafter:
     self.print_gradient = x
     return
     
-  def __save_p_to_output_file__(self,p):
-    if self.first_out:
+  def __output__(self,p,grad):
+    var_list = []
+    var_name = []
+    self.print_number += 1
+    if self.print_number == 1:
       out = h5py.File(self.print_out, "w")
-      out.create_dataset("Cell Ids", data=self.p_ids)
-      self.first_out = False
-    else:
-      out = h5py.File(self.print_out, "a")
+      out.close() #just create it
     #save p
-    out.create_dataset(f"Density parameter p/Iteration {self.func_eval}", data=p)
+    self.solver.write_output_variable(X_dataset=p, 
+                    dataset_name=f"Density parameter p/Iteration {self.func_eval}", 
+                    h5_file_name=self.print_out, h5_mode='a', X_ids=self.p_ids)
+    var_list.append(f"Density parameter p/Iteration {self.func_eval}")
+    var_name.append("Density parameter")
     #save parametrized material
     for mat_prop in self.mat_props:
       X = mat_prop.convert_p_to_mat_properties(p)
       name = mat_prop.get_name()
-      out.create_dataset(f"{name}/Iteration {self.func_eval}", data=X)
-    out.close()
-    return
-  
-  def __save_gradient_to_output_file__(self,grad):
-    out = h5py.File(self.print_out, "a")
-    out.create_dataset(f"Gradient df_dp/Iteration {self.func_eval}", data=grad)
-    out.close()
+      self.solver.write_output_variable(X_dataset=X, 
+                    dataset_name=f"{name}/Iteration {self.func_eval}", 
+                    h5_file_name=self.print_out, h5_mode='a', X_ids=self.p_ids)
+      var_list.append(f"{name}/Iteration {self.func_eval}")
+      var_name.append(name)
+    #save gradient
+    if self.print_gradient:
+      self.solver.write_output_variable(X_dataset=grad, 
+                    dataset_name=f"Gradient df_dp/Iteration {self.func_eval}", 
+                    h5_file_name=self.print_out, h5_mode='a', X_ids=self.p_ids)
+      var_list.append(f"Gradient df_dp/Iteration {self.func_eval}")
+      var_name.append("Gradient")
+    #create xmdf file
+    out_xdmf = self.solver.write_output_xmdf(self.print_number, self.print_out, 
+                                             var_list, var_name)
+    print(f"Output optimized parameter to file: {out_xdmf}")
     return
   
   def __record_optimization_value__(self, cf):
@@ -141,9 +159,9 @@ class Steady_State_Crafter:
       self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                     X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
     #run PFLOTRAN
-    ret_code = self.solver.run_PFLOTRAN()
-    if ret_code: return np.nan
-    
+    if self.do_not_run == False: #for debug purpose
+      ret_code = self.solver.run_PFLOTRAN()
+      if ret_code: return np.nan
     ### UPDATE OBJECTIVE ###
     if self.Yi is None: #need to initialize
       self.Yi = []
@@ -176,12 +194,10 @@ class Steady_State_Crafter:
     """
     Cost function to pass to NLopt method "set_min/max_objective()"
     """
-    # IO stuff
     self.func_eval += 1
     print(f"\nFonction evaluation {self.func_eval}")
-    if self.print_every != 0 and (self.func_eval % self.print_every) == 0:
-      self.__save_p_to_output_file__(p)
     ###FILTERING: convert p to p_bar
+    self.last_p = np.copy(p)
     if self.filter is None:
       p_bar = p
     else: 
@@ -192,12 +208,15 @@ class Steady_State_Crafter:
     self.pre_evaluation_objective(p_bar)
     ### OBJECTIVE EVALUATION AND DERIVATIVE
     cf = self.obj.nlopt_optimize(p_bar,grad)
+    if self.first_cf is None: self.first_cf = cf
     if self.filter and grad.size > 0:
       grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
-    self.last_p = np.copy(p)
-    if self.print_gradient and (self.func_eval % self.print_every) == 0:
-      self.__save_gradient_to_output_file__(p)
-    self.__record_optimization_value__(cf)
+    ### OUTPUT ###
+    if self.print_every != 0 and (self.func_eval % self.print_every) == 0:
+      self.__output__(p,grad)
+    #normalize cf to 1
+    cf /= self.first_cf
+    grad /= self.first_cf
     return cf
     
   
@@ -296,13 +315,13 @@ class Steady_State_Crafter:
       #run pflotran to get its output
       
       #Given p, update material properties
-      p_bar = np.zeros(self.problem_size, dtype='f4')
+      p_bar = np.zeros(self.problem_size, dtype='f8')
       for mat_prop in self.mat_props:
         X = mat_prop.convert_p_to_mat_properties(p_bar)
         self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                       X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
       #run PFLOTRAN
-      ret_code = self.solver.run_PFLOTRAN() #TODO: uncomment
+      ret_code = self.solver.run_PFLOTRAN()
     
     self.filter_i = [np.zeros(self.solver.n_cells, dtype='f8') for x in range(n_inputs)]
     for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):

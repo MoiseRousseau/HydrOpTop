@@ -25,6 +25,7 @@ class Sensitivity_Richards:
     
     self.method = 'lu' #adjoint solving method
     self.tol = None #adjoint solver tolerance
+    self.last_l = None #save last adjoint vector to provide it at futur iteration
     
     self.dXi_dp = None
     self.dR_dXi = None
@@ -55,15 +56,9 @@ class Sensitivity_Richards:
     parameter p.
     Argument:
     - p : the material parameter
-    - dc_dP : derivative of the function wrt pressure
-    - dc_dXi : derivative of the function wrt function inputs
+    - dc_dP : derivative of the function wrt pressure (PFLOTRAN ordering)
+    - dc_dXi : derivative of the function wrt function inputs (p ordering)
     - Xi_name : name of the function input variables
-    Note that every derivative must be given in natural ordering (i.e. PFLOTRAN ordering):
-    dc_dXi[0] = dc/dX1 (index 0 = cell 1 in PFLOTRAN)
-    dc_dXi[1] = dc/dX2 (index 1 = cell 2 in PFLOTRAN)
-    ...
-    dc_dXi[j] = dc/dX(j+1) (index j = cell j+1 in PFLOTRAN)
-    ...
     """
     #create or update structures
     if self.initialized == False:
@@ -73,27 +68,24 @@ class Sensitivity_Richards:
       self.update_residual_derivatives()
     
     #compute adjoint
-    l = solve_adjoint(self.dR_dP, dc_dP, self.method)
+    l = solve_adjoint(self.dR_dP, dc_dP, method=self.method) #PFLOTRAN ordering
     
-    #compute dc/dp_bar
-    if self.assign_at_ids is None:
-      dR_dXi_dXi_dp = (self.dR_dXi[0]).tocsr().multiply(self.dXi_dp[0])
-      if self.n_parametrized_props > 1:
-        for i in range(1,self.n_parametrized_props):
-          dR_dXi_dXi_dp += (self.dR_dXi[i]).tocsr().multiply(self.dXi_dp[i])
-    else:
-      dR_dXi_dXi_dp = \
-              ((self.dR_dXi[0]).tocsr())[:,self.assign_at_ids-1].multiply(self.dXi_dp[0])
-      if self.n_parametrized_props > 1:
-        for i in range(1,self.n_parametrized_props):
-          dR_dXi_dXi_dp += \
-              ((self.dR_dXi[i]).tocsr())[:,self.assign_at_ids-1].multiply(self.dXi_dp[i])
+    #compute dc/dp
+    #note: dR_dXi in PFLOTRAN ordering, so we convert it to p ordering with assign_at_ids
+    # and dXi_dP in p ordering
+    #thus: dR_dXi_dXi_dp in p ordering
+    dR_dXi_dXi_dp = \
+            ((self.dR_dXi[0]).tocsr())[:,self.assign_at_ids-1].multiply(self.dXi_dp[0])
+    if self.n_parametrized_props > 1:
+      for i in range(1,self.n_parametrized_props):
+        dR_dXi_dXi_dp += \
+            ((self.dR_dXi[i]).tocsr())[:,self.assign_at_ids-1].multiply(self.dXi_dp[i])
     
     dc_dXi_dXi_dp = 0.
     for i,mat_prop in enumerate(self.parametrized_mat_props):
       for j,name in enumerate(Xi_name):
         if name == mat_prop.name:
-          dc_dXi_dXi_dp += dc_dXi[j]*self.dXi_dp[i]
+          dc_dXi_dXi_dp += dc_dXi[j][self.assign_at_ids-1]*self.dXi_dp[i]
     #if self.assign_at_ids is not None and isinstance(dc_dXi_dXi_dp,np.ndarray):
     #  dc_dXi_dXi_dp = dc_dXi_dXi_dp[self.assign_at_ids-1]
       

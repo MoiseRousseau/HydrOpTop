@@ -22,12 +22,12 @@ class Sum_Flux:
       self.connections_to_sum = None #consider all the connections
     else:
       #sort them and -1 to convert from PFLOTRAN to python indexing
-      self.connections_to_sum = np.array(connections) - 1
+      self.connections_to_sum = np.array(connections) 
       if len(self.connections_to_sum.shape) != 2:
         print("Something went wrong with the connections provided:")
         print(connections)
         exit(1)
-      if (True in (self.connections_to_sum < 0)):
+      if (True in (self.connections_to_sum <= 0)):
         print("Error: some connections implied a cell id <= 0")
         exit(1)
     self.squared = square
@@ -39,6 +39,7 @@ class Sum_Flux:
     self.areas = None
     self.connection_ids = None
     #derived inputs
+    self.sign = None
     self.mask = None #correspondance between connection in PFLOTRAN order and those to sum
     self.area_con = None #connection area for connection to sum
     self.d_z_con = None #d_z for connection to sum
@@ -78,14 +79,13 @@ class Sum_Flux:
     in-place, so that function will never be called again...
     """
     #parse input at each iteration
-    no_bc_connections = (inputs[6][:,0] > 0) * (inputs[6][:,1] > 0)
     self.pressure = inputs[0]
-    self.areas = inputs[1][no_bc_connections]
+    self.areas = inputs[1]
     self.k = inputs[2]
-    self.d_fraction = inputs[3][no_bc_connections]
-    self.distance = inputs[4][no_bc_connections]
+    self.d_fraction = inputs[3]
+    self.distance = inputs[4]
     self.z = inputs[5]
-    self.connection_ids = inputs[6][no_bc_connections]
+    self.connection_ids = inputs[6]
     return
   
   def get_inputs(self):
@@ -99,12 +99,6 @@ class Sum_Flux:
     Required by the Crafter
     """
     self.p_ids = p_ids
-    #here we need the reverse, i.e. we know the cell id in PFLOTRAN 
-    #and we need the index in p
-    #self.ids_p = np.zeros(len(p_ids),dtype='i8')
-    #self.ids_p[self.p_ids] = np.arange(len(self.p_ids))
-    self.ids_p = {}
-    for i,x in enumerate(self.p_ids): self.ids_p[x] = i #conversion from PFLOTRAN to zeros based
     return 
   
   def set_adjoint_problem(self, x):
@@ -121,35 +115,50 @@ class Sum_Flux:
     """
     X_n1 = X[self.connection_ids[:,0]-1]
     X_n2 = X[self.connection_ids[:,1]-1]
-    return X_n1 * X_n2 / (self.d_fraction * X_n2 + (1-self.d_fraction) * X_n1)
+    return X_n1 * X_n2 / (self.d_fraction * X_n1 + (1-self.d_fraction) * X_n2)
     
 
   
   ### COST FUNCTION ###
-  def evaluate_array(self, p, square):
-    if not self.initialized: self.__initialize__()
-    k_con = self.interpole_at_face(self.k)[self.mask]
-    if not self.initialized: self.__initialize__()
-    d_P_con = self.pressure[self.connections_to_sum[:,0]] - \
-                             self.pressure[self.connections_to_sum[:,1]]
-    cf = self.area_con * k_con / default_viscosity * \
-         (d_P_con - default_water_density * default_gravity * self.d_z_con) / self.distance_con
-    if square: 
-      cf *= (d_P_con - default_water_density * default_gravity * self.d_z_con) / \
-                                   self.distance_con
-    return cf
-    
-  
   def evaluate(self, p):
     """
     Evaluate the cost function
     Return the sum of the flux calculated at the given connection [m3/s]
     """
-    cf = self.evaluate_array(p,self.squared)
+    if not self.initialized: self.__initialize__()
+    k_con = self.interpole_at_face(self.k)[self.mask]
+    d_P_con = (self.pressure[self.connection_ids[:,1]-1] - 
+                        self.pressure[self.connection_ids[:,0]-1])[self.mask]
+    eg = default_water_density * default_gravity
+    cf = - self.sign * self.area_con * k_con / default_viscosity * \
+                (d_P_con + eg * self.d_z_con) / self.distance_con
+                
+    if self.squared: 
+      cf *= - self.sign * (d_P_con + eg * self.d_z_con) / self.distance_con
     return np.sum(cf)
   
   
   ### PARTIAL DERIVATIVES ###
+  def __cumsum_from_connection_to_array__(self, array_out, sum_at, values, sorted_index=None):
+    """
+    Sum the values array in array out at the index defined by sum_at
+    This is equivalent to array_out[sum_at] += values where sum_at can have redudant indices
+    sum_at must be a zeros based array. negative index are ignored
+    """
+    values_ = values[sum_at >= 0]
+    sum_at_ = sum_at[sum_at >= 0] #remove -1
+    if len(sum_at_) == 0: return #do nothing
+    if sorted_index is None:
+      sorted_index = np.argsort(sum_at_)
+    #bincount sum_at+1 so there is no 0 and the output array[0] = 0
+    tosum = np.bincount(sum_at_+1, minlength=len(array_out))
+    n_to_sum = np.cumsum(tosum)[:-1]
+    n_to_sum[n_to_sum == len(sum_at_)] = len(sum_at_) - 1 #post treatment for end missing cell ids
+    where_to_add = np.where(tosum[1:] != 0)[0]
+    array_out[where_to_add] += np.add.reduceat(values_[sorted_index], n_to_sum)[where_to_add]
+    return 
+  
+  
   def d_objective_dP(self,p): 
     """
     Evaluate the derivative of the cost function according to the pressure.
@@ -162,19 +171,21 @@ class Sum_Flux:
     else:
       self.dobj_dP[:] = 0
     if self.squared:
-      deriv = 2 * self.evaluate_array(p,False) / self.distance_con
+      d_P_con = self.pressure[self.connection_ids[:,1][self.mask]-1] - \
+                               self.pressure[self.connection_ids[:,0][self.mask]-1]
+      eg = default_water_density * default_gravity
+      deriv = -2 * abs(self.sign) * self.area_con * k_con / default_viscosity * \
+                                   (d_P_con + eg * self.d_z_con) / self.distance_con**2
     else:
-      deriv = self.area_con * k_con / (self.distance_con * default_viscosity) 
-    for icon,ids in enumerate(self.connections_to_sum):
-      i,j = ids
-      if (i < 0) or (j < 0): continue
-      if self.ids_p is not None:
-        try: i = self.ids_p[i+1] #i,j 0 based, but ids_p pflotran base (1)
-        except: pass
-        try: j = self.ids_p[j+1]
-        except: pass
-      self.dobj_dP[i] += deriv[icon]
-      self.dobj_dP[j] -= deriv[icon]
+      deriv = self.sign * self.area_con * k_con / (self.distance_con * \
+                                                                   default_viscosity)
+    
+    self.__cumsum_from_connection_to_array__(self.dobj_dP, 
+                                     self.connection_ids[:,0][self.mask]-1,
+                                     deriv, sorted_index=self.sorted_connections1)
+    self.__cumsum_from_connection_to_array__(self.dobj_dP, 
+                                     self.connection_ids[:,1][self.mask]-1,
+                                     -deriv, sorted_index=self.sorted_connections2)
     return
   
   
@@ -205,33 +216,34 @@ class Sum_Flux:
       self.mat_props_dependance
     Note, could return a dummy value if the objective input does not 
     depend on the material properties explicitely or implicitely
-    Must have the size of p
+    Must have the size of the inputs
     """
     if not self.initialized: self.__initialize__()
-    deriv = np.zeros(len(p),dtype='f8')
-    K1 = self.k[self.connections_to_sum[:,0]] 
-    K2 = self.k[self.connections_to_sum[:,1]]
-    den = (self.d_fraction_con*K1 + (1-self.d_fraction_con)*K2)**2
-    d_P_con = self.pressure[self.connections_to_sum[:,0]] - \
-                             self.pressure[self.connections_to_sum[:,1]]
-    prefactor = self.area_con *  (d_P_con - default_water_density * \
-                   default_gravity * self.d_z_con) / (self.distance_con * default_viscosity)
+    if self.dobj_dmat_props[2] is None:
+      self.dobj_dmat_props[2] = np.zeros(len(self.pressure),dtype='f8')
+    else:
+      self.dobj_dmat_props[2][:] = 0.
+      
+    K1 = self.k[self.connection_ids[:,0][self.mask]-1] 
+    K2 = self.k[self.connection_ids[:,1][self.mask]-1]
+    den = ( self.d_fraction_con*K1 + (1-self.d_fraction_con)*K2 ) ** 2
+    d_P_con = self.pressure[self.connection_ids[:,1][self.mask]-1] - \
+                             self.pressure[self.connection_ids[:,0][self.mask]-1]
+    eg = default_water_density * default_gravity
+    prefactor = -self.sign * self.area_con *  (d_P_con + eg * \
+                              self.d_z_con) / (self.distance_con * default_viscosity)
     if self.squared: 
-      prefactor *= (d_P_con - default_water_density * \
-                            default_gravity * self.d_z_con) / self.distance_con
-    dK1 = prefactor * K2**2 * (1-self.d_fraction_con) / den 
+      prefactor *= -self.sign * (d_P_con + eg * self.d_z_con) / self.distance_con
+    dK1 = prefactor * K2**2 * (1-self.d_fraction_con) / den
     dK2 = prefactor * K1**2 * self.d_fraction_con / den
-    for icon,ids in enumerate(self.connections_to_sum):
-      i,j = ids
-      if self.ids_p is not None:
-        try: i = self.ids_p[i+1]
-        except: i = -1 #not in the optimized domain
-        try: j = self.ids_p[j+1]
-        except: j = -1
-      if (i >= 0): deriv[i] += dK1[icon]
-      if (j >= 0): deriv[j] += dK2[icon]
-    self.dobj_dmat_props[2] = deriv
-    return None
+
+    self.__cumsum_from_connection_to_array__(self.dobj_dmat_props[2], \
+                                     self.connection_ids[:,0][self.mask]-1, dK1,
+                                     sorted_index=self.sorted_connections1)
+    self.__cumsum_from_connection_to_array__(self.dobj_dmat_props[2], \
+                                     self.connection_ids[:,1][self.mask]-1, 
+                                     dK2, sorted_index=self.sorted_connections2)
+    return
   
   
   
@@ -274,52 +286,41 @@ class Sum_Flux:
     Initialize the derived quantities from the inputs that must be compute one 
     time only.
     """
-    print("Initializing Sum_Flux function...")
     self.initialized = True
+    #ger id of the connections to sum
     if self.connections_to_sum is None:
-      #no_bc_connections = (self.connection_ids[:,0] > 0) * (self.connection_ids[:,1] > 0)
-      #self.connections_to_sum = self.connection_ids[no_bc_connections] - 1
-      self.connections_to_sum = self.connection_ids - 1
-      self.mask = np.arange(0,len(self.connections_to_sum))
-    #compute derived quantities
-    #extracted quantities
-    #mask = np.isin(self.connection_ids[:,0]-1,self.connections_to_sum[:,0]) * \
-    #                  np.isin(self.connection_ids[:,1]-1,self.connections_to_sum[:,1])
-    #print(mask)
-    #mask += np.isin(self.connection_ids[:,1]-1,self.connections_to_sum[:,0]) + \
-    #                  np.isin(self.connection_ids[:,0]-1,self.connections_to_sum[:,1])
-    #print(np.isin(self.connection_ids[:,1]-1,self.connections_to_sum[:,0]) + \
-    #                  np.isin(self.connection_ids[:,0]-1,self.connections_to_sum[:,1]))
-    #print(mask)
-    #self.mask = np.where(mask)
-    #print(self.connection_ids, self.connections_to_sum+1, self.mask)
-    #test = len(self.connections_to_sum) - len(self.mask)
-    #if test:
-    #  print("Warning! Some connections were missed!")
-    if self.mask is None:
-      self.mask = np.zeros(len(self.connections_to_sum),dtype='i8')-1
-      count = -1
-      for i,j in self.connections_to_sum:
-        count += 1
-        found = False
-        for k,ids in enumerate(self.connection_ids):
-          if (ids[0] == i+1 and ids[1] == j+1) or \
-             (ids[1] == i+1 and ids[0] == j+1):
-            self.mask[count] = k
-            found = True
-            break
-        if not found:
-          print(f"Warning! Connection {i+1,j+1} missed !")
-          print("This could be a non-existing connection")
-      
+      self.mask = (self.connection_ids[:,0] > 0) * (self.connection_ids[:,1] > 0)
+      self.sign = 1.
+    else:
+      #transform a to have unique key
+      offset = int(10**(np.ceil(np.log10(np.max(self.connection_ids)))+1))
+      unique_id_con = offset*self.connection_ids[:,0] + self.connection_ids[:,1]
+      unique_id_to_sum = offset*self.connections_to_sum[:,0] + self.connections_to_sum[:,1]
+      self.mask = np.isin(unique_id_con, unique_id_to_sum)
+      self.sign = np.where(self.mask, 2., 0.)
+      #revert the unique id to sum key
+      unique_id_to_sum = offset*self.connections_to_sum[:,1] + self.connections_to_sum[:,0]
+      self.mask += np.isin(unique_id_con, unique_id_to_sum)
+      self.sign += np.where(self.mask, -1., 0.)
+      self.sign = self.sign[self.mask]
+      test = len(self.connections_to_sum) - len(np.where(self.mask)[0])
+      if test < 0:
+        print("\n###\nWARNING!\nSome connections are duplicated!\n###\n")
+      elif test > 0:
+        print("\n###\nWARNING!\nSome connections were missed!\n###\n")
+    
+    #compute constant at the face of interest
     if self.area_con is None: self.area_con = self.areas[self.mask]
     if self.distance_con is None: self.distance_con = self.distance[self.mask]
     if self.d_fraction_con is None: self.d_fraction_con = self.d_fraction[self.mask]
-    #derived quantities
     if self.d_z_con is None:
-      self.d_z_con = self.z[self.connections_to_sum[:,0]] - \
-                     self.z[self.connections_to_sum[:,1]] #only at the considered connections
-    print("Done!")
+      self.d_z_con = self.z[self.connection_ids[:,1]-1] - self.z[self.connection_ids[:,0]-1]
+      self.d_z_con = self.d_z_con[self.mask]
+    
+    #stored sorted connection for fast sum (in the derivatives)
+    self.sorted_connections1 = np.argsort(self.connection_ids[:,0][self.mask])
+    self.sorted_connections2 = np.argsort(self.connection_ids[:,1][self.mask])
+      
     return
     
   

@@ -11,11 +11,12 @@ import numpy as np
 if __name__ == "__main__":
   
   #create PFLOTRAN simulation object
-  print("Create and run PFLOTRAN simulation \"pit_general\" to create function inputs")
-  pflotranin = "../PFLOTRAN_problems/pit_general/pflotran.in"
+  pft_problem = "pit_3d"
+  print(f"Create and run PFLOTRAN simulation \"{pft_problem}\" to create function inputs")
+  pflotranin = f"../PFLOTRAN_problems/{pft_problem}/pflotran.in"
   sim = PFLOTRAN(pflotranin)
   #create a random material parameter
-  perm_data = np.genfromtxt("../PFLOTRAN_problems/pit_general/permeability_field.csv",
+  perm_data = np.genfromtxt(f"../PFLOTRAN_problems/{pft_problem}/permeability_field.csv",
                             comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   sim.create_cell_indexed_dataset(perm_field, "permeability", 
@@ -23,7 +24,8 @@ if __name__ == "__main__":
   sim.run_PFLOTRAN()
   
   #define objective
-  pit_ids = sim.get_region_ids("pit")
+  #pit_ids = sim.get_region_ids("pit") cannot compare more than one element because dupplicated connection not considered in the current sum_flux function implementation
+  pit_ids = np.array([98])
   weighted = p_Weighted_Sum_Flux(pit_ids)
   weighted.set_p_to_cell_ids(pit_ids)
   

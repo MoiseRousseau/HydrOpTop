@@ -19,13 +19,14 @@ def common_compare(debug_function, pertub=1e-6, accept=1e-3):
   print(f"{len(functions_to_test)} HydrOpTop functions to test")
   
   #create PFLOTRAN simulation object
-  print("Create and run PFLOTRAN simulation to create functions inputs")
-  pflotranin = "../PFLOTRAN_problems/quad_128_hetero/pflotran.in"
+  pft_problem = "pit_3d"#"quad_128_hetero"
+  print(f"Create and run PFLOTRAN simulation \"{pft_problem}\" to create functions inputs")
+  pflotranin = f"../PFLOTRAN_problems/{pft_problem}/pflotran.in"
   sim = PFLOTRAN(pflotranin)
   #create a random material parameter
   p = np.random.random(sim.get_grid_size())
   #p = np.ones(sim.get_grid_size())
-  perm_data = np.genfromtxt("../PFLOTRAN_problems/quad_128_hetero/permeability_field.csv",
+  perm_data = np.genfromtxt(f"../PFLOTRAN_problems/{pft_problem}/permeability_field.csv",
                              comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   sim.create_cell_indexed_dataset(perm_field, "permeability", 

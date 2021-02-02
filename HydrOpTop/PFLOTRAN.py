@@ -21,7 +21,8 @@ class PFLOTRAN:
     self.prefix = (self.pft_in.split('/')[-1]).split('.')[0]
     self.output_sensitivity_format = "HDF5" #default
     if self.input_folder[0] == '/': self.input_folder = '.' + self.input_folder
-    self.__get_input_deck__(self.pft_in )
+    self.__get_input_deck__(self.pft_in)
+    self.mesh_type = None
     self.__get_mesh_info__()
     self.__get_nvertices_ncells__()
     self.__get_sensitivity_info__()
@@ -33,6 +34,12 @@ class PFLOTRAN:
     #output
     self.pft_out = '.'.join(pft_in.split('.')[:-1])+'.h5'
     self.pft_out_sensitivity = '.'.join(pft_in.split('.')[:-1]) + "-sensitivity-flow"
+    if self.mesh_type in ["ugi", "h5"]:
+      self.domain_file = self.pft_out
+    else:
+      self.domain_file = self.__get_domain_filename__()
+    
+    #for internal working
     self.dict_var_out = {"FACE_AREA" : "Face Area", 
                          "FACE_DISTANCE_BETWEEN_CENTER" : "Face Distance Between Center",
                          "FACE_UPWIND_FRACTION" : "Face Upwind Fraction",
@@ -172,6 +179,44 @@ class PFLOTRAN:
       out.create_dataset("Cell Ids", data=X_ids)
     out.close()
     return
+  
+  
+  def write_output_variable(self, X_dataset, dataset_name, h5_file_name, h5_mode,
+                                  X_ids=None):
+    """
+    Write the "X_dataset" in the HDF5 file "h5_file_name" and link it to the input mesh
+    for visualization
+    """
+    #correct X_dataset if not of the size of the mesh
+    if len(X_dataset) != self.n_cells:
+      if X_ids is None: 
+        print("Error: user must provide the cell ids corresponding to the dataset")
+        return 1
+      X_new = np.zeros(self.n_cells, dtype='f8')
+      X_new[:] = np.nan
+      X_new[X_ids-1] = X_dataset
+      X_dataset = X_new
+    #write it
+    out = h5py.File(h5_file_name, h5_mode)
+    out.create_dataset(dataset_name, data=X_dataset)
+    out.close()
+    return
+  
+  def write_output_xmdf(self, out_number, out_file, var_list, var_name):
+    """
+    Write a xdmf file for visualizing the variable "in var_list"
+    """
+    if out_number < 10: out_number = "00"+str(out_number)
+    elif out_number < 100: out_number = "0"+str(out_number)
+    out_xdmf = '.'.join(out_file.split(".")[:-1]) + f"-{out_number}.xmf"
+    out = open(out_xdmf, 'w')
+    self.__write_xdmf_header__(out,out_number)
+    self.__write_xdmf_grid__(out)
+    for att_name, att_var in zip(var_name,var_list):
+      self.__write_xdmf_attribute__(out, out_file, att_name, att_var)
+    self.__write_xdmf_footer__(out)
+    out.close()
+    return out_xdmf
 
   
   # running
@@ -225,15 +270,17 @@ class PFLOTRAN:
     - out: the numpy output array (default=None)
     - timestep: the i-th timestep to extract
     """
-    src = h5py.File(self.pft_out, 'r')
     #treat coordinate separately as they are in Domain/XC
+    #TODO ask for x/y/z coordinate for uge grid
     if var in ["XC", "YC", "ZC"]:
+      src = h5py.File(self.domain_file, 'r')
       if out is None:
         out = np.array(src["Domain/"+var])
       else:
         out[:] = np.array(src["Domain/"+var])
       src.close()
       return out
+    src = h5py.File(self.pft_out, 'r')
     timesteps = [x for x in src.keys() if "Time" in x]
     right_time = timesteps[i_timestep]
     key_to_find = self.dict_var_out[var]
@@ -320,10 +367,24 @@ class PFLOTRAN:
     """
     src = open(filename, 'r')
     temp = []
+    #read line in source file and remove \n and commentaru
     for line in src.readlines():
-      line = line.split('#')[0] #remove commentary and \n
+      line = line.split('#')[0] 
       if len(line)>0 and line[-1] == '\n': line = line[:-1]
-      if line: temp.append(line) 
+      if line: temp.append(line)
+    #remove skip / noskip part
+    skip = []
+    noskip = [] 
+    for i,line in enumerate(temp):
+      if "SKIP" in line: 
+        skip.append(i)
+      if "NOSKIP" in line:
+        noskip.append(i)
+    if len(skip) != len(noskip):
+      print(f"ERROR! number of SKIP does not match the number of NOSKIP in file {filename}")
+    for i,j in zip(skip, noskip):
+      temp = temp[:i] + temp[j+1:]
+    #add the result in the input deck
     if not self.input_deck: self.input_deck = temp
     else:
       self.input_deck = self.input_deck[:append_at_pos] + \
@@ -394,6 +455,58 @@ class PFLOTRAN:
         self.output_sensitivity_format = line[index+1].upper()
         break
     return
+  
+  def __get_domain_filename__(self):
+    filename = ""
+    for i,line in enumerate(self.input_deck):
+      if "DOMAIN_FILENAME" in line:
+        line = line.split()
+        index = line.index("DOMAIN_FILENAME")
+        filename = line[index+1]
+        break
+    return filename
     
-    
+  
+  #for xmdf output
+  def __write_xdmf_header__(self, out, out_number):
+    out.write(f"""\
+<?xml version="1.0" ?>
+<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>
+<Xdmf>
+  <Domain>
+    <Grid Name="Mesh">
+      <Time Value = "{out_number}" />""")
+    return
+  def __write_xdmf_footer__(self,out):
+    out.write("""
+    </Grid>
+  </Domain>
+</Xdmf>""")
+    return
+  def __write_xdmf_grid__(self,out):
+    dim = -1
+    if self.domain_file:
+      src = h5py.open(self.domain_file, 'r')
+      dim = len(src["Domain/Cells"])
+      src.close()
+    out.write(f"""
+      <Topology Type="Mixed" NumberOfElements="{self.n_cells}">
+        <DataItem Format="HDF" DataType="Int" Dimensions="dim">
+          {self.domain_file}:/Domain/Cells
+        </DataItem>
+      </Topology>
+      <Geometry GeometryType="XYZ">
+        <DataItem Format="HDF" Dimensions="{self.n_vertices} 3">
+          {self.domain_file}:/Domain/Vertices
+        </DataItem>
+      </Geometry>""")
+    return
+  def __write_xdmf_attribute__(self, out, out_file, att_name, att_dataset):
+    out.write(f"""
+      <Attribute Name="{att_name}" AttributeType="Scalar"  Center="Cell">
+        <DataItem Dimensions="{self.n_cells} 1" Format="HDF">
+          {out_file}:{att_dataset}
+        </DataItem>
+      </Attribute>""")
+    return
     
