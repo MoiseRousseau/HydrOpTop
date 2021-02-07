@@ -486,12 +486,12 @@ class PFLOTRAN:
   def __write_xdmf_grid__(self,out):
     dim = -1
     if self.domain_file:
-      src = h5py.open(self.domain_file, 'r')
+      src = h5py.File(self.domain_file, 'r')
       dim = len(src["Domain/Cells"])
       src.close()
     out.write(f"""
       <Topology Type="Mixed" NumberOfElements="{self.n_cells}">
-        <DataItem Format="HDF" DataType="Int" Dimensions="dim">
+        <DataItem Format="HDF" DataType="Int" Dimensions="{dim}">
           {self.domain_file}:/Domain/Cells
         </DataItem>
       </Topology>

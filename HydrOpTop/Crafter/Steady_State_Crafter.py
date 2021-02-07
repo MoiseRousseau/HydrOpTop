@@ -62,14 +62,6 @@ class Steady_State_Crafter:
     return
   
   def get_problem_size(self): return self.problem_size
-  
-  def set_adjoint_problem_algo(self, algo, tol=None):
-    if self.obj.__require_adjoint__():
-      self.obj.adjoint.set_adjoint_solving_algo(algo, tol)
-    for constrain in self.constrains:
-      if constrain.__require_adjoint__():
-        constrain.adjoint.set_adjoint_solving_algo(algo, tol)
-    return
     
   def do_not_run_simulation(self, x=True):
     self.do_not_run = x
@@ -282,8 +274,6 @@ class Steady_State_Crafter:
     self.obj.set_p_to_cell_ids(self.p_ids)
     
     #initialize constrains
-    #TODO: initialize constrains
-    #TODO: change self.p_ids that go through 0 and not 1
     self.constrain_inputs_arrays = []
     for constrain in self.constrains:
       for i,dep in enumerate(constrain.__get_PFLOTRAN_output_variable_needed__()):

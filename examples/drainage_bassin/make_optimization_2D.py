@@ -38,7 +38,6 @@ if __name__ == "__main__":
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
   crafted_problem = Steady_State_Crafter(cf, sim, [perm], [max_vol], filter)
-  crafted_problem.set_adjoint_problem_algo("spsolve")
   crafted_problem.output_every_iteration(1)
   crafted_problem.output_gradient()
   

@@ -37,7 +37,6 @@ if __name__ == "__main__":
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
   crafted_problem = Steady_State_Crafter(cf, sim, [perm], [max_vol])
-  crafted_problem.set_adjoint_problem_algo("spsolve")
   
   #initialize optimizer
   algorithm = nlopt.LD_MMA

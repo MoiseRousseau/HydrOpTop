@@ -1,6 +1,6 @@
 import time
 from scipy.sparse import coo_matrix, dia_matrix
-from .adjoint_solving import solve_adjoint
+from .Adjoint_Solve import Adjoint_Solve
 import numpy as np
 
 
@@ -23,19 +23,16 @@ class Sensitivity_Richards:
     self.solver = solver
     self.assign_at_ids = p_ids #in PFLOTRAN format!
     
-    self.method = 'lu' #adjoint solving method
-    self.tol = None #adjoint solver tolerance
-    self.last_l = None #save last adjoint vector to provide it at futur iteration
+    self.adjoint = Adjoint_Solve()
     
     self.dXi_dp = None
     self.dR_dXi = None
     self.dR_dP = None
     self.initialized = False
     return
-  
-  def set_adjoint_solving_algo(self,algo=None,tol=None):
-    if algo is not None: self.method = algo
-    if tol is not None: self.tol = tol
+    
+  def set_adjoint_problem_algo(self, algo=None):
+    if algo is not None: self.adjoint.method = algo
     return
     
   def update_mat_derivative(self, p):
@@ -68,7 +65,7 @@ class Sensitivity_Richards:
       self.update_residual_derivatives()
     
     #compute adjoint
-    l = solve_adjoint(self.dR_dP, dc_dP, method=self.method) #PFLOTRAN ordering
+    l = self.adjoint.solve(self.dR_dP, dc_dP) #PFLOTRAN ordering
     
     #compute dc/dp
     #note: dR_dXi in PFLOTRAN ordering, so we convert it to p ordering with assign_at_ids
