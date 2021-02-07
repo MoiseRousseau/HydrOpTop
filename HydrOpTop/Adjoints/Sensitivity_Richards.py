@@ -74,12 +74,15 @@ class Sensitivity_Richards:
     #note: dR_dXi in PFLOTRAN ordering, so we convert it to p ordering with assign_at_ids
     # and dXi_dP in p ordering
     #thus: dR_dXi_dXi_dp in p ordering
-    dR_dXi_dXi_dp = \
-            ((self.dR_dXi[0]).tocsr())[:,self.assign_at_ids-1].multiply(self.dXi_dp[0])
+    temp = coo_matrix( ( self.dXi_dp[0], 
+                       (np.arange(len(self.dXi_dp[0])),np.arange(len(self.dXi_dp[0])) ) ) 
+                     )
+    dR_dXi_dXi_dp =  ((self.dR_dXi[0]).tocsr())[:,self.assign_at_ids-1] * temp.tocsr()
     if self.n_parametrized_props > 1:
       for i in range(1,self.n_parametrized_props):
+        temp.data = self.dXi_dp[i]
         dR_dXi_dXi_dp += \
-            ((self.dR_dXi[i]).tocsr())[:,self.assign_at_ids-1].multiply(self.dXi_dp[i])
+            ((self.dR_dXi[i]).tocsr())[:,self.assign_at_ids-1] * temp
     
     dc_dXi_dXi_dp = 0.
     for i,mat_prop in enumerate(self.parametrized_mat_props):

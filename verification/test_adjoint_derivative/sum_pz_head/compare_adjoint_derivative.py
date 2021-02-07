@@ -52,7 +52,7 @@ def compute_sensitivity_adjoint():
   mat = Permeability([1.,2.], "everywhere", power=1)
   sens = Sensitivity_Richards([mat], pft_model,np.arange(1,129))
   sens.set_adjoint_solving_algo("lu")
-  S_adjoint = sens.compute_sensitivity(0., cost_deriv_pressure, [0.], [""])
+  S_adjoint = sens.compute_sensitivity(np.zeros(128,dtype='f8'), cost_deriv_pressure, [0.], [""])
   return S_adjoint
   
 
