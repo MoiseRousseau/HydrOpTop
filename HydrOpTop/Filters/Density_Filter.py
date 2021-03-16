@@ -1,5 +1,6 @@
 from .Mesh_NNR import Mesh_NNR
 import numpy as np
+from scipy.sparse import dia_matrix
 
 
 class Density_Filter:
@@ -41,6 +42,11 @@ class Density_Filter:
     print("Build kDTree and compute mesh fixed radius neighbors")
     self.neighbors = Mesh_NNR(self.mesh_center)
     self.neighbors.find_neighbors_within_radius(self.filter_radius)
+    self.D_matrix = self.neighbors.get_distance_matrix().tocsr(copy=True)
+    self.D_matrix.data -= self.filter_radius
+    self.D_matrix = self.D_matrix.dot( dia_matrix((self.volume[np.newaxis,:],0),
+                                                   shape=self.D_matrix.shape) )
+    self.deriv = self.D_matrix.multiply(1/self.D_matrix.sum(axis=1)).transpose()
     self.initialized = True
     return
   
@@ -48,31 +54,15 @@ class Density_Filter:
     if not self.initialized: self.initialize()
     if p_bar is None:
       p_bar = np.zeros(len(p), dtype='f8')
-    for i in range(len(p_bar)):
-      indices, distances = self.neighbors.get_neighbors_center(i)
-      temp = (self.filter_radius - distances) * self.volume[indices]
-      p_bar[i] = temp.dot(p[indices]) / np.sum(temp)
+    temp = self.D_matrix.dot( dia_matrix((p[np.newaxis,:],0),shape=self.D_matrix.shape) )
+    p_bar[:] = (temp.sum(axis=1) / self.D_matrix.sum(axis=1)).flatten()
     return p_bar
   
-  def get_filter_derivative(self, p, out=None):
+  def get_filter_derivative(self, p):
     if not self.initialized: self.initialize()
-    if out is None:
-      out = self.neighbors.get_distance_matrix().copy()
-      
-    num_sum_neighbors = np.zeros(len(p), dtype='f8')
-    for i in range(len(num_sum_neighbors)):
-      indices, distances = self.neighbors.get_neighbors_center(i)
-      num_sum_neighbors[i] = np.sum( (self.filter_radius - distances) * \
-                                     self.volume[indices] )
-      
-    distances = self.neighbors.get_distance_matrix().todok()
-    count = 0
-    #populate matrix row per row
-    for indices, distance in distances.items():
-      out.data[count] = (self.filter_radius - distance) * self.volume[indices[1]] / \
-                         num_sum_neighbors[indices[0]]
-      count += 1
+    out = self.deriv
     return out
+ 
   
   def __get_PFLOTRAN_output_variable_needed__(self):
     return self.output_variable_needed 
