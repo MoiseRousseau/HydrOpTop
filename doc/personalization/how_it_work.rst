@@ -1,4 +1,4 @@
-.. _objectives:
+.. _how_it_works:
 
 HydrOpTop machinery
 ===================

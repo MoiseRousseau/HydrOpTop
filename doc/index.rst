@@ -6,29 +6,6 @@
 Welcome to HydrOpTop's documentation!
 =====================================
 
-.. toctree::
-   :maxdepth: 2
-   
-   getting_started/topology_optimization.rst
-   getting_started/your_first_optimization.rst
-   
-   class_description/how_it_work.rst
-   class_description/objectives.rst
-   class_description/materials.rst
-   class_description/crafter.rst
-   class_description/constrains.rst
-   class_description/adjoints.rst
-   
-   other/examples.rst
-   other/citation.rst
-   other/acknownlegment.rst
-   
-   other/licence.rst
-   other/faq.rst
-   other/contact.rst
-   
-
-
 
 Overview
 ========
@@ -42,21 +19,45 @@ wants to maximize the draining capacity of a soil by smarter drain placement.
 HydrOpTop permitted to solve both of these problems using topology 
 optimization. 
 
-HydrOpTop consists of several Python classes, already-made objectives, 
-constrains, material parametrizations that allow the user to perform 
-topology optimization effortlessly. It is build upon popular Python packages
-such as numpy and scipy to run topology optimization, while the hydrogeological
-solver uses the finite volume flow and transport code PFLOTRAN (see X). 
+HydrOpTop consists of several Python classes, ready-made functions to optimize
+or to use as constrains, and preprogrammed material parametrizations that 
+allow the user to perform topology optimization effortlessly. 
+It can run optimization problems consisting of saturated as well as 
+unsaturated flow, with solute transport and both in steady-state or transient
+conditions.
+It is build upon popular Python packages such as numpy and scipy to run topology optimization, while the hydrogeological solver uses the finite volume flow 
+and transport code PFLOTRAN (see X). 
 
-In the current implementation, a difference is made between the objective
-functions and the constrains, even if, they correpond both to an abstract
-function. The main difference in HydrOpTop is that the Objective function
-could use an adjoint and not the constrains.
+If you are using HydrOpTop in a scientic publication, please consider citing
+the following reference:
+
+Rousseau Moise (2021), HydrOpTop: a Python package to solve topology
+optimization problems in geoenvironmental engineering.
+
 
 
 Installation
 ============
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+HydrOpTop could be installed using python `pip` command:
+
+```
+pip install hydroptop
+```
+
+Note to be able to run optimization problems, PFLOTRAN should be installed
+on your system which should be called by a terminal command named `pflotran`.
+
+Index
+=====
+
+.. toctree::
+   :maxdepth: 1
+   
+   getting_started/topology_optimization.rst
+   getting_started/your_first_optimization.rst
+   user_guide/classes_description.rst
+   theory_guide/theory.rst
+   personalization/how_it_work.rst
+   personalization/dev_notes.rst
+   troubleshoot/troubleshoot.rst

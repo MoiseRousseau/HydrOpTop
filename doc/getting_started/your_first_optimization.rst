@@ -6,7 +6,7 @@ Your first optimization using HydrOpTop
 Problem description
 -------------------
 
-A general description of the objective, what is an objective, ...
+Your first problem consist 
 
 The python code
 ---------------

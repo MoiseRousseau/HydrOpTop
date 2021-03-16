@@ -1,26 +1,7 @@
-.. _objectives:
+.. _dev_notes:
 
-Constrain classes
-=================
-
-Constrain
----------
-
-The constrain class implements the optimization constrains (equality or 
-inequality) of the topology optimization problem. 
-
-Available constrains
---------------------
-
-*   `Maximum_Volume(cell_ids_to_consider, max_volume)`: Constrain 
-    the material defined by `p=1` to occupy at most `max_volume*100` % of the considered domain).
-    `cell_ids_to_consider` is a list of cell ids on which to constrain the maximum
-    volume and `max_volume` the maximum volume fraction allowed on the given cell
-    ids.
-
-
-Implement yours
----------------
+Implement your function
+-----------------------
 
 You can create your own constrains and pass it directly to the optimizer of 
 your choice. However, if you want to use it in the `Crafter` class, each new 
