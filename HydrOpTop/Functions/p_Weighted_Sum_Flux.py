@@ -96,8 +96,9 @@ flux in material designed by p=0
     if self.cell_ids_to_consider is None: #sum on all parametrized cell
       self.cell_ids_to_consider = p_ids
     else: #check if all the cell to consider are parametrized (p is defined)
-      mask = np.isin(self.cell_ids_to_consider, self.p_ids)
+      #mask = np.isin(self.cell_ids_to_consider, self.p_ids)
       if False in self.cell_ids_to_consider:
+        mask = np.isin(self.cell_ids_to_consider, self.p_ids)
         print("Error! Some cell to sum the p-weighted flux are not parametrized (p is not defined at these cell):")
         print(self.cell_ids_to_consider[~mask])
         exit(1)
@@ -270,15 +271,6 @@ flux in material designed by p=0
     self.__cumsum_from_connection_to_array__(self.dobj_dp_partial, self.connections1_to_p, flux_con)
     self.__cumsum_from_connection_to_array__(self.dobj_dp_partial, self.connections2_to_p, flux_con)
     
-    if 0:
-      self.dobj_dp_partial[:] = 0.
-      for icon,ids in enumerate(self.connection_ids):
-        if ids[0] <= len(self.ids_p): 
-          i = self.ids_p[ids[0]-1]
-          if i != -1: self.dobj_dp_partial[i] += flux_con[icon]
-        if ids[1] <= len(self.ids_p): 
-          j = self.ids_p[ids[1]-1]
-          if j != -1: self.dobj_dp_partial[j] += flux_con[icon]
     return 
   
   

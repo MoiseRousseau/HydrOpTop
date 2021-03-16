@@ -19,7 +19,7 @@ class Adjoint_Solve:
     self.last_l = None
     
     #default parameter for some algorithm
-    self.cg_tol = 1e-5
+    self.cg_tol = 5e-4
     self.cg_preconditionner = "jacobi"
     return
   
@@ -37,6 +37,9 @@ class Adjoint_Solve:
     elif self.method == "bicgstab":
       l = self.__bicgstab_solve__(A,b)
     print(f"Time to solve adjoint: {(time.time() - t_start)} s")
+    #copy for making starting guess for future iteration
+    if self.last_l is None: self.last_l = np.copy(l)
+    else: self.last_l[:] = l
     return l
   
   def __lu_solve__(self, A, b):
@@ -63,9 +66,6 @@ class Adjoint_Solve:
       l = D_ * l
     elif self.lib == "petsc":
       pass
-    #copy for making starting guess for future iteration
-    if self.last_l is None: self.last_l = np.copy(l)
-    else: self.last_l[:] = l
     return l
 
 

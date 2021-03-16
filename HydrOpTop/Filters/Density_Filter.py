@@ -20,7 +20,8 @@ class Density_Filter:
     self.neighbors = None
     self.initialized = False
     
-    self.output_variable_needed = ["XC", "YC", "ZC", "VOLUME"]
+    self.output_variable_needed = ["X_COORDINATE", "Y_COORDINATE",
+                                   "Z_COORDINATE", "VOLUME"]
     return
   
   def set_p_to_cell_ids(self, p_ids):

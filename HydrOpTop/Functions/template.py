@@ -79,6 +79,10 @@ class My_Function:
     return 
   
   def set_adjoint_problem(self, x):
+    """
+    Method to pass the adjoint given by the crafter or by the user
+    May be deleted if not needed
+    """
     self.adjoint = x
     return
 
@@ -171,7 +175,7 @@ class My_Function:
     cf = self.evaluate(p)
     if grad.size > 0:
       self.d_objective_dp_total(p,grad)
-    print(f"Current {self.name}: {cf}:.6e")
+    print(f"Current {self.name}: {cf:.6e}")
     return cf
   
   

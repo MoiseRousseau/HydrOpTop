@@ -13,8 +13,8 @@ class Steady_State_Crafter:
   - mat_props: a list of material properties that vary with the density
                parameter p (Material classes instances)
   - solver: object that manage the PDE solver (PFLOTRAN class instance)
-  - objectif: the objective function (Objectif class instance)
-  - constrains: a list of constrains (Constrain class instances
+  - objective: the objective function (Function class instance)
+  - constrains: a list of constrains (Function class instances
   - coupling: specify how each material properties should be optimized
               (coupled = one unique p parameter per cell, half = coupled
               for duplicate ids to optimize in each material, none =
@@ -23,11 +23,11 @@ class Steady_State_Crafter:
   - filter: the filter to be used to relate the density to a filtered density
             (a fitler class instance) (None by default).
   """
-  def __init__(self, objectif, solver, mat_props, constrains, filter=None, coupling="total"):
+  def __init__(self, objective, solver, mat_props, constrains, filter=None, coupling="total"):
     self.__print_information__()
     self.mat_props = mat_props
     self.solver = solver
-    self.obj = objectif
+    self.obj = objective
     self.constrains = constrains
     self.filter = filter
     self.coupling = coupling
@@ -37,7 +37,7 @@ class Steady_State_Crafter:
     self.filter_i = None #filter inputs
     self.p_ids = None #correspondance between p index and cell ids in the solver
                       #i.e. p[0] parametrize cell X, p[1] cell Y, ...
-    
+    self.constrain_inputs_arrays = None
     self.adjoint_algo = None
     self.adjoint_tol = None
     
@@ -157,7 +157,7 @@ class Steady_State_Crafter:
     ### UPDATE OBJECTIVE ###
     if self.Yi is None: #need to initialize
       self.Yi = []
-      for i,var in enumerate(self.obj.__get_PFLOTRAN_output_variable_needed__()):
+      for var in self.obj.__get_PFLOTRAN_output_variable_needed__():
         if var == "CONNECTION_IDS":
           self.Yi.append(self.solver.get_internal_connections())
           continue
@@ -172,11 +172,24 @@ class Steady_State_Crafter:
           self.solver.get_output_variable(var, self.Yi[i], -1) #last timestep
       
     ### UPDATE CONSTRAINS ###
-    count = 0
-    for constrain in self.constrains:
-      for var in constrain.__get_PFLOTRAN_output_variable_needed__():
-        self.solver.get_output_variable(var, self.constrain_inputs_arrays[count], -1)
-        count += 1
+    if self.constrain_inputs_arrays is None: #need to initialize
+      self.constrain_inputs_arrays = []
+      for constrain in self.constrains:
+        temp = []
+        for var in constrain.__get_PFLOTRAN_output_variable_needed__():
+          if var == "CONNECTION_IDS":
+            temp.append(self.solver.get_internal_connections())
+            continue
+          temp.append(self.solver.get_output_variable(var))
+        self.constrain_inputs_arrays.append(temp)
+        constrain.set_inputs(self.constrain_inputs_arrays[-1])
+    else: 
+      for i,constrain in enumerate(self.constrains):
+        for j,var in enumerate(constrain.__get_PFLOTRAN_output_variable_needed__()):
+          if var == "CONNECTION_IDS":
+            self.solver.get_internal_connections(self.constrain_inputs_arrays[i][j])
+            continue
+          self.solver.get_output_variable(var, self.constrain_inputs_arrays[i][j], -1)
     return
     
   
@@ -209,6 +222,7 @@ class Steady_State_Crafter:
     #normalize cf to 1
     cf /= self.first_cf
     grad /= self.first_cf
+    self.__record_optimization_value__(cf)
     return cf
     
   
@@ -262,24 +276,17 @@ class Steady_State_Crafter:
     #initialize solver output for objective function
     #do not set inputs array because we don't know the size of the connection_ids
     #in case of face output
-#    n_outputs = len(self.obj.__get_PFLOTRAN_output_variable_needed__())
-#    self.Yi = [np.zeros(self.solver.n_cells, dtype='f8') for x in range(n_outputs)]
-#    self.obj.set_inputs(self.Yi)
+    
     #initialize adjoint for objective function
-    if self.obj.__require_adjoint__():
+    if self.obj.__require_adjoint__() and (self.obj.adjoint is None):
       which = self.obj.__require_adjoint__()
       if which == "RICHARDS":
         adjoint = Sensitivity_Richards(self.mat_props, self.solver, self.p_ids)
         self.obj.set_adjoint_problem(adjoint)
     self.obj.set_p_to_cell_ids(self.p_ids)
-    
-    #initialize constrains
-    self.constrain_inputs_arrays = []
+    #initialize adjoint for constrains
     for constrain in self.constrains:
-      for i,dep in enumerate(constrain.__get_PFLOTRAN_output_variable_needed__()):
-        self.constrain_inputs_arrays.append(np.zeros(self.solver.n_cells, dtype='f8'))
-      constrain.set_inputs(self.constrain_inputs_arrays[-i-1:])
-      if constrain.__require_adjoint__():
+      if constrain.__require_adjoint__() and (constrain.adjoint is None):
         which = self.obj.__require_adjoint__()
         if which == "RICHARDS":
           adjoint = Sensitivity_Richards(self.mat_props, self.solver, self.p_ids)

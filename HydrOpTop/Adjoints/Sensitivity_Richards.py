@@ -72,7 +72,7 @@ class Sensitivity_Richards:
     # and dXi_dP in p ordering
     #thus: dR_dXi_dXi_dp in p ordering
     temp = coo_matrix( ( self.dXi_dp[0], 
-                       (np.arange(len(self.dXi_dp[0])),np.arange(len(self.dXi_dp[0])) ) ) 
+                  (np.arange(len(self.dXi_dp[0])),np.arange(len(self.dXi_dp[0])) ) ) 
                      )
     dR_dXi_dXi_dp =  ((self.dR_dXi[0]).tocsr())[:,self.assign_at_ids-1] * temp.tocsr()
     if self.n_parametrized_props > 1:

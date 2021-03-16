@@ -86,7 +86,9 @@ class Permeability:
     ax.set_ylabel("Permeability [m^2]")
     ax2.set_ylabel("dPermeability / dp")
     ax.grid()
-    ax.legend()
+    h1, l1 = ax.get_legend_handles_labels()
+    h2, l2 = ax2.get_legend_handles_labels()
+    ax.legend(h1+h2, l1+l2)
     plt.show()
     return
     

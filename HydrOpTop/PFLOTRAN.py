@@ -272,7 +272,9 @@ class PFLOTRAN:
     """
     #treat coordinate separately as they are in Domain/XC
     #TODO ask for x/y/z coordinate for uge grid
-    if var in ["XC", "YC", "ZC"]:
+    if var in ["X_COORDINATE", "Y_COORDINATE", "Z_COORDINATE"] and \
+                                                 self.mesh_type != "uge":
+      var = var[0]+"C"
       src = h5py.File(self.domain_file, 'r')
       if out is None:
         out = np.array(src["Domain/"+var])
@@ -280,6 +282,7 @@ class PFLOTRAN:
         out[:] = np.array(src["Domain/"+var])
       src.close()
       return out
+    #other variable
     src = h5py.File(self.pft_out, 'r')
     timesteps = [x for x in src.keys() if "Time" in x]
     right_time = timesteps[i_timestep]
