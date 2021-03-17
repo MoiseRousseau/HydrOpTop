@@ -3,6 +3,7 @@
 import numpy as np
 import h5py
 from ..PFLOTRAN import default_water_density, default_gravity, default_viscosity
+from .common import __cumsum_from_connection_to_array__
 
 
 class p_Weighted_Sum_Flux:
@@ -149,26 +150,6 @@ flux in material designed by p=0
   
   
   ### PARTIAL DERIVATIVES ###
-  def __cumsum_from_connection_to_array__(self, array_out, sum_at, values, sorted_index=None):
-    """
-    Sum the values array in array out at the index defined by sum_at
-    This is equivalent to array_out[sum_at] += values where sum_at can have redudant indices
-    sum_at must be a zeros based array. negative index are ignored
-    """
-    values_ = values[sum_at >= 0]
-    sum_at_ = sum_at[sum_at >= 0] #remove -1
-    if len(sum_at_) == 0: return #do nothing
-    if sorted_index is None:
-      sorted_index = np.argsort(sum_at_)
-    #bincount sum_at+1 so there is no 0 and the output array[0] = 0
-    tosum = np.bincount(sum_at_+1, minlength=len(array_out))
-    n_to_sum = np.cumsum(tosum)[:-1]
-    n_to_sum[n_to_sum == len(sum_at_)] = len(sum_at_) - 1 #post treatment for end missing cell ids
-    where_to_add = np.where(tosum[1:] != 0)[0]
-    array_out[where_to_add] += np.add.reduceat(values_[sorted_index], n_to_sum)[where_to_add]
-    return 
-    
-  
   def d_objective_dP(self,p): 
     """
     Evaluate the derivative of the function according to the pressure.
@@ -193,10 +174,13 @@ flux in material designed by p=0
     p_ += np.where(self.connection_is_to_sum_2, pp[self.connections2_to_p], 0.)
     d_flux_con *= p_
     
-    self.__cumsum_from_connection_to_array__(self.dobj_dP, self.connection_ids[:,0]-1,
-                                             d_flux_con, sorted_index=self.sorted_connections1)
-    self.__cumsum_from_connection_to_array__(self.dobj_dP, self.connection_ids[:,1]-1,
-                                             -d_flux_con, sorted_index=self.sorted_connections2)
+    __cumsum_from_connection_to_array__(self.dobj_dP, 
+                                        self.connection_ids[:,0]-1, 
+                                        d_flux_con,
+                                        sorted_index=self.sorted_connections1)
+    __cumsum_from_connection_to_array__(self.dobj_dP, self.connection_ids[:,1]-1,
+                                        -d_flux_con,
+                                        sorted_index=self.sorted_connections2)
     return
     
   
@@ -241,10 +225,10 @@ flux in material designed by p=0
     p_ = np.where(self.connection_is_to_sum_1, pp[self.connections1_to_p], 0.)
     p_ += np.where(self.connection_is_to_sum_2, pp[self.connections2_to_p], 0.)
     
-    self.__cumsum_from_connection_to_array__(self.dobj_dmat_props[2], 
+    __cumsum_from_connection_to_array__(self.dobj_dmat_props[2], 
                                     self.connection_ids[:,0]-1, 
                                     p_*dK1, sorted_index=self.sorted_connections1)
-    self.__cumsum_from_connection_to_array__(self.dobj_dmat_props[2], 
+    __cumsum_from_connection_to_array__(self.dobj_dmat_props[2], 
                                     self.connection_ids[:,1]-1, 
                                     p_*dK2, sorted_index=self.sorted_connections2)
     return None
@@ -268,8 +252,10 @@ flux in material designed by p=0
     eg = default_water_density * default_gravity 
     flux_con = factor * self.areas * k_con / default_viscosity * \
                           ( (d_P_con + eg * self.d_z_con) / self.distance ) ** 2
-    self.__cumsum_from_connection_to_array__(self.dobj_dp_partial, self.connections1_to_p, flux_con)
-    self.__cumsum_from_connection_to_array__(self.dobj_dp_partial, self.connections2_to_p, flux_con)
+    __cumsum_from_connection_to_array__(self.dobj_dp_partial, 
+                                        self.connections1_to_p, flux_con)
+    __cumsum_from_connection_to_array__(self.dobj_dp_partial, 
+                                        self.connections2_to_p, flux_con)
     
     return 
   
