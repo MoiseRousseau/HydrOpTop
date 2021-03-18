@@ -14,13 +14,13 @@ p_Gradient
 .. math::
    :label: p_gradient
    
-   f = \frac{1}{N} \left[ \sum_{i}^N
-              \min\left(0,\frac{\partial p_i / \partial z}{|\nabla p_i|}\right)^n
-       \right]^{1/n} - \epsilon
+   f = \frac{1}{N} \frac{\sum_{i}^N \max\left(0,(\nabla p_i)_z\right)}
+     { \left[ \sum_{i}^N \max\left(0,(\nabla p_i)_z\right)^n \right]^{1/n}}
+      - \epsilon
 
 Designed to be used as a constructibility constrain if material 1 could not
-be build above material 0 for example. The gradient of :math:`p` is 
-evaluated using the Gauss gradient scheme:
+be build above material 0 for example. Other gradient direction can also be chosen
+The gradient :math:`\nabla p` is  evaluated using the Gauss gradient scheme:
 
 .. math::
    :label: p_gradient_scheme
