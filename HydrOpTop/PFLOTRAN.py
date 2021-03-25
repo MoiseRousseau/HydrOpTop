@@ -43,10 +43,15 @@ class PFLOTRAN:
     self.dict_var_out = {"FACE_AREA" : "Face Area", 
                          "FACE_DISTANCE_BETWEEN_CENTER" : "Face Distance Between Center",
                          "FACE_UPWIND_FRACTION" : "Face Upwind Fraction",
+                         "FACE_NORMAL_X": "Face Normal X Component",
+                         "FACE_NORMAL_Y": "Face Normal Y Component",
+                         "FACE_NORMAL_Z": "Face Normal Z Component",
                          "LIQUID_CONDUCTIVITY" : "Liquid Conductivity",
                          "LIQUID_PRESSURE" : "Liquid Pressure",
                          "PERMEABILITY" : "Permeability",
                          "VOLUME" : "Volume", 
+                         "X_COORDINATE" : "X Coordinate",
+                         "Y_COORDINATE" : "Y Coordinate",
                          "Z_COORDINATE" : "Z Coordinate"}
     self.dict_var_sensitivity_matlab = \
          {"PERMEABILITY":"permeability","LIQUID_PRESSURE":"pressure"}

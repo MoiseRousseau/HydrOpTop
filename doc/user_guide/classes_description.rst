@@ -26,3 +26,4 @@ Classes description
    crafter.rst
    filters.rst
    PFLOTRAN.rst
+   debug.rst

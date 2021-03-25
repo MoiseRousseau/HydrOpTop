@@ -1,3 +1,4 @@
+#toy problem to create the inputs needed to verify the functions derivative
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -5,7 +6,7 @@ SIMULATION
     SUBSURFACE_FLOW flow
       MODE RICHARDS
     /
-    SENSITIVITY_ANALYSIS sensitivity
+    SENSITIVITY_ANALYSIS sens
       SENSITIVITY_FLOW
     /
   /
@@ -14,21 +15,18 @@ END
 SUBSURFACE
 
 
+
 #=========================== discretization ===================================
 GRID
-  TYPE UNSTRUCTURED ./mesh.ugi
-  MAX_CELLS_SHARING_A_VERTEX 60
-  IMPLICIT_GRID_AREA_CALCULATION TRUE_AREA
+  TYPE UNSTRUCTURED ./column.ugi
 END
-REGION frontier
-  FILE ./frontier.ss
+REGION top
+  FILE ./top.ss
 END
-REGION pit
-  FILE ./pit.vs
+REGION bottom
+  FILE ./bottom.ss
 END
-REGION rock
-  FILE ./rock.vs
-END
+
 
 
 #=========================== EOS ===================================
@@ -38,34 +36,15 @@ EOS WATER
   VISCOSITY CONSTANT 8.904156d-4 Pa-s
 END
 
-
 #=========================== material properties ==============================
-DATASET permeability
-  FILENAME permeability.h5
-END
-
 MATERIAL_PROPERTY mater
   ID 1
-  SATURATION_FUNCTION default
   POROSITY 0.3
-  PERMEABILITY
-    DATASET permeability
-  /
-END
-
-MATERIAL_PROPERTY rock
-  ID 2
+  TORTUOSITY 0.1
   SATURATION_FUNCTION default
-  POROSITY 0.1
   PERMEABILITY
-    PERM_ISO 1e-12
+    PERM_ISO 1e-11
   /
-END
-
-
-#=========================== integral flux ====================================
-INTEGRAL_FLUX interface
-  EXTERNAL_FILE interface.txt
 END
 
 
@@ -79,9 +58,9 @@ END
 OUTPUT
   FORMAT HDF5
   VARIABLES
-    PERMEABILITY_X
-    LIQUID_PRESSURE
     VOLUME
+    LIQUID_PRESSURE
+    PERMEABILITY_X
     Z_COORDINATE
     FACE_AREA
     FACE_DISTANCE_BETWEEN_CENTER
@@ -93,19 +72,17 @@ OUTPUT
   SNAPSHOT_FILE
     PRINT_CONNECTION_IDS
   /
-  #NO_PRINT_INITIAL
-  #NO_PRINT_FINAL
-  PERIODIC_OBSERVATION TIMESTEP 1 
+  NO_PRINT_INITIAL
+  #MASS_BALANCE
 END
 
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 50 y
-  INITIAL_TIMESTEP_SIZE 50 y
-  MAXIMUM_TIMESTEP_SIZE 1e3 y
+  FINAL_TIME 1e2 y
+  INITIAL_TIMESTEP_SIZE 100 y
+  MAXIMUM_TIMESTEP_SIZE 1e2 y
 END
-
 
 
 #=========================== regions ==========================================
@@ -117,24 +94,16 @@ REGION all
 END
 
 
-
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
     PRESSURE hydrostatic
   /
-  DATUM 0 0 100
+  DATUM 0 0 2000
   GRADIENT 
-    PRESSURE -0.01 0. 0.
+    PRESSURE 0. 0. -0.01
   /
   PRESSURE 101325.
-END
-
-FLOW_CONDITION inj_rain
-  TYPE
-    RATE MASS_RATE
-  /
-  RATE 5d-6
 END
 
 
@@ -146,22 +115,20 @@ INITIAL_CONDITION
   REGION all
 END
 
-
-BOUNDARY_CONDITION frontier
+BOUNDARY_CONDITION top
   FLOW_CONDITION initial
-  REGION frontier
+  REGION top
 END
 
+BOUNDARY_CONDITION bottom
+  FLOW_CONDITION initial
+  REGION bottom
+END
 
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  REGION rock
-  MATERIAL rock
-END
-
-STRATA
-  REGION pit
+  REGION all
   MATERIAL mater
 END
 
@@ -169,12 +136,13 @@ END_SUBSURFACE
 
 
 SENSITIVITY_FLOW
-  SENSITIVITY_OUTPUT_FORMAT HDF5
+  OUTPUT 
+    PERIODIC_TIMESTEP 1
+  /
   VARIABLES
     PRESSURE
     PERMEABILITY
   /
-  OUTPUT
-    PERIODIC_TIMESTEP 1
-  /
+  SENSITIVITY_OUTPUT_FORMAT HDF5
 END
+

@@ -14,32 +14,46 @@ p_Gradient
 .. math::
    :label: p_gradient
    
-   f = \frac{1}{N} \frac{\sum_{i}^N \max\left(0,(\nabla p_i)_z\right)}
-     { \left[ \sum_{i}^N \max\left(0,(\nabla p_i)_z\right)^n \right]^{1/n}}
-      - \epsilon
+   f = \frac{1}{V_D} \sum_{i \in D} V_i \max\left(0,(\nabla p_i)_c\right)^n
+          - \epsilon
 
 Designed to be used as a constructibility constrain if material 1 could not
-be build above material 0 for example. Other gradient direction can also be chosen
+be build above material 0 for example.
+The :math:`\max()` function is represented through a smooth Heavyside function.
 The gradient :math:`\nabla p` is  evaluated using the Gauss gradient scheme:
 
 .. math::
    :label: p_gradient_scheme
    
    \nabla p_i = \frac{1}{V_i} 
-        \sum_{j \in \partial i} A_{ij} \boldsymbol{n_{ij}} (d_i p_i + (1-d_i)p_j)
+        \sum_{j \in \partial i} A_{ij} \boldsymbol{n_{ij}} 
+          \left\{ 
+            \begin{array}{ll}
+              p_j \mbox{ if } z_i > z_j \\
+              p_i \mbox{ else}
+            \end{array} \\
+          \right.
 
 Note this method leads rigorously to a second order accurate gradient if and
 only if the mesh is non skewed (i.e. the cell center vector intercept the face
 exactly at its center), which could not be the case for general unstructured mesh.
+For such a case, gradient is corrected by substracting the gradient considering
+:math:`p=1` on all the domain and weighted by `p`:
+
+.. math::
+   :label: p_gradient_correction
+   
+   (\nabla p_i)_c = \nabla p_i - p_i (\nabla p_i)_{p=1} 
 
 Constructor is:
 
-``p_Gradient(direction, tolerance, power)``
+``p_Gradient(direction, tolerance, power, correction)``
 
 where ``direction`` control the ``X``, ``Y`` or ``Z`` direction on which 
 calculate the index (default the Z direction), ``tolerance`` the maximum
-value of the index (the :math:`\epsilon` value, default is 0.3) and 
-``power`` the penalizing power (the `n` value, default is 3).
+value of the index (the :math:`\epsilon` value, default is 0.3), 
+``power`` the penalizing power (the `n` value, default is 3) and
+``correction`` a boolean to enable the correction as decribed above.
 
 
 p_Weighted_Sum_Flux

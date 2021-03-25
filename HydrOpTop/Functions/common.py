@@ -4,7 +4,9 @@ def __cumsum_from_connection_to_array__(array_out, sum_at, values, sorted_index=
   """
   Sum the values array in array out at the index defined by sum_at
   This is equivalent to array_out[sum_at] += values where sum_at can have redudant indices
-  sum_at must be a zeros based array. negative index are ignored
+  sum_at must be a zeros based array. 
+  Negative index are ignored, i.e. do not sum the value associated with the the sum at
+  index of -1
   """
   values_ = values[sum_at >= 0]
   sum_at_ = sum_at[sum_at >= 0] #remove -1

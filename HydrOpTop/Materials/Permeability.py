@@ -16,7 +16,7 @@ class Permeability:
              cell_ids_to_parametrize.lower() == "everywhere":
       self.cell_ids = None
     else:
-      self.cell_ids = cell_ids_to_parametrize
+      self.cell_ids = np.array(cell_ids_to_parametrize)
     self.min_K, self.max_K = bound
     self.reverse = reverse
     self.power = power

@@ -9,7 +9,7 @@ class p_Gradient:
   """
   Description
   """
-  def __init__(self, direction="Z", tolerance=0.3, power=3):
+  def __init__(self, direction="Z", tolerance=0., power=1, correction=False):
     #inputs for function evaluation
     if direction.upper() not in ["X","Y","Z"]:
       print("p_Gradient direction argument not recognized")
@@ -20,22 +20,23 @@ class p_Gradient:
     else: self.direction = 2
     self.power = power
     self.tol = tolerance
+    self.correct_error = correction
     
     #quantities derived from the input calculated one time
     self.initialized = False #a flag indicating calculated (True) or not (False)
     self.vec_con = None
+    self.k_smooth = 100000
     
     #required attribute
     self.p_ids = None 
     self.ids_p = None
     self.dobj_dP = 0. 
-    self.dobj_dmat_props = [0.]*6 
-    self.dobj_dp_partial = 0.
+    self.dobj_dmat_props = [0.]*8
+    self.dobj_dp_partial = None
     self.adjoint = None #attribute storing adjoint
     
     #required for problem crafting
     self.output_variable_needed = ["FACE_AREA", "FACE_UPWIND_FRACTION", 
-                                   "FACE_DISTANCE_BETWEEN_CENTER",
                                    "CONNECTION_IDS", "VOLUME",
                                    "FACE_NORMAL_X", "FACE_NORMAL_Y",
                                    "FACE_NORMAL_Z"] 
@@ -49,10 +50,9 @@ class p_Gradient:
   def set_inputs(self, inputs):
     self.areas = inputs[0]
     self.d_fraction = inputs[1]
-    self.distance = inputs[2]
-    self.connection_ids = inputs[3]
-    self.volume = inputs[4]
-    self.face_normal_x,self.face_normal_y,self.face_normal_z = inputs[5:]
+    self.connection_ids = inputs[2]
+    self.volume = inputs[3]
+    self.face_normal_x,self.face_normal_y,self.face_normal_z = inputs[4:]
     return
   
   def get_inputs(self):
@@ -76,15 +76,20 @@ class p_Gradient:
     import h5py
     out = h5py.File(f_out,'w')
     grad = self.compute_p_gradient(p)
+    if self.correct_error: grad -= self.error*p
     if self.direction == 0: var_name = "X"
     elif self.direction == 1: var_name = "Y"
     else: var_name = "Z"
     out.create_dataset("Cell Ids", data=self.p_ids, dtype='i8')
     out.create_dataset("p", data=p, dtype='f8')
     out.create_dataset(f"p gradient {var_name}", data=grad, dtype='f8')
+    if self.correct_error:
+      out.create_dataset(f"p gradient {var_name} Error", data=self.error, dtype='f8')
     grad[grad < 0] = 0.
-    obj = grad / np.sum(grad**self.power)**(1/self.power)
+    obj = grad#self.volume * grad**self.power / self.V_total
     out.create_dataset("obj", data=obj, dtype='f8')
+    self.d_objective_dp_partial(p)
+    out.create_dataset("d_obj", data=self.dobj_dp_partial, dtype='f8')
     out.close()
     return
   
@@ -97,18 +102,17 @@ class p_Gradient:
     if not self.initialized: self.__initialize__()
     #prepare gradient at connection for the sum
     p_i, p_j = p[self.ids_i], p[self.ids_j]
-    p_con = p_i * self.d_fraction[self.mask] + (1-self.d_fraction[self.mask]) * p_j
-    p_con[self.ids_j == -1] = p_i[self.ids_j == -1]
+    p_con = np.where((self.vec_con[:,self.direction] < 0.) * (self.ids_j != -1), 
+                     p_j, p_i)
     grad_con = self.vec_con[:,self.direction] * p_con
     #sum
     grad = np.zeros(len(p), dtype='f8') #gradient at each parametrized cell
-    __cumsum_from_connection_to_array__(grad, self.connection_ids[:,0][self.mask]-1,
+    __cumsum_from_connection_to_array__(grad, self.ids_i,
                                         grad_con, self.sorted_connections1_to_p)
-    
     __cumsum_from_connection_to_array__(grad, 
-                    self.connection_ids[:,1][self.mask][self.ids_j != -1]-1,
+                    self.ids_j[self.ids_j != -1],
                     -grad_con[self.ids_j != -1], self.sorted_connections2_to_p)
-    grad /= self.volume
+    grad /= self.volume[self.p_ids-1]
     return grad
   
   
@@ -118,10 +122,10 @@ class p_Gradient:
     """
     if not self.initialized: self.__initialize__()
     grad = self.compute_p_gradient(p)
-    grad[grad < 0] = 0.
-    grad_dir = grad / np.sum(grad**self.power)**(1/self.power)
+    if self.correct_error: grad -= self.error*p
+    grad = self.smooth_max_function(grad, self.k_smooth)
     #objective value
-    cf = np.sum(grad_dir)/len(p) - self.tol
+    cf = np.sum(self.volume[self.p_ids-1] * grad**self.power) / self.V_total - self.tol
     return cf
   
   
@@ -132,35 +136,81 @@ class p_Gradient:
   def d_objective_d_mat_props(self, p):
     return None
   
+  def smooth_max_function(self, x, k=10000):
+    cutoff = 100 / k
+    res = x.copy()
+    res[x < cutoff] = 1/k*np.log(1+np.exp(k*x[x < cutoff]))
+    return res
+  
+  def d_smooth_max_function(self, x, k=10000):
+    cutoff = 100 / k
+    res = np.ones(len(x), dtype='f8')
+    res[x < cutoff] = 0.
+    res[abs(x) < cutoff] = 1/(1+np.exp(-k*x[abs(x) < cutoff]))
+    return res
+    
+  def d_objective_dp_partial_FD(self,p):
+    if self.dobj_dp_partial is None:
+      self.dobj_dp_partial = np.zeros(len(p), dtype='f8')
+    else:
+      self.dobj_dp_partial[:] = 0.
+    obj = self.evaluate(p)
+    eps = 1e-6
+    for i in range(len(p)):
+      p[i] += eps
+      pertub_p = self.evaluate(p)
+      p[i] -= 2*eps
+      pertub_m = self.evaluate(p)
+      p[i] += eps
+      self.dobj_dp_partial[i] = 0.5*(pertub_p-pertub_m)/eps
+    return
+  
   def d_objective_dp_partial(self, p):
-    #numerator and denominator val
+    if self.dobj_dp_partial is None:
+      self.dobj_dp_partial = np.zeros(len(p), dtype='f8')
+    else:
+      self.dobj_dp_partial[:] = 0.
+      
+    #gradient value
     grad = self.compute_p_gradient(p)
-    grad[grad < 0] = 0.
-    num = np.sum(grad)
-    den = np.sum(grad**self.power)**(1/self.power)
-    # derivative of numerator
-    d_num = np.zeros(len(p), dtype='f8')
-    vec_con_dir = self.vec_con[:,self.direction]
-    __cumsum_from_connection_to_array__(d_num, self.connection_ids[:,0][self.mask]-1,
-                         vec_con_dir * self.d_fraction[self.mask],
-                         self.sorted_connections1_to_p)
-    __cumsum_from_connection_to_array__(d_num, 
-                   self.connection_ids[:,1][self.mask][self.ids_j != -1]-1,
-                   -(vec_con_dir * (1-self.d_fraction[self.mask]))[self.ids_j != -1],
-                   self.sorted_connections2_to_p)
-    #derivative of denominator
-    A_i, A_j = grad[self.ids_i], grad[self.ids_j]
-    d_den = np.zeros(len(p), dtype='f8')
-    __cumsum_from_connection_to_array__(d_den, self.connection_ids[:,0][self.mask]-1,
-                         A_i * vec_con_dir * self.d_fraction[self.mask],
-                         self.sorted_connections1_to_p)
-    __cumsum_from_connection_to_array__(d_den, 
-                 self.connection_ids[:,1][self.mask][self.ids_j != -1]-1,
-                 -(A_j * vec_con_dir * (1-self.d_fraction[self.mask]))[self.ids_j != -1],
-                 self.sorted_connections2_to_p)
-    d_den *= 1/self.power * den**(1-self.power) 
-    #total derivative
-    self.dobj_dp_partial = (d_num * den + d_den * num)/den**2 / len(p)
+    if self.correct_error: grad -= self.error*p
+    smooth_grad = self.smooth_max_function(grad, self.k_smooth)
+    
+    Sij = self.vec_con[:,self.direction]
+    n = self.power-1
+    if n > 0:
+      smooth_n_dsmooth = smooth_grad**n * \
+                            self.d_smooth_max_function(grad,self.k_smooth)
+    elif n == 0:
+      smooth_n_dsmooth = self.d_smooth_max_function(grad,self.k_smooth)
+    elif n < 0:
+      np.seterr(invalid='ignore', divide='ignore')
+      smooth_n_dsmooth = np.where(smooth_grad == 0., 
+                                  0.,
+                                  smooth_grad**n * \
+                                  self.d_smooth_max_function(grad,self.k_smooth))
+      np.seterr(invalid='warn', divide='warn')
+    #i above j contribution
+    temp = np.where((Sij < 0.) * (self.ids_j != -1), Sij *
+      (smooth_n_dsmooth[self.ids_i] - smooth_n_dsmooth[self.ids_j]), 0.)
+    __cumsum_from_connection_to_array__(self.dobj_dp_partial, 
+                                        self.ids_j,
+                                        temp, self.sorted_connections2_to_p)
+    #j above i contribution
+    temp = np.where((Sij > 0.) * (self.ids_j != -1), Sij *
+      (smooth_n_dsmooth[self.ids_i] - smooth_n_dsmooth[self.ids_j]), 0.)
+    __cumsum_from_connection_to_array__(self.dobj_dp_partial, 
+                                        self.ids_i,
+                                        temp, self.sorted_connections1_to_p)
+    # bc connections
+    temp = np.where((self.ids_j == -1), Sij * smooth_n_dsmooth[self.ids_i], 0.)
+    __cumsum_from_connection_to_array__(self.dobj_dp_partial, 
+                                        self.ids_i,
+                                        temp, self.sorted_connections1_to_p)
+    
+    if self.correct_error: #validated
+      self.dobj_dp_partial -= self.volume[self.p_ids-1] * smooth_n_dsmooth * self.error        
+    self.dobj_dp_partial *= self.power / self.V_total
     return None
   
   
@@ -190,7 +240,7 @@ class p_Gradient:
     cf = self.evaluate(p)
     if grad.size > 0:
       self.d_objective_dp_total(p,grad)
-    print(f"Current {self.name}: {cf:.6e}")
+    print(f"Current {self.name}: {cf+self.tol:.6e}")
     return cf
   
   
@@ -201,25 +251,34 @@ class p_Gradient:
     time only.
     """
     self.initialized = True
+    self.V_total = np.sum(self.volume[self.p_ids-1])
     #correspondance between cell ids and p
     self.ids_p = -np.ones(np.max(self.connection_ids) - 
                       np.min(self.connection_ids)+1, dtype='i8') #-1 mean not optimized
     self.ids_p[self.p_ids-1] = np.arange(len(self.p_ids))
+    #parametrized
     #mask on connection to know which to sum
     self.mask = np.isin(self.connection_ids,self.p_ids)
     self.mask = np.where(self.mask[:,0]+self.mask[:,1], True, False)
     #the cell center vector (masked)
     self.vec_con = np.zeros((np.sum(self.mask),3), dtype='f8')
-    self.vec_con[:,0] = -self.face_normal_x*self.areas[self.mask]
-    self.vec_con[:,1] = -self.face_normal_y*self.areas[self.mask]
-    self.vec_con[:,2] = -self.face_normal_z*self.areas[self.mask]
+    self.vec_con[:,0] = (-self.face_normal_x*self.areas)[self.mask]
+    self.vec_con[:,1] = (-self.face_normal_y*self.areas)[self.mask]
+    self.vec_con[:,2] = (-self.face_normal_z*self.areas)[self.mask]
     #index of sorted connections
     self.ids_i = self.ids_p[self.connection_ids[:,0][self.mask]-1]
     self.ids_j = self.ids_p[self.connection_ids[:,1][self.mask]-1]
-    self.sorted_connections1_to_p = \
-              np.argsort(self.ids_i)
-    self.sorted_connections2_to_p = \
-              np.argsort(self.ids_j[self.ids_j != -1])
+    self.sorted_connections1_to_p = np.argsort(self.ids_i[self.ids_i != -1])
+    self.sorted_connections2_to_p = np.argsort(self.ids_j[self.ids_j != -1])
+    #corrected d_fraction for boundary (d_frac = 0 but it should be 1)
+    self.d_fraction_corrected = self.d_fraction[self.mask].copy()
+    self.d_fraction_corrected[self.ids_j == -1] = 1.
+    
+    #initialize original error
+    if self.correct_error:
+      self.error = self.compute_p_gradient(np.ones(len(self.p_ids),dtype='f8'))
+    else:
+      self.error = 0.
     return
   
   ### REQUIRED FOR CRAFTING ###
