@@ -11,7 +11,7 @@ class Permeability:
   !When p=1 -> k=bound[1]
   """
   def __init__(self, bound, cell_ids_to_parametrize=None, power=3, name="PERMEABILITY",
-                     reverse=False):
+                     reverse=False, log=False):
     if isinstance(cell_ids_to_parametrize, str) and \
              cell_ids_to_parametrize.lower() == "everywhere":
       self.cell_ids = None
@@ -20,6 +20,7 @@ class Permeability:
     self.min_K, self.max_K = bound
     self.reverse = reverse
     self.power = power
+    self.log = log #log formulation
     self.name= name #note: Permeability class could be used to
                     # parametrize PERMEABILITY_X, PERMEABILITY_Y, ...
     return
@@ -28,31 +29,35 @@ class Permeability:
     return self.cell_ids
     
   def convert_p_to_mat_properties(self, p, out=None):
+    if out is None: out = np.zeros(len(p),dtype='f8')
     if self.reverse: p_ = 1-p
     else: p_ = p
-    if out is None:
-      K = self.min_K + (self.max_K-self.min_K) * p_**self.power
-      return K
+    if self.log:
+      out[:] = 10**(np.log10(self.min_K) + 
+                       np.log10(self.max_K/self.min_K)*p_**self.power)
     else:
       out[:] = self.min_K + (self.max_K-self.min_K) * p_**self.power
-      return
+    return out
   
   def d_mat_properties(self, p, out=None):
     """
     Return the derivative of the material properties according to 
     material parameter p.
     """
+    if out is None: out = np.zeros(len(p),dtype='f8')
     if self.reverse: 
       factor = -1.
       p_ = 1-p
     else: 
       factor = 1.
       p_ = p
-    if out is None:
-      return factor * self.power * (self.max_K-self.min_K) * p_**(self.power-1)
+    if self.log:
+      pre = np.log(10) * np.log10(self.max_K/self.min_K) * \
+                                  self.convert_p_to_mat_properties(p)
     else:
-      out[:] = factor * (self.power * (self.max_K-self.min_K) * p_**(self.power-1))
-      return
+      pre = (self.max_K-self.min_K)
+    out[:] = factor * self.power * pre * p_**(self.power-1)
+    return out
       
   def convert_mat_properties_to_p(self, mat_prop_val):
     if np.min(mat_prop_val) >= self.min_K and \
@@ -82,7 +87,8 @@ class Permeability:
     ax2 = ax.twinx()
     ax2.plot(p,dK,'b',label="dk/dp")
     ax.set_xlabel("Material parameter p")
-    #ax.set_yscale("log")
+    ax.set_yscale("log")
+    ax.set_xlim([0,1])
     ax.set_ylabel("Permeability [m^2]")
     ax2.set_ylabel("dPermeability / dp")
     ax.grid()

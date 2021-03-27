@@ -36,7 +36,7 @@ class p_Gradient:
     self.adjoint = None #attribute storing adjoint
     
     #required for problem crafting
-    self.output_variable_needed = ["FACE_AREA", "FACE_UPWIND_FRACTION", 
+    self.output_variable_needed = ["FACE_AREA", 
                                    "CONNECTION_IDS", "VOLUME",
                                    "FACE_NORMAL_X", "FACE_NORMAL_Y",
                                    "FACE_NORMAL_Z"] 
@@ -49,10 +49,9 @@ class p_Gradient:
     
   def set_inputs(self, inputs):
     self.areas = inputs[0]
-    self.d_fraction = inputs[1]
-    self.connection_ids = inputs[2]
-    self.volume = inputs[3]
-    self.face_normal_x,self.face_normal_y,self.face_normal_z = inputs[4:]
+    self.connection_ids = inputs[1]
+    self.volume = inputs[2]
+    self.face_normal_x,self.face_normal_y,self.face_normal_z = inputs[3:]
     return
   
   def get_inputs(self):
@@ -60,7 +59,7 @@ class p_Gradient:
     Method that return the inputs in the same order than in "self.output_variable_needed".
     Required to pass the verification test
     """
-    return [self.areas, self.d_fraction, self.distance, self.connection_ids, 
+    return [self.areas, self.distance, self.connection_ids, 
             self.face_normal_x, self.face_normal_y, self.face_normal_z]
   
   def set_p_to_cell_ids(self,p_ids):
@@ -80,16 +79,31 @@ class p_Gradient:
     if self.direction == 0: var_name = "X"
     elif self.direction == 1: var_name = "Y"
     else: var_name = "Z"
-    out.create_dataset("Cell Ids", data=self.p_ids, dtype='i8')
-    out.create_dataset("p", data=p, dtype='f8')
-    out.create_dataset(f"p gradient {var_name}", data=grad, dtype='f8')
+    n_boundary = np.min(self.connection_ids)
+    out.create_dataset("Cell Ids", data=np.arange(np.max(self.connection_ids)),
+                       dtype='i8')
+    out.create_dataset("p", data=np.where(self.ids_p >= 0, 
+                                          p[self.ids_p], np.nan)[0:n_boundary-1],
+                       dtype='f8')
+    out.create_dataset(f"p gradient {var_name}", 
+                       data=np.where(self.ids_p >= 0, 
+                                     grad[self.ids_p], np.nan)[0:n_boundary-1],
+                       dtype='f8')
     if self.correct_error:
-      out.create_dataset(f"p gradient {var_name} Error", data=self.error, dtype='f8')
-    grad[grad < 0] = 0.
-    obj = grad#self.volume * grad**self.power / self.V_total
-    out.create_dataset("obj", data=obj, dtype='f8')
+      out.create_dataset(f"p gradient {var_name} Error",  
+                       data=np.where(self.ids_p >= 0, 
+                                     self.error[self.ids_p], np.nan)[0:n_boundary-1],
+                       dtype='f8')
+    obj = self.volume[self.ids_p[0:n_boundary-1] >= 0] * \
+          self.smooth_max_function(grad, self.k_smooth)**self.power / self.V_total
+    out.create_dataset("obj", data=np.where(self.ids_p >= 0, 
+                                            obj[self.ids_p], np.nan)[0:n_boundary-1],
+                       dtype='f8')
     self.d_objective_dp_partial(p)
-    out.create_dataset("d_obj", data=self.dobj_dp_partial, dtype='f8')
+    out.create_dataset("d_obj",  
+                       data=np.where(self.ids_p >= 0, 
+                             self.dobj_dp_partial[self.ids_p], np.nan)[0:n_boundary-1],
+                       dtype='f8')
     out.close()
     return
   
@@ -224,7 +238,7 @@ class p_Gradient:
     if not self.initialized: self.__initialize__()
     #this method could be used as is
     if out is None:
-      out = np.zeros(len(self.p), dtype='f8')
+      out = np.zeros(len(p), dtype='f8')
     self.d_objective_dp_partial(p) #update function derivative wrt mat parameter p
     out[:] = self.dobj_dp_partial
     return out
@@ -270,9 +284,6 @@ class p_Gradient:
     self.ids_j = self.ids_p[self.connection_ids[:,1][self.mask]-1]
     self.sorted_connections1_to_p = np.argsort(self.ids_i[self.ids_i != -1])
     self.sorted_connections2_to_p = np.argsort(self.ids_j[self.ids_j != -1])
-    #corrected d_fraction for boundary (d_frac = 0 but it should be 1)
-    self.d_fraction_corrected = self.d_fraction[self.mask].copy()
-    self.d_fraction_corrected[self.ids_j == -1] = 1.
     
     #initialize original error
     if self.correct_error:

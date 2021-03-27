@@ -37,6 +37,8 @@ class Steady_State_Crafter:
     self.filter_i = None #filter inputs
     self.p_ids = None #correspondance between p index and cell ids in the solver
                       #i.e. p[0] parametrize cell X, p[1] cell Y, ...
+    self.ids_p = None #correspondance between the cell ids in the solver and p
+                      #i.e. cell ids x is parametrize by p index ids_p[x-1]
     self.constrain_inputs_arrays = None
     self.adjoint_algo = None
     self.adjoint_tol = None
@@ -47,18 +49,20 @@ class Steady_State_Crafter:
     self.print_out = "HydrOpTop.h5"
     self.print_number = 0
     self.print_gradient = False
+    self.print_constrain = False
     #ascii file storing the optimization path
     self.record_opt_value_to = "out.txt"
     self.first_record = True
     
-    self.__initialize_IO_array__()
-    self.__initialize_filter__()
     self.first_call_evaluation = True
     self.first_call_gradient = True
     self.func_eval = 0
     self.last_p = None
     self.do_not_run = False
     self.first_cf = None
+    
+    self.__initialize_IO_array__()
+    self.__initialize_filter__()
     return
   
   def get_problem_size(self): return self.problem_size
@@ -66,6 +70,20 @@ class Steady_State_Crafter:
   def do_not_run_simulation(self, x=True):
     self.do_not_run = x
     return
+    
+  
+  def create_density_parameter_vector(self, init_val=0.):
+    return np.zeros(self.problem_size, dtype='f8') + init_val
+    
+  def simulation_ids_to_p(self, ids):
+    """
+    Return the correspondance between the given ids and the index in the
+    density parameter created with the routine create_density_parameter_vector()
+    """
+    if self.ids_p is None:
+      self.ids_p = -np.ones(self.solver.get_grid_size(), dtype='i8')
+      self.ids_p[self.p_ids-1] = np.arange(len(self.p_ids))
+    return self.ids_p[ids-1]
   
   
   
@@ -85,7 +103,20 @@ class Steady_State_Crafter:
     self.print_gradient = x
     return
     
+  def output_constrain(self,x=True):
+    """
+    Enable output the constrain and their gradient wrt p (default False)
+    """
+    self.print_constrain = x
+    return
+    
+    
   def __output__(self,p,grad):
+    """
+    Method to output the optimization parameter
+    p is the non filtered density
+    grad the gradient according to non filtered density (df_dp)
+    """
     var_list = []
     var_name = []
     self.print_number += 1
@@ -98,9 +129,19 @@ class Steady_State_Crafter:
                     h5_file_name=self.print_out, h5_mode='a', X_ids=self.p_ids)
     var_list.append(f"Density parameter p/Iteration {self.func_eval}")
     var_name.append("Density parameter")
+    #save p_bar
+    if self.filter:
+      p_bar = self.filter.get_filtered_density(p)
+      self.solver.write_output_variable(X_dataset=p_bar, 
+            dataset_name=f"Filtered density parameter p/Iteration {self.func_eval}", 
+            h5_file_name=self.print_out, h5_mode='a', X_ids=self.p_ids)
+      var_list.append(f"Filtered density parameter p/Iteration {self.func_eval}")
+      var_name.append("Filtered density parameter")
+    else:
+      p_bar = p
     #save parametrized material
     for mat_prop in self.mat_props:
-      X = mat_prop.convert_p_to_mat_properties(p)
+      X = mat_prop.convert_p_to_mat_properties(p_bar)
       name = mat_prop.get_name()
       self.solver.write_output_variable(X_dataset=X, 
                     dataset_name=f"{name}/Iteration {self.func_eval}", 
@@ -113,7 +154,18 @@ class Steady_State_Crafter:
                     dataset_name=f"Gradient df_dp/Iteration {self.func_eval}", 
                     h5_file_name=self.print_out, h5_mode='a', X_ids=self.p_ids)
       var_list.append(f"Gradient df_dp/Iteration {self.func_eval}")
-      var_name.append("Gradient")
+      var_name.append(f"Gradient {self.obj.__get_name__()}")
+    #save constrain
+    if self.print_constrain:
+      grad_constrain = np.zeros(len(grad),dtype='f8')
+      for i,constrain in enumerate(self.constrains):
+        self.__nlopt_generic_constrain_to_optimize__(p,grad_constrain,i)
+        self.solver.write_output_variable(
+               X_dataset = grad_constrain,
+               dataset_name=f"Gradient d{constrain.__get_name__()}_dp/Iteration {self.func_eval}", 
+               h5_file_name=self.print_out, h5_mode='a', X_ids=self.p_ids)
+        var_list.append(f"Gradient d{constrain.__get_name__()}_dp/Iteration {self.func_eval}")
+        var_name.append(f"Gradient {constrain.__get_name__()}")
     #create xmdf file
     out_xdmf = self.solver.write_output_xmdf(self.print_number, self.print_out, 
                                              var_list, var_name)
@@ -153,7 +205,7 @@ class Steady_State_Crafter:
     #run PFLOTRAN
     if self.do_not_run == False: #for debug purpose
       ret_code = self.solver.run_PFLOTRAN()
-      if ret_code: return np.nan
+      if ret_code: exit(1)
     ### UPDATE OBJECTIVE ###
     if self.Yi is None: #need to initialize
       self.Yi = []
@@ -202,10 +254,9 @@ class Steady_State_Crafter:
     self.func_eval += 1
     print(f"\nFonction evaluation {self.func_eval}")
     ###FILTERING: convert p to p_bar
-    self.last_p = np.copy(p)
     if self.filter is None:
       p_bar = p
-    else: 
+    else:
       for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
         self.solver.get_output_variable(var, self.filter_i[i], -1) #last timestep
       p_bar = self.filter.get_filtered_density(p)
@@ -223,6 +274,7 @@ class Steady_State_Crafter:
     cf /= self.first_cf
     grad /= self.first_cf
     self.__record_optimization_value__(cf)
+    self.last_p[:] = p
     return cf
     
   
@@ -242,7 +294,7 @@ class Steady_State_Crafter:
       p_bar = self.filter.get_filtered_density(p)
     constrain = self.constrains[iconstrain].nlopt_optimize(p_bar,grad)
     if self.filter:
-      grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
+      grad[:] = self.filter.get_filter_derivative(p_bar).transpose().dot(grad)
     self.__record_optimization_value_constrain__(constrain)
     return constrain
     
@@ -272,6 +324,7 @@ class Steady_State_Crafter:
     else: 
       self.problem_size = len(X)
       self.p_ids = X #from 0 based indexing to PFLOTRAN indexing
+    self.last_p = np.zeros(len(self.p_ids),dtype='f8')
     
     #initialize solver output for objective function
     #do not set inputs array because we don't know the size of the connection_ids
@@ -318,14 +371,15 @@ class Steady_State_Crafter:
         self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                       X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
       #run PFLOTRAN
-      ret_code = self.solver.run_PFLOTRAN()
+      if not self.do_not_run:
+        ret_code = self.solver.run_PFLOTRAN()
+        if ret_code: exit(1)
     
     self.filter_i = [np.zeros(self.solver.n_cells, dtype='f8') for x in range(n_inputs)]
     for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
       self.solver.get_output_variable(var, self.filter_i[i], -1) #last timestep
     self.filter.set_inputs(self.filter_i)
     self.filter.initialize()
-    self.d_pbar_dp = self.filter.get_filter_derivative(p_bar)
     return
     
   

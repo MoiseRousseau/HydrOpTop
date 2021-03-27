@@ -93,6 +93,7 @@ class Volume_Percentage:
   
   ### TOTAL DERIVATIVE ###
   def d_objective_dp_total(self, p, out=None):
+    if out is None: out = np.zeros(len(p),dtype='f8')
     self.d_objective_dp_partial(p)
     out[:] = self.dobj_dp_partial
     return out

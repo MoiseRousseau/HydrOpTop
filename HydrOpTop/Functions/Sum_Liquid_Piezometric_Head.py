@@ -94,7 +94,7 @@ class Sum_Liquid_Piezometric_Head:
     Return a scalar of dimension [L]
     """
     pz_head = (self.pressure-self.reference_pressure) / \
-                             (self.gravity * self.density) - self.z 
+                             (self.gravity * self.density) + self.z 
     if self.ids_to_sum is None: 
       return np.sum(pz_head**self.penalizing_power)
     else: 
@@ -119,7 +119,7 @@ class Sum_Liquid_Piezometric_Head:
         self.dobj_dP[self.ids_to_sum-1] = deriv
     else:
       pz_head = (self.pressure-self.reference_pressure) / \
-                                 (self.gravity * self.density) - self.z 
+                                 (self.gravity * self.density) + self.z 
       if self.ids_to_sum is None: 
         self.dobj_dP[:] = self.penalizing_power / (self.gravity * self.density) * \
                          pz_head**(self.penalizing_power-1)
