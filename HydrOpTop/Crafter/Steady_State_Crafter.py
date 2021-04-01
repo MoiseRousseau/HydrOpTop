@@ -115,6 +115,10 @@ class Steady_State_Crafter:
     self.func_eval += 1
     p = self.last_p
     self.__output__(p)
+    #save p_opt to restart later
+    out = h5py.File(self.print_out, 'a')
+    out.create_dataset("p_opt", data=p)
+    out.close()
     return
     
     

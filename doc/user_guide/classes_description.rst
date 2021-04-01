@@ -21,6 +21,7 @@ Classes description
 .. toctree::
    :maxdepth: 2
    
+   performing_opt.rst
    functions.rst
    materials.rst
    crafter.rst

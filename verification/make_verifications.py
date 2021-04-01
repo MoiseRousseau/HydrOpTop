@@ -21,7 +21,8 @@ def make_verifications():
     # TODO "Adjoint Total Derivative with Filter" : "",
     "Run Optimization Implicit Grid" : "test_optimization/make_optimization_imp.py",
     "Run Optimization Explicit Grid" : "test_optimization/make_optimization_exp.py",
-    "Density Filter" : "test_filter/test_density_filter.py"
+    "Density Filter" : "test_filter/test_density_filter.py",
+    "Heavyside Density Filter" : "test_filter/test_heavyside_filter.py"
   }
   
   success = 0

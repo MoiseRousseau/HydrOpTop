@@ -69,7 +69,7 @@ class voronoi_bounded:
         return
         
 
-    def plot(self, color=None, show=True):
+    def plot(self, color=None, show=True, title=""):
         if color is None:
             color = self.areas
         
@@ -92,6 +92,7 @@ class voronoi_bounded:
             polygon = self.vor.vertices[region]
             plt.fill(*zip(*polygon), alpha=0.4, c=rgb[i])
         
+        ax.set_title(title)
         if show:
           plt.show()
         return

@@ -30,26 +30,29 @@ class Density_Filter:
     return
   
   def set_inputs(self, inputs):
-    if self.p_ids is None:
-      self.volume = inputs[3]
-      self.mesh_center = np.array(inputs[:3]).transpose()
-    else:
-      self.volume = inputs[3][self.p_ids-1] #just need those in the optimized domain
-      self.mesh_center = np.array(inputs[:3])[:,self.p_ids-1].transpose() #same here
-    if isinstance(self.filter_radius, list): #anisotropic
-      max_rad = max(self.filter_radius)
-      coeff = [x/max_rad for x in self.filter_radius]
-      for i in range(3): self.mesh_center[i] /= coeff[i]
-      self.filter_radius = max_rad
+    self.volume = inputs[3]
+    self.mesh_center = np.array(inputs[:3]).transpose()
     return
   
+  
   def initialize(self):
+    if self.p_ids is not None:
+      V = self.volume[self.p_ids-1] #just need those in the optimized domain
+      X = self.mesh_center[self.p_ids-1,:]
+    else:
+      V = self.volume
+      X = self.mesh_center
+    if isinstance(self.filter_radius, list): #anisotropic
+      for i in range(3): X[:,i] /= self.filter_radius[i]
+      R = 1.
+    else:
+      R = self.filter_radius
     print("Build kDTree and compute mesh fixed radius neighbors")
-    self.neighbors = Mesh_NNR(self.mesh_center)
-    self.neighbors.find_neighbors_within_radius(self.filter_radius)
+    self.neighbors = Mesh_NNR(X)
+    self.neighbors.find_neighbors_within_radius(R)
     self.D_matrix = -self.neighbors.get_distance_matrix().tocsr(copy=True)
-    self.D_matrix.data += self.filter_radius
-    self.D_matrix = self.D_matrix.dot( dia_matrix((self.volume[np.newaxis,:],0),
+    self.D_matrix.data += R
+    self.D_matrix = self.D_matrix.dot( dia_matrix((V[np.newaxis,:],0),
                                                    shape=self.D_matrix.shape) )
     self.deriv = self.D_matrix.multiply(1/self.D_matrix.sum(axis=1)).transpose()
     self.initialized = True
