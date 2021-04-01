@@ -92,12 +92,20 @@ Derivative of this function require an adjoint which is set by default, or can
 be user supplied using ``func.set_adjoint_problem(adjoint)``.
 
 
-Sum_Liquid_Piezometric_Head
----------------------------
+Mean_Liquid_Piezometric_Head
+----------------------------
 
+The `Mean_Liquid_Piezometric_Head` function compute the mean of the piezometric
+head in the given cell ids:
+
+.. math::
+   :label: volume_percentage
+   
+   f = \frac{1}{V_D} \sum_{i \in D} V_i (\frac{P-P_{ref}}{\rho g} + z_i)
+   
 Constructor is:
 
-``Sum_Liquid_Piezometric_Head()``
+``Mean_Liquid_Piezometric_Head()``
 
 Derivative of this function require an adjoint which is set by default, or can
 be user supplied using ``func.set_adjoint_problem(adjoint)``

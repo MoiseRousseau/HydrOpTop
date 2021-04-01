@@ -14,7 +14,7 @@ class PFLOTRAN:
   This class make the interface between PFLOTRAN and the calculation
   of sensitivity derivative and the input
   """
-  def __init__(self, pft_in):
+  def __init__(self, pft_in, mesh_info=None):
     #input related
     self.pft_in = pft_in
     self.input_folder = '/'.join(pft_in.split('/')[:-1])+'/'
@@ -38,6 +38,10 @@ class PFLOTRAN:
       self.domain_file = self.pft_out
     else:
       self.domain_file = self.__get_domain_filename__()
+    if mesh_info is None:
+      self.mesh_info = self.pft_out
+    else:
+      self.mesh_info = mesh_info
     
     #for internal working
     self.dict_var_out = {"FACE_AREA" : "Face Area", 
@@ -252,7 +256,7 @@ class PFLOTRAN:
     """
     Return the internal connection of the mesh
     """
-    src = h5py.File(self.pft_out, 'r')
+    src = h5py.File(self.mesh_info, 'r')
     if "Domain" in list(src.keys()): prefix = "Domain/"
     else: prefix = ""
     try:
@@ -275,20 +279,24 @@ class PFLOTRAN:
     - out: the numpy output array (default=None)
     - timestep: the i-th timestep to extract
     """
-    #treat coordinate separately as they are in Domain/XC
-    #TODO ask for x/y/z coordinate for uge grid
+    #treat coordinate separately as they are in Domain/XC unless for uge grid
     if var in ["X_COORDINATE", "Y_COORDINATE", "Z_COORDINATE"] and \
                                                  self.mesh_type != "uge":
       var = var[0]+"C"
-      src = h5py.File(self.domain_file, 'r')
+      src = h5py.File(self.mesh_info, 'r')
       if out is None:
         out = np.array(src["Domain/"+var])
       else:
         out[:] = np.array(src["Domain/"+var])
       src.close()
       return out
+    #treat separately grid output since they could be in the mesh_info file
+    if var in ["LIQUID_CONDUCTIVITY","LIQUID_PRESSURE","PERMEABILITY"]:
+      f_src = self.pft_out
+    else:
+      f_src = self.mesh_info
     #other variable
-    src = h5py.File(self.pft_out, 'r')
+    src = h5py.File(f_src, 'r')
     timesteps = [x for x in src.keys() if "Time" in x]
     right_time = timesteps[i_timestep]
     key_to_find = self.dict_var_out[var]
@@ -384,11 +392,13 @@ class PFLOTRAN:
     skip = []
     noskip = [] 
     for i,line in enumerate(temp):
-      if "SKIP" in line: 
-        skip.append(i)
       if "NOSKIP" in line:
         noskip.append(i)
+        continue
+      if "SKIP" in line: 
+        skip.append(i)
     if len(skip) != len(noskip):
+      print(skip, noskip)
       print(f"ERROR! number of SKIP does not match the number of NOSKIP in file {filename}")
     for i,j in zip(skip, noskip):
       temp = temp[:i] + temp[j+1:]

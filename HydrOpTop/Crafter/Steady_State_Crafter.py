@@ -110,8 +110,15 @@ class Steady_State_Crafter:
     self.print_constrain = x
     return
     
+  def output_results(self):
+    print('\n')
+    self.func_eval += 1
+    p = self.last_p
+    self.__output__(p)
+    return
     
-  def __output__(self,p,grad):
+    
+  def __output__(self,p,grad=None):
     """
     Method to output the optimization parameter
     p is the non filtered density
@@ -149,7 +156,7 @@ class Steady_State_Crafter:
       var_list.append(f"{name}/Iteration {self.func_eval}")
       var_name.append(name)
     #save gradient
-    if self.print_gradient:
+    if self.print_gradient and grad is not None:
       self.solver.write_output_variable(X_dataset=grad, 
                     dataset_name=f"Gradient df_dp/Iteration {self.func_eval}", 
                     h5_file_name=self.print_out, h5_mode='a', X_ids=self.p_ids)
@@ -183,7 +190,7 @@ class Steady_State_Crafter:
     else:
       out = open(self.record_opt_value_to, 'a')
       out.write("\n")
-    out.write(f"{self.func_eval}\t{cf:.6e}")
+    out.write(f"{self.func_eval}\t{cf*self.first_cf:.6e}")
     out.close()
     return
     
@@ -295,7 +302,8 @@ class Steady_State_Crafter:
     constrain = self.constrains[iconstrain].nlopt_optimize(p_bar,grad)
     if self.filter:
       grad[:] = self.filter.get_filter_derivative(p_bar).transpose().dot(grad)
-    self.__record_optimization_value_constrain__(constrain)
+    tol = self.constrains[iconstrain].__get_constrain_tol__()
+    self.__record_optimization_value_constrain__(constrain+tol)
     return constrain
     
    

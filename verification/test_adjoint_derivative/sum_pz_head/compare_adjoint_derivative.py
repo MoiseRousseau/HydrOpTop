@@ -1,6 +1,6 @@
 #
 # Verification of the sensitivity computed via the adjoint equation
-# versus finite difference for the Sum_Liquid_Piezometric_Head objective
+# versus finite difference for the Mean_Liquid_Piezometric_Head objective
 #
 
 import sys
@@ -13,7 +13,7 @@ import numpy as np
 
 
 from HydrOpTop import PFLOTRAN
-from HydrOpTop.Functions import Sum_Liquid_Piezometric_Head
+from HydrOpTop.Functions import Mean_Liquid_Piezometric_Head
 from HydrOpTop.Adjoints import Sensitivity_Richards
 from HydrOpTop.Materials import Permeability
 
@@ -39,8 +39,9 @@ def compute_sensitivity_adjoint():
   print("Compute objective function")
   pressure = pft_model.get_output_variable("LIQUID_PRESSURE")
   z = pft_model.get_output_variable("Z_COORDINATE")
-  objective = Sum_Liquid_Piezometric_Head()
-  objective.set_inputs([pressure,z])
+  volume = pft_model.get_output_variable("VOLUME")
+  objective = Mean_Liquid_Piezometric_Head()
+  objective.set_inputs([pressure,z,volume])
   print(f"Objective: {objective.evaluate(0.)}")
   
   #compute sensitivity
@@ -68,8 +69,9 @@ def compute_sensitivity_finite_difference(cell_ids_to_test=None, pertub = 1e-6):
   pft_model.run_PFLOTRAN()
   pressure = pft_model.get_output_variable("LIQUID_PRESSURE")
   z = pft_model.get_output_variable("Z_COORDINATE")
-  objective = Sum_Liquid_Piezometric_Head()
-  objective.set_inputs([pressure,z])
+  volume = pft_model.get_output_variable("VOLUME")
+  objective = Mean_Liquid_Piezometric_Head()
+  objective.set_inputs([pressure,z,volume])
   ref_obj = objective.evaluate(0.)
   print(f"Current objective: {ref_obj}")
   

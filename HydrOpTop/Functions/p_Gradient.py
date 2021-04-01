@@ -36,10 +36,8 @@ class p_Gradient:
     self.adjoint = None #attribute storing adjoint
     
     #required for problem crafting
-    self.output_variable_needed = ["FACE_AREA", 
-                                   "CONNECTION_IDS", "VOLUME",
-                                   "FACE_NORMAL_X", "FACE_NORMAL_Y",
-                                   "FACE_NORMAL_Z"] 
+    self.output_variable_needed = ["FACE_AREA", "CONNECTION_IDS", "VOLUME",
+                                   f"FACE_NORMAL_{direction}"] 
     self.name = "p_Gradient"
     return
     
@@ -51,7 +49,7 @@ class p_Gradient:
     self.areas = inputs[0]
     self.connection_ids = inputs[1]
     self.volume = inputs[2]
-    self.face_normal_x,self.face_normal_y,self.face_normal_z = inputs[3:]
+    self.face_normal = inputs[3]
     return
   
   def get_inputs(self):
@@ -59,8 +57,7 @@ class p_Gradient:
     Method that return the inputs in the same order than in "self.output_variable_needed".
     Required to pass the verification test
     """
-    return [self.areas, self.distance, self.connection_ids, 
-            self.face_normal_x, self.face_normal_y, self.face_normal_z]
+    return [self.areas, self.connection_ids, self.volume, self.face_normal]
   
   def set_p_to_cell_ids(self,p_ids):
     """
@@ -116,9 +113,9 @@ class p_Gradient:
     if not self.initialized: self.__initialize__()
     #prepare gradient at connection for the sum
     p_i, p_j = p[self.ids_i], p[self.ids_j]
-    p_con = np.where((self.vec_con[:,self.direction] < 0.) * (self.ids_j != -1), 
+    p_con = np.where((self.vec_con < 0.) * (self.ids_j != -1), 
                      p_j, p_i)
-    grad_con = self.vec_con[:,self.direction] * p_con
+    grad_con = self.vec_con * p_con
     #sum
     grad = np.zeros(len(p), dtype='f8') #gradient at each parametrized cell
     __cumsum_from_connection_to_array__(grad, self.ids_i,
@@ -190,7 +187,7 @@ class p_Gradient:
     if self.correct_error: grad -= self.error*p
     smooth_grad = self.smooth_max_function(grad, self.k_smooth)
     
-    Sij = self.vec_con[:,self.direction]
+    Sij = self.vec_con
     n = self.power-1
     if n > 0:
       smooth_n_dsmooth = smooth_grad**n * \
@@ -275,10 +272,7 @@ class p_Gradient:
     self.mask = np.isin(self.connection_ids,self.p_ids)
     self.mask = np.where(self.mask[:,0]+self.mask[:,1], True, False)
     #the cell center vector (masked)
-    self.vec_con = np.zeros((np.sum(self.mask),3), dtype='f8')
-    self.vec_con[:,0] = (-self.face_normal_x*self.areas)[self.mask]
-    self.vec_con[:,1] = (-self.face_normal_y*self.areas)[self.mask]
-    self.vec_con[:,2] = (-self.face_normal_z*self.areas)[self.mask]
+    self.vec_con = (-self.face_normal*self.areas)[self.mask]
     #index of sorted connections
     self.ids_i = self.ids_p[self.connection_ids[:,0][self.mask]-1]
     self.ids_j = self.ids_p[self.connection_ids[:,1][self.mask]-1]
@@ -297,4 +291,5 @@ class p_Gradient:
   def __get_PFLOTRAN_output_variable_needed__(self):
     return self.output_variable_needed 
   def __get_name__(self): return self.name
+  def __get_constrain_tol__(self): return self.tol
                        

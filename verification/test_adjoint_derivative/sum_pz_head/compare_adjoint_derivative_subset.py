@@ -8,7 +8,7 @@ import h5py
 
 import nlopt
                                   
-from HydrOpTop.Functions import Sum_Liquid_Piezometric_Head
+from HydrOpTop.Functions import Mean_Liquid_Piezometric_Head
 from HydrOpTop.Functions import Volume_Percentage
 from HydrOpTop.Materials import Permeability
 from HydrOpTop.Crafter import Steady_State_Crafter
@@ -28,7 +28,7 @@ if __name__ == "__main__":
   perm = Permeability([1e-14, 1e-10], cell_ids_to_parametrize=pit_ids, power=3)
   
   #define cost function as sum of the head in the pit
-  cf = Sum_Liquid_Piezometric_Head(ids_to_sum=pit_ids, penalizing_power=3)
+  cf = Mean_Liquid_Piezometric_Head(ids_to_sum=pit_ids, penalizing_power=3)
   
   #define maximum volume constrains
   max_vol = Volume_Percentage(pit_ids, 0.2)

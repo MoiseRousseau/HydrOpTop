@@ -127,4 +127,5 @@ class Volume_Percentage:
   def __get_PFLOTRAN_output_variable_needed__(self):
     return self.output_variable_needed
   def __get_name__(self): return "Volume"
+  def __get_constrain_tol__(self): return self.max_v_frac
 
