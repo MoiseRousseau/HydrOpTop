@@ -57,7 +57,7 @@ steepness and cutoff according to (Xu et al. 2009):
 
 Constructor is:
 
-``Heavysid_Density_Filter(base_density_filter, cutoff, steepness)``
+``Heavyside_Density_Filter(base_density_filter, cutoff, steepness)``
 
 ``cutoff`` is the cutoff parameter :math:`\eta` (i.e. the value of 
 :math:`p_i` where the step is located) and ``steepness`` the steepness

@@ -201,7 +201,7 @@ class PFLOTRAN:
       if X_ids is None: 
         print("Error: user must provide the cell ids corresponding to the dataset")
         return 1
-      X_new = np.zeros(self.n_cells, dtype='f8')
+      X_new = np.zeros(self.n_cells, dtype='f8')-999
       X_new[:] = np.nan
       X_new[X_ids-1] = X_dataset
       X_dataset = X_new
@@ -281,7 +281,7 @@ class PFLOTRAN:
     """
     #treat coordinate separately as they are in Domain/XC unless for uge grid
     if var in ["X_COORDINATE", "Y_COORDINATE", "Z_COORDINATE"] and \
-                                                 self.mesh_type != "uge":
+                                            self.mesh_type not in ["uge","h5e"]:
       var = var[0]+"C"
       src = h5py.File(self.mesh_info, 'r')
       if out is None:

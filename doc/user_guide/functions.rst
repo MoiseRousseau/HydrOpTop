@@ -3,7 +3,7 @@
 Function classes
 ================
 
-
+Classed by alphabetical order.
 
 p_Gradient
 ----------
@@ -37,13 +37,16 @@ The gradient :math:`\nabla p` is  evaluated using the Gauss gradient scheme:
 Note this method leads rigorously to a second order accurate gradient if and
 only if the mesh is non skewed (i.e. the cell center vector intercept the face
 exactly at its center), which could not be the case for general unstructured mesh.
-For such a case, gradient is corrected by substracting the gradient considering
+For such a case, gradient can be corrected by substracting the gradient considering
 :math:`p=1` on all the domain and weighted by `p`:
 
 .. math::
    :label: p_gradient_correction
    
    (\nabla p_i)_c = \nabla p_i - p_i (\nabla p_i)_{p=1} 
+
+The corrected gradient does not show skewness error when :math:`p` is constant
+for all the cell neighbors.
 
 Constructor is:
 
@@ -59,7 +62,28 @@ value of the index (the :math:`\epsilon` value, default is 0.3),
 p_Weighted_Sum_Flux
 -------------------
 
-``p_Weighted_Sum_Flux()``
+`p_Weighted_Sum_Flux` return a number characterizing the total flowrate in
+material designed by `p=1` in the considered cell.
+In practice, it could be used to minimize the mean flux in material designed 
+by `p=1`.
+
+`p_Weighted_Sum_Flux` returned value is defined as the sum of the squared flux
+through each connection of each considered cell and weighted by the cell 
+material parameter:
+
+.. math::
+   :label: p_weighted_sum_flux
+   
+   f = \sum_{i \in D} p_i \sum_{j \in \partial i} A_{ij} K_{ij} (P_j - P_i - \rho g {z_j-z_i})
+
+Constructor is:
+
+``p_Weighted_Sum_Flux(cell_ids_to_consider=None, invert_weighting=False)``
+
+where ``cell_ids_to_consider`` is a list of the cell to sum the 
+flowrate on and ``invert_weighting`` a boolean to invert the weighting and 
+rather consider the flux in the material given by `p=0` (i.e. 
+:math:`p'=1-p`).
 
 
 Sum_Flux
@@ -99,7 +123,7 @@ The `Mean_Liquid_Piezometric_Head` function compute the mean of the piezometric
 head in the given cell ids:
 
 .. math::
-   :label: volume_percentage
+   :label: mean_liquid_pz_head
    
    f = \frac{1}{V_D} \sum_{i \in D} V_i (\frac{P-P_{ref}}{\rho g} + z_i)
    

@@ -37,9 +37,6 @@ class Adjoint_Solve:
     elif self.method == "bicgstab":
       l = self.__bicgstab_solve__(A,b)
     print(f"Time to solve adjoint: {(time.time() - t_start)} s")
-    #copy for making starting guess for future iteration
-    if self.last_l is None: self.last_l = np.copy(l)
-    else: self.last_l[:] = l
     return l
   
   def __lu_solve__(self, A, b):
@@ -59,6 +56,9 @@ class Adjoint_Solve:
       _b = D_ * b
       l, info = spla.bicgstab(_A, _b, x0=self.last_l, 
                                 tol=self.cg_tol, atol=-1) #do not rely on atol
+      #copy for making starting guess for future iteration
+      if self.last_l is None: self.last_l = np.copy(l)
+      else: self.last_l[:] = l
       if info: 
         print("Some error append during BiConjugate Gradient Stabilized solve")
         print(f"Error code: {info}")

@@ -110,10 +110,10 @@ class Steady_State_Crafter:
     self.print_constrain = x
     return
     
-  def output_results(self):
+  def output_results(self, p=None):
     print('\n')
     self.func_eval += 1
-    p = self.last_p
+    if p is None: p = self.last_p
     self.__output__(p)
     #save p_opt to restart later
     out = h5py.File(self.print_out, 'a')
