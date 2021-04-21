@@ -1,12 +1,12 @@
 import numpy as np
 from scipy.sparse import dia_matrix
 
-class Heavyside_Density_Filter:
+class Volume_Preserving_Heavyside_Filter:
   """
   Filter the density paramater using a three field method according to
   https://link.springer.com/article/10.1007/s00158-009-0452-7
   """
-  def __init__(self, base_density_filter, cutoff=0.5, steepness = 5):
+  def __init__(self, base_density_filter=None, cutoff=0.5, steepness = 5):
     self.base_density_filter = base_density_filter
     self.cutoff = cutoff
     self.stepness = steepness
@@ -31,7 +31,9 @@ class Heavyside_Density_Filter:
       p_filtered = np.zeros(len(p), dtype='f8')
     else:
       p_filtered[:] = 0.
-    p_bar = self.base_density_filter.get_filtered_density(p)
+    if self.base_density_filter is not None:
+      p_bar = self.base_density_filter.get_filtered_density(p)
+    else: p_bar = p
     cpb = 1 - p_bar / self.cutoff
     pbr = (p_bar-self.cutoff) / (1-self.cutoff)
     p_filtered[:] = np.where(p_bar<=self.cutoff,
@@ -51,10 +53,30 @@ class Heavyside_Density_Filter:
     d_p = d_p_bar.dot( dia_matrix((d_p_filtered[np.newaxis,:],0),
                                                    shape=d_p_bar.shape) )
     return d_p
+  
+  def plot_filtered_density(self):
+    try:
+      import matplotlib.pyplot as plt
+    except:
+      print("Matplotlib is not available on your installation")
+      print("Please try 'pip3 install matplotlib' and restart the optimization")
+    x = np.linspace(0,1,1000)
+    save = self.base_density_filter
+    self.base_density_filter = None
+    y = self.get_filtered_density(x)
+    fig,ax = plt.subplots()
+    ax.plot(x,y,'b',label="Filtered parameter")
+    ax.set_xlabel("Input Parameter")
+    ax.set_ylabel("Filtered Parameter")
+    ax.grid()
+    plt.show()
+    self.base_density_filter = save
+    return
     
   def initialize(self):
     if self.initialized: return
-    self.base_density_filter.initialize()
+    if self.base_density_filter is not None:
+      self.base_density_filter.initialize()
     self.initialized = True
     return
   

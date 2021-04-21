@@ -69,17 +69,19 @@ class voronoi_bounded:
         return
         
 
-    def plot(self, color=None, show=True, title=""):
+    def plot(self, color=None, ax=None, show=True, title="", plot_center=False):
         if color is None:
             color = self.areas
         
         rgb = (color - np.min(color)) / (np.max(color) - np.min(color))
         rgb = [[0,x,0] for x in rgb]
         
-        fig = plt.figure()
-        ax = fig.gca()
+        if ax is None:
+          fig = plt.figure()
+          ax = fig.gca()
         # Plot initial points
-        ax.plot(self.vor.filtered_points[:, 0], self.vor.filtered_points[:, 1], 'b.')
+        if plot_center:
+          ax.plot(self.vor.filtered_points[:, 0], self.vor.filtered_points[:, 1], 'b.')
         # Plot ridges
         for region in self.vor.filtered_regions:
             vertices = self.vor.vertices[region + [region[0]], :]
@@ -90,7 +92,7 @@ class voronoi_bounded:
             j = self.vor.filtered_point_region[i]
             region = self.vor.filtered_regions[j]
             polygon = self.vor.vertices[region]
-            plt.fill(*zip(*polygon), alpha=0.4, c=rgb[i])
+            ax.fill(*zip(*polygon), alpha=0.4, c=rgb[i])
         
         ax.set_title(title)
         if show:

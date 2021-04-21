@@ -27,7 +27,10 @@ def compare_dfunction_dp_with_FD(obj, p, cell_to_check=None, pertub=1e-6, accept
     old_p = p[ii]
     d_p = old_p * pertub
     p[ii] = old_p + d_p
-    deriv_fd[ii] = (obj.evaluate(p)-ref_obj) / d_p
+    pertub_p = obj.evaluate(p)
+    p[ii] = old_p - d_p
+    pertub_m = obj.evaluate(p)
+    deriv_fd[ii] = 0.5*(pertub_p-pertub_m) / d_p
     p[ii] = old_p
   
   #print results

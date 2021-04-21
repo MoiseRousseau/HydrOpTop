@@ -9,7 +9,7 @@ sys.path.append(path)
 
 import numpy as np
 
-from HydrOpTop.Filters import Density_Filter, Heavyside_Density_Filter
+from HydrOpTop.Filters import Density_Filter, Heavyside_Filter
 import utils
 
 
@@ -19,7 +19,7 @@ import utils
 if __name__ == "__main__":
   #create filter instance
   base = Density_Filter([0.4,0.1, 0.1])
-  filter = Heavyside_Density_Filter(base, 0.5, 0)
+  filter = Heavyside_Filter(base, 0.5, 1)
   #sample random point
   n_pts = 500
   #np.random.seed(0)

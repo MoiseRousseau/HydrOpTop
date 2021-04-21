@@ -40,8 +40,10 @@ class PFLOTRAN:
       self.domain_file = self.__get_domain_filename__()
     if mesh_info is None:
       self.mesh_info = self.pft_out
+      self.mesh_info_present = False
     else:
       self.mesh_info = mesh_info
+      self.mesh_info_present = True
     
     #for internal working
     self.dict_var_out = {"FACE_AREA" : "Face Area", 
@@ -50,6 +52,9 @@ class PFLOTRAN:
                          "FACE_NORMAL_X": "Face Normal X Component",
                          "FACE_NORMAL_Y": "Face Normal Y Component",
                          "FACE_NORMAL_Z": "Face Normal Z Component",
+                         "FACE_CELL_CENTER_VECTOR_X": "Face Cell Vector X Component",
+                         "FACE_CELL_CENTER_VECTOR_Y": "Face Cell Vector Y Component",
+                         "FACE_CELL_CENTER_VECTOR_Z": "Face Cell Vector Z Component",
                          "LIQUID_CONDUCTIVITY" : "Liquid Conductivity",
                          "LIQUID_PRESSURE" : "Liquid Pressure",
                          "PERMEABILITY" : "Permeability",
@@ -290,6 +295,28 @@ class PFLOTRAN:
         out[:] = np.array(src["Domain/"+var])
       src.close()
       return out
+    #treat separately face normal as it is not ouputted by PFLOTRAN
+    if var in ["FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"] and \
+       self.mesh_type == "h5e":
+      try:
+        src = h5py.File(self.input_folder + self.mesh_file, 'r')
+        temp = np.array(src["Domain/Connections/Normals"])
+        if var == "FACE_NORMAL_X": temp = temp[:,0]
+        elif var == "FACE_NORMAL_Y": temp = temp[:,1]
+        else: temp = temp[:,2]
+        if out is None:
+          out = temp
+        else:
+          out[:] = temp
+        src.close()
+        return out
+      except:
+        print(f"{var} information not available, switch to FACE_CELL_CENTER_VECTOR instead")
+        var = "FACE_CELL_CENTER_VECTOR_" + var[-1]
+    if var in ["FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"] and \
+              self.mesh_type == "uge":
+      print(f"{var} information not available, switch to FACE_CELL_CENTER_VECTOR instead")
+      var = "FACE_CELL_CENTER_VECTOR_" + var[-1]
     #treat separately grid output since they could be in the mesh_info file
     if var in ["LIQUID_CONDUCTIVITY","LIQUID_PRESSURE","PERMEABILITY"]:
       f_src = self.pft_out

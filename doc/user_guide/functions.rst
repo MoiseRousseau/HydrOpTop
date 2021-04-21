@@ -58,6 +58,9 @@ value of the index (the :math:`\epsilon` value, default is 0.3),
 ``power`` the penalizing power (the `n` value, default is 3) and
 ``correction`` a boolean to enable the correction as decribed above.
 
+Require the PFLOTRAN outputs ``FACE_AREA``, ``VOLUME``, 
+``FACE_CELL_CENTER_VECTOR_{direction}`` and ``PRINT_CONNECTION_IDS``.
+
 
 p_Weighted_Sum_Flux
 -------------------
@@ -84,6 +87,10 @@ where ``cell_ids_to_consider`` is a list of the cell to sum the
 flowrate on and ``invert_weighting`` a boolean to invert the weighting and 
 rather consider the flux in the material given by `p=0` (i.e. 
 :math:`p'=1-p`).
+
+Require the PFLOTRAN outputs ``LIQUID_PRESSURE``, ``FACE_AREA``, 
+``PERMEABILITY``, ``FACE_UPWIND_FRACTION``, ``FACE_DISTANCE_BETWEEN_CENTER``, 
+``Z_COORDINATE`` and ``CONNECTION_IDS``.
 
 
 Sum_Flux
@@ -115,6 +122,10 @@ following value:
 Derivative of this function require an adjoint which is set by default, or can
 be user supplied using ``func.set_adjoint_problem(adjoint)``.
 
+Require the PFLOTRAN outputs ``LIQUID_PRESSURE``, ``FACE_AREA``, 
+``PERMEABILITY``, ``FACE_UPWIND_FRACTION``, ``FACE_DISTANCE_BETWEEN_CENTER``, 
+``Z_COORDINATE`` and ``CONNECTION_IDS``.
+
 
 Mean_Liquid_Piezometric_Head
 ----------------------------
@@ -132,7 +143,10 @@ Constructor is:
 ``Mean_Liquid_Piezometric_Head()``
 
 Derivative of this function require an adjoint which is set by default, or can
-be user supplied using ``func.set_adjoint_problem(adjoint)``
+be user supplied using ``func.set_adjoint_problem(adjoint)``.
+
+Require the PFLOTRAN output variable ``LIQUID_PRESSURE``.
+
 
 Volume_Percentage
 -----------------
@@ -153,3 +167,4 @@ where ``cell_ids_to_consider`` is a list of cell ids on which to compute the
 volume percentage and ``max_volume`` the maximum volume fraction allowed on the
 domain :math:`D` if it is used as a constrain.
 
+Require the PFLOTRAN output variable ``VOLUME``.

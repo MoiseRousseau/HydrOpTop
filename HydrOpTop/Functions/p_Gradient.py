@@ -10,6 +10,9 @@ class p_Gradient:
   Description
   """
   def __init__(self, direction="Z", tolerance=0., power=1, correction=False):
+    #TODO
+    #the correction could be more powerfull considering the iterative scheme 
+    #decribed in moukalled 2016.
     #inputs for function evaluation
     if direction.upper() not in ["X","Y","Z"]:
       print("p_Gradient direction argument not recognized")
@@ -31,13 +34,13 @@ class p_Gradient:
     self.p_ids = None 
     self.ids_p = None
     self.dobj_dP = 0. 
-    self.dobj_dmat_props = [0.]*8
+    self.dobj_dmat_props = [0.]*4
     self.dobj_dp_partial = None
     self.adjoint = None #attribute storing adjoint
     
     #required for problem crafting
     self.output_variable_needed = ["FACE_AREA", "CONNECTION_IDS", "VOLUME",
-                                   f"FACE_NORMAL_{direction}"] 
+                                   f"FACE_NORMAL_{direction}"]
     self.name = "p_Gradient"
     return
     
@@ -124,6 +127,7 @@ class p_Gradient:
                     self.ids_j[self.ids_j != -1],
                     -grad_con[self.ids_j != -1], self.sorted_connections2_to_p)
     grad /= self.volume[self.p_ids-1]
+    
     return grad
   
   

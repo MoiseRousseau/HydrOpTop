@@ -12,9 +12,17 @@ class Density_Filter:
   Summarized in:
   https://link.springer.com/article/10.1007/s00158-009-0452-7
   
+  Argument:
+  - filter_radius: scalar or list of scalar specifying the filter radius in X,Y,Z direction
+  - distance_weighting_power: distance weighting function power
+                              positive mean higher weigth (p value more correlated)
   """
-  def __init__(self, filter_radius=1.):
+  def __init__(self, filter_radius=1., distance_weighting_power=1):
     self.filter_radius = filter_radius
+    if distance_weighting_power <= 0.: 
+      print("distance_weighting_power argument must be strictly positive")
+      raise ValueError
+    self.distance_weighting_power = distance_weighting_power
     self.p_ids = None
     self.volume = None
     self.mesh_center = None
@@ -52,6 +60,7 @@ class Density_Filter:
     self.neighbors.find_neighbors_within_radius(R)
     self.D_matrix = -self.neighbors.get_distance_matrix().tocsr(copy=True)
     self.D_matrix.data += R
+    self.D_matrix.data = self.D_matrix.data ** self.distance_weighting_power
     self.D_matrix = self.D_matrix.dot( dia_matrix((V[np.newaxis,:],0),
                                                    shape=self.D_matrix.shape) )
     self.deriv = self.D_matrix.multiply(1/self.D_matrix.sum(axis=1)).transpose()

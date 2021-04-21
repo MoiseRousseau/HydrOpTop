@@ -384,8 +384,9 @@ class Steady_State_Crafter:
                       X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
       #run PFLOTRAN
       if not self.do_not_run:
-        ret_code = self.solver.run_PFLOTRAN()
-        if ret_code: exit(1)
+        if not self.solver.mesh_info_present:
+          ret_code = self.solver.run_PFLOTRAN()
+          if ret_code: exit(1)
     
     self.filter_i = [np.zeros(self.solver.n_cells, dtype='f8') for x in range(n_inputs)]
     for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):

@@ -36,9 +36,17 @@ is provided (i.e. ``filter_radius=[dx,dy,dz]``), the cell centers are searched
 into a ellipsoid of half axis dx, dy and dz.
 
 
-Heavyside density filter
-------------------------
+Heavyside filter
+----------------
 
+TODO
+
+
+
+Volume preserving Heavyside filter
+----------------------------------
+
+A variation of the previous filter.
 Apply the smooth Heavyside function to the density parameter with a given
 steepness and cutoff according to (Xu et al. 2009):
 
@@ -57,7 +65,7 @@ steepness and cutoff according to (Xu et al. 2009):
 
 Constructor is:
 
-``Heavyside_Density_Filter(base_density_filter, cutoff, steepness)``
+``Heavyside_Filter(base_density_filter, cutoff, steepness)``
 
 ``cutoff`` is the cutoff parameter :math:`\eta` (i.e. the value of 
 :math:`p_i` where the step is located) and ``steepness`` the steepness
