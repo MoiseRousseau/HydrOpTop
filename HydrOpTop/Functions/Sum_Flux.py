@@ -4,6 +4,8 @@ import numpy as np
 import h5py
 
 from ..PFLOTRAN import default_water_density, default_gravity, default_viscosity
+from .common import __cumsum_from_connection_to_array__
+
 
 
 class Sum_Flux:
@@ -138,27 +140,6 @@ class Sum_Flux:
     return np.sum(cf)
   
   
-  ### PARTIAL DERIVATIVES ###
-  def __cumsum_from_connection_to_array__(self, array_out, sum_at, values, sorted_index=None):
-    """
-    Sum the values array in array out at the index defined by sum_at
-    This is equivalent to array_out[sum_at] += values where sum_at can have redudant indices
-    sum_at must be a zeros based array. negative index are ignored
-    """
-    values_ = values[sum_at >= 0]
-    sum_at_ = sum_at[sum_at >= 0] #remove -1
-    if len(sum_at_) == 0: return #do nothing
-    if sorted_index is None:
-      sorted_index = np.argsort(sum_at_)
-    #bincount sum_at+1 so there is no 0 and the output array[0] = 0
-    tosum = np.bincount(sum_at_+1, minlength=len(array_out))
-    n_to_sum = np.cumsum(tosum)[:-1]
-    n_to_sum[n_to_sum == len(sum_at_)] = len(sum_at_) - 1 #post treatment for end missing cell ids
-    where_to_add = np.where(tosum[1:] != 0)[0]
-    array_out[where_to_add] += np.add.reduceat(values_[sorted_index], n_to_sum)[where_to_add]
-    return 
-  
-  
   def d_objective_dP(self,p): 
     """
     Evaluate the derivative of the cost function according to the pressure.
@@ -180,12 +161,12 @@ class Sum_Flux:
       deriv = self.sign * self.area_con * k_con / (self.distance_con * \
                                                                    default_viscosity)
     
-    self.__cumsum_from_connection_to_array__(self.dobj_dP, 
+    __cumsum_from_connection_to_array__(self.dobj_dP, 
                                      self.connection_ids[:,0][self.mask]-1,
-                                     deriv, sorted_index=self.sorted_connections1)
-    self.__cumsum_from_connection_to_array__(self.dobj_dP, 
+                                     deriv)
+    __cumsum_from_connection_to_array__(self.dobj_dP, 
                                      self.connection_ids[:,1][self.mask]-1,
-                                     -deriv, sorted_index=self.sorted_connections2)
+                                     -deriv)
     return
   
   
@@ -237,12 +218,10 @@ class Sum_Flux:
     dK1 = prefactor * K2**2 * (1-self.d_fraction_con) / den
     dK2 = prefactor * K1**2 * self.d_fraction_con / den
 
-    self.__cumsum_from_connection_to_array__(self.dobj_dmat_props[2], \
-                                     self.connection_ids[:,0][self.mask]-1, dK1,
-                                     sorted_index=self.sorted_connections1)
-    self.__cumsum_from_connection_to_array__(self.dobj_dmat_props[2], \
-                                     self.connection_ids[:,1][self.mask]-1, 
-                                     dK2, sorted_index=self.sorted_connections2)
+    __cumsum_from_connection_to_array__(self.dobj_dmat_props[2], \
+                                     self.connection_ids[:,0][self.mask]-1, dK1)
+    __cumsum_from_connection_to_array__(self.dobj_dmat_props[2], \
+                                     self.connection_ids[:,1][self.mask]-1, dK2)
     return
   
   
@@ -316,10 +295,6 @@ class Sum_Flux:
     if self.d_z_con is None:
       self.d_z_con = self.z[self.connection_ids[:,1]-1] - self.z[self.connection_ids[:,0]-1]
       self.d_z_con = self.d_z_con[self.mask]
-    
-    #stored sorted connection for fast sum (in the derivatives)
-    self.sorted_connections1 = np.argsort(self.connection_ids[:,0][self.mask])
-    self.sorted_connections2 = np.argsort(self.connection_ids[:,1][self.mask])
       
     return
     

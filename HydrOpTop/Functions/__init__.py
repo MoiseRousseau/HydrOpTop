@@ -3,4 +3,3 @@ from .Mean_Liquid_Piezometric_Head import Mean_Liquid_Piezometric_Head
 from .Volume_Percentage import Volume_Percentage
 from .p_Weighted_Sum_Flux import p_Weighted_Sum_Flux
 from .p_Gradient import p_Gradient
-from .p_Difference_Connection import p_Difference_Connection

@@ -16,7 +16,7 @@ class Mean_Liquid_Piezometric_Head:
   - density: water liquid density (constant) (default=997.16)
   - reference_pressure: reference pressure for h_pz=0 (default=101325.)
   """
-  def __init__(self, ids_to_sum = None, penalizing_power = 1,
+  def __init__(self, ids_to_sum = "everywhere", penalizing_power = 1,
                      gravity=9.8068, density=997.16, reference_pressure=101325.):
                      
     #objective argument

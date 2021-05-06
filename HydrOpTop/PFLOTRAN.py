@@ -156,7 +156,7 @@ class PFLOTRAN:
     if len(cell_ids) == 0:
       print(f"No connections found in the INTEGRAL_FLUX card \"{integral_flux_name}\"")
       exit(1)
-    return cell_ids
+    return np.array(cell_ids)
   
   def create_cell_indexed_dataset(self, X_dataset, dataset_name, h5_file_name="",
                                   X_ids=None, resize_to=True):
