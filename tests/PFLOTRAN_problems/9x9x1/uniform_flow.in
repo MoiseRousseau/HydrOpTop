@@ -1,0 +1,135 @@
+#toy problem to create the inputs needed to verify the functions derivative
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+#    SENSITIVITY_ANALYSIS sens
+#      SENSITIVITY_FLOW
+#    /
+  /
+END
+
+SUBSURFACE
+
+
+
+#=========================== discretization ===================================
+GRID
+  TYPE UNSTRUCTURED mesh.ugi
+END
+REGION all
+  COORDINATES
+    -10 -10 -10
+    10 10 10
+  /
+END
+REGION bc
+  FILE bc.ss
+END
+REGION center
+  FILE center.vs
+END
+
+
+
+#=========================== EOS ===================================
+EOS WATER
+  #simplified value for hydraulic conductivity computation
+  DENSITY CONSTANT 997.16d0 kg/m^3
+  VISCOSITY CONSTANT 8.904156d-4 Pa-s
+END
+
+#=========================== material properties ==============================
+MATERIAL_PROPERTY mater
+  ID 1
+  POROSITY 0.3
+  TORTUOSITY 0.1
+  SATURATION_FUNCTION default
+  PERMEABILITY
+    PERM_ISO 1e-11
+  /
+END
+
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  DEFAULT
+END
+
+
+#=========================== output options ===================================
+OUTPUT
+  FORMAT HDF5
+  VARIABLES
+    VOLUME
+    LIQUID_PRESSURE
+    PERMEABILITY_X
+    Z_COORDINATE
+    FACE_AREA
+    FACE_DISTANCE_BETWEEN_CENTER
+    FACE_UPWIND_FRACTION
+    FACE_NORMAL_X
+    FACE_NORMAL_Y
+    FACE_NORMAL_Z
+  /
+  SNAPSHOT_FILE
+    PRINT_CONNECTION_IDS
+  /
+  NO_PRINT_INITIAL
+  PERIODIC_OBSERVATION TIMESTEP 1
+END
+
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1e2 y
+  INITIAL_TIMESTEP_SIZE 100 y
+  MAXIMUM_TIMESTEP_SIZE 1e2 y
+END
+
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    PRESSURE hydrostatic
+  /
+  DATUM 0 0 50
+  PRESSURE 101325.
+  GRADIENT 
+    PRESSURE -0.01 0. 0.
+  /
+END
+
+FLOW_CONDITION flux
+  TYPE
+    RATE MASS_RATE 
+  /
+  RATE -1.
+END
+
+
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION bc
+  FLOW_CONDITION initial
+  REGION bc
+END
+
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL mater
+END
+
+END_SUBSURFACE
+
