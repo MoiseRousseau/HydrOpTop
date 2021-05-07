@@ -1,3 +1,4 @@
+#Description: Tracer test for determining the fracture and matrix porosity
 
 SIMULATION
   SIMULATION_TYPE SUBSURFACE
@@ -13,21 +14,22 @@ END
 
 SUBSURFACE
 
-
 #=========================== discretization ===================================
 GRID
-  TYPE UNSTRUCTURED ./mesh.ugi
-  MAX_CELLS_SHARING_A_VERTEX 60
-  IMPLICIT_GRID_AREA_CALCULATION TRUE_AREA
+  TYPE UNSTRUCTURED ./mesh.h5
 END
-REGION frontier
-  FILE ./frontier.ss
+
+REGION xmin
+  FILE ./mesh.h5
 END
-REGION pit
-  FILE ./pit.vs
+REGION xmax
+  FILE ./mesh.h5
 END
-REGION rock
-  FILE ./rock.vs
+REGION Pit
+  FILE ./mesh.h5
+END
+REGION Rock
+  FILE ./mesh.h5
 END
 
 
@@ -58,24 +60,8 @@ MATERIAL_PROPERTY rock
   SATURATION_FUNCTION default
   POROSITY 0.1
   PERMEABILITY
-    PERM_ISO 1e-12
+    PERM_ISO 5e-12
   /
-END
-
-
-#=========================== integral flux ====================================
-INTEGRAL_FLUX interface
-  EXTERNAL_FILE interface.txt
-END
-
-INTEGRAL_FLUX interface_absolute
-  FLUXES_OPTION ABSOLUTE_FLUXES
-  EXTERNAL_FILE interface.txt
-END
-
-INTEGRAL_FLUX interface_reverse
-  INVERT_DIRECTION
-  EXTERNAL_FILE interface.txt
 END
 
 
@@ -89,30 +75,26 @@ END
 OUTPUT
   FORMAT HDF5
   VARIABLES
+    #FACE_AREA
+    #FACE_DISTANCE_BETWEEN_CENTER
+    #FACE_UPWIND_FRACTION
     PERMEABILITY_X
     LIQUID_PRESSURE
-    VOLUME
-    Z_COORDINATE
-    FACE_AREA
-    FACE_DISTANCE_BETWEEN_CENTER
-    FACE_UPWIND_FRACTION
-    FACE_NORMAL_X
-    FACE_NORMAL_Y
-    FACE_NORMAL_Z
+    #VOLUME
   /
   SNAPSHOT_FILE
-    PRINT_CONNECTION_IDS
+    PERIODIC TIMESTEP 1
+    #PRINT_CONNECTION_IDS
   /
-  #NO_PRINT_INITIAL
+  NO_PRINT_INITIAL
   #NO_PRINT_FINAL
-  PERIODIC_OBSERVATION TIMESTEP 1 
 END
 
 
 #=========================== times ============================================
 TIME
-  FINAL_TIME 50 y
-  INITIAL_TIMESTEP_SIZE 50 y
+  FINAL_TIME 1e3 s
+  INITIAL_TIMESTEP_SIZE 1e3 y
   MAXIMUM_TIMESTEP_SIZE 1e3 y
 END
 
@@ -139,12 +121,11 @@ FLOW_CONDITION initial
   /
   PRESSURE 101325.
 END
-
 FLOW_CONDITION inj_rain
   TYPE
     RATE MASS_RATE
   /
-  RATE 5d-6
+  RATE 1d-7
 END
 
 
@@ -155,23 +136,31 @@ INITIAL_CONDITION
   FLOW_CONDITION initial
   REGION all
 END
-
-
-BOUNDARY_CONDITION frontier
+BOUNDARY_CONDITION west
   FLOW_CONDITION initial
-  REGION frontier
+  REGION xmin
+END
+BOUNDARY_CONDITION east
+  FLOW_CONDITION initial
+  REGION xmax
 END
 
+
+#=========================== condition couplers ===============================
+INTEGRAL_FLUX barrier
+  FLUXES_OPTION ABSOLUTE_FLUXES
+  EXTERNAL_FILE barrier.txt
+END
 
 
 #=========================== stratigraphy couplers ============================
 STRATA
-  REGION rock
+  REGION Rock
   MATERIAL rock
 END
 
 STRATA
-  REGION pit
+  REGION Pit
   MATERIAL mater
 END
 

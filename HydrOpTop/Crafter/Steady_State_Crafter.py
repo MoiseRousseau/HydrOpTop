@@ -286,6 +286,10 @@ class Steady_State_Crafter:
     grad /= self.first_cf
     self.__record_optimization_value__(cf)
     self.last_p[:] = p
+    #print to user
+    print(f"Current {self.obj.name}: {cf*self.first_cf:.6e}")
+    print(f"Min gradient: {np.min(grad*self.first_cf):.6e} at cell id {np.argmin(grad)+1}")
+    print(f"Max gradient: {np.max(grad*self.first_cf):.6e} at cell id {np.argmax(grad)+1}")
     return cf
     
   
@@ -308,6 +312,7 @@ class Steady_State_Crafter:
       grad[:] = self.filter.get_filter_derivative(p_bar).transpose().dot(grad)
     tol = self.constrains[iconstrain].__get_constrain_tol__()
     self.__record_optimization_value_constrain__(constrain+tol)
+    print(f"Current {self.constrains[iconstrain].name} constrain: {constrain+tol:.6e}")
     return constrain
     
    

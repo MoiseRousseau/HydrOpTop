@@ -10,7 +10,6 @@ class Head_Gradient:
   """
   def __init__(self, ids_to_consider="everywhere", power=1., correction_iteration=2,
                gravity=9.8068, density=997.16, ref_pressure=101325):
-    #TODO
     #the correction could be more powerfull considering the iterative scheme 
     #decribed in moukalled 2016.
     #inputs for function evaluation
@@ -47,8 +46,7 @@ class Head_Gradient:
     #required for problem crafting
     self.output_variable_needed = ["LIQUID_PRESSURE", "CONNECTION_IDS", 
                                    "FACE_AREA", "FACE_UPWIND_FRACTION", 
-                                   "FACE_DISTANCE_BETWEEN_CENTER", "VOLUME", 
-                                   "Z_COORDINATE", 
+                                   "VOLUME", "Z_COORDINATE", 
                                    "FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"] 
     self.name = "Head Gradient"
     return
@@ -63,10 +61,13 @@ class Head_Gradient:
     self.connection_ids = inputs[1][no_bc_connections]
     self.areas = inputs[2][no_bc_connections]
     self.fraction = inputs[3][no_bc_connections]
-    self.distance = inputs[4][no_bc_connections]
-    self.volume = inputs[5]
-    self.z = inputs[6]
-    self.normal = [x[no_bc_connections] for x in inputs[7:]]
+    self.volume = inputs[4]
+    self.z = inputs[5]
+    self.normal = [x[no_bc_connections] for x in inputs[6:]]
+    return
+  
+  def set_adjoint_problem(self, x):
+    self.adjoint = x
     return
   
   def set_p_to_cell_ids(self,p_ids):
@@ -81,7 +82,7 @@ class Head_Gradient:
     return 
   
   ### COST FUNCTION ###
-  def compute_head_gradient(self, head, corrected=True):
+  def compute_head_gradient(self, head):
     """
     Compute the gradient of the head and return a n*3 array
     """
@@ -190,8 +191,9 @@ class Head_Gradient:
     #this method could be used as is
     if out is None:
       out = np.zeros(len(p), dtype='f8')
-    self.d_objective_dp_partial(p) #update function derivative wrt mat parameter p
-    out[:] = self.dobj_dp_partial
+    self.d_objective_dP(p) #update function derivative wrt mat parameter p
+    out[:] = self.adjoint.compute_sensitivity(p, self.dobj_dP, 
+               self.dobj_dmat_props, self.output_variable_needed) + self.dobj_dp_partial
     return out
   
   
@@ -205,7 +207,6 @@ class Head_Gradient:
     cf = self.evaluate(p)
     if grad.size > 0:
       self.d_objective_dp_total(p,grad)
-    print(f"Current {self.name}: {cf+self.tol:.6e}")
     return cf
   
   
@@ -240,7 +241,7 @@ class Head_Gradient:
     return
   
   ### REQUIRED FOR CRAFTING ###
-  def __require_adjoint__(self): return False 
+  def __require_adjoint__(self): return "RICHARDS" 
   def __get_PFLOTRAN_output_variable_needed__(self):
     return self.output_variable_needed 
   def __get_name__(self): return self.name

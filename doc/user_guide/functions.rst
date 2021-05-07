@@ -5,6 +5,54 @@ Function classes
 
 Classed by alphabetical order.
 
+
+Head_Gradient
+-------------
+
+.. math::
+   :label: head_gradient
+   
+   f = \frac{1}{V_D} \sum_{i \in D} V_i ||\nabla {h_i} ||^n
+
+Head is defined as:
+
+Gradient is estimated using the Green-Gauss cell-centered scheme:
+
+.. math::
+   :label: head_gradient_scheme
+   
+   \nabla h_i = \frac{1}{V_i} 
+        \sum_{j \in \partial i} A_{ij} \boldsymbol{n_{ij}} \left[d_i h_i + (1-d_i) h_j \right]
+
+Constructor is:
+
+``Head_Gradient(ids_to_consider="everywhere", power=1)``
+
+Where.
+
+
+Mean_Liquid_Piezometric_Head
+----------------------------
+
+The `Mean_Liquid_Piezometric_Head` function compute the mean of the piezometric
+head in the given cell ids:
+
+.. math::
+   :label: mean_liquid_pz_head
+   
+   f = \frac{1}{V_D} \sum_{i \in D} V_i \left(\frac{P-P_{ref}}{\rho g} + z_i \right)
+   
+Constructor is:
+
+``Mean_Liquid_Piezometric_Head()``
+
+Derivative of this function require an adjoint which is set by default, or can
+be user supplied using ``func.set_adjoint_problem(adjoint)``.
+
+Require the PFLOTRAN output variable ``LIQUID_PRESSURE`` and ``VOLUME``.
+
+
+
 p_Gradient
 ----------
 
@@ -14,7 +62,7 @@ p_Gradient
 .. math::
    :label: p_gradient
    
-   f = \frac{1}{V_D} \sum_{i \in D} V_i \max\left(0,(\nabla p_i)_c\right)^n
+   f = \frac{1}{V_D} \sum_{i \in D} V_i \max\left(0,\nabla p_i\right)^n
           - \epsilon
 
 Designed to be used as a constructibility constrain if material 1 could not
@@ -37,26 +85,15 @@ The gradient :math:`\nabla p` is  evaluated using the Gauss gradient scheme:
 Note this method leads rigorously to a second order accurate gradient if and
 only if the mesh is non skewed (i.e. the cell center vector intercept the face
 exactly at its center), which could not be the case for general unstructured mesh.
-For such a case, gradient can be corrected by substracting the gradient considering
-:math:`p=1` on all the domain and weighted by `p`:
-
-.. math::
-   :label: p_gradient_correction
-   
-   (\nabla p_i)_c = \nabla p_i - p_i (\nabla p_i)_{p=1} 
-
-The corrected gradient does not show skewness error when :math:`p` is constant
-for all the cell neighbors.
 
 Constructor is:
 
-``p_Gradient(direction, tolerance, power, correction)``
+``p_Gradient(direction, tolerance, power)``
 
 where ``direction`` control the ``X``, ``Y`` or ``Z`` direction on which 
 calculate the index (default the Z direction), ``tolerance`` the maximum
-value of the index (the :math:`\epsilon` value, default is 0.3), 
-``power`` the penalizing power (the `n` value, default is 3) and
-``correction`` a boolean to enable the correction as decribed above.
+value of the index (the :math:`\epsilon` value, default is 0.3) and
+``power`` the penalizing power (the `n` value, default is 3).
 
 Require the PFLOTRAN outputs ``FACE_AREA``, ``VOLUME``, 
 ``FACE_CELL_CENTER_VECTOR_{direction}`` and ``PRINT_CONNECTION_IDS``.
@@ -77,7 +114,7 @@ material parameter:
 .. math::
    :label: p_weighted_sum_flux
    
-   f = \sum_{i \in D} p_i \sum_{j \in \partial i} A_{ij} K_{ij} (P_j - P_i - \rho g {z_j-z_i})
+   f = \sum_{i \in D} p_i \sum_{j \in \partial i} A_{ij} \frac{k_{ij}}{\mu} \frac{\left[P_i - P_j + \rho g (z_i - z_j)\right]} {d_{ij}}
 
 Constructor is:
 
@@ -91,6 +128,7 @@ rather consider the flux in the material given by `p=0` (i.e.
 Require the PFLOTRAN outputs ``LIQUID_PRESSURE``, ``FACE_AREA``, 
 ``PERMEABILITY``, ``FACE_UPWIND_FRACTION``, ``FACE_DISTANCE_BETWEEN_CENTER``, 
 ``Z_COORDINATE`` and ``CONNECTION_IDS``.
+
 
 
 Sum_Flux
@@ -108,7 +146,7 @@ Not tested for variably saturated flow.
 
 Constructor is:
 
-``Sum_Flux(connections, option)`` TODO
+``Sum_Flux(connections, option)``
 
 where ``connections`` is a two dimension array of size (N,2) storing the cell ids 
 shared the faces on which to sum the flux. ``option`` argument can take the
@@ -117,7 +155,6 @@ following value:
 * ``"absolute"``, each face flux are summed in absolute value
 * ``"signed"``, each face flux are summed from cell `i` to cell `j`
 * ``"signed_reverse"``, each face flux are summed from cell `j` to cell `i`
-* ``"squared"``, each face flux are squared (i.e. `n=2`)
 
 Derivative of this function require an adjoint which is set by default, or can
 be user supplied using ``func.set_adjoint_problem(adjoint)``.
@@ -126,26 +163,6 @@ Require the PFLOTRAN outputs ``LIQUID_PRESSURE``, ``FACE_AREA``,
 ``PERMEABILITY``, ``FACE_UPWIND_FRACTION``, ``FACE_DISTANCE_BETWEEN_CENTER``, 
 ``Z_COORDINATE`` and ``CONNECTION_IDS``.
 
-
-Mean_Liquid_Piezometric_Head
-----------------------------
-
-The `Mean_Liquid_Piezometric_Head` function compute the mean of the piezometric
-head in the given cell ids:
-
-.. math::
-   :label: mean_liquid_pz_head
-   
-   f = \frac{1}{V_D} \sum_{i \in D} V_i (\frac{P-P_{ref}}{\rho g} + z_i)
-   
-Constructor is:
-
-``Mean_Liquid_Piezometric_Head()``
-
-Derivative of this function require an adjoint which is set by default, or can
-be user supplied using ``func.set_adjoint_problem(adjoint)``.
-
-Require the PFLOTRAN output variable ``LIQUID_PRESSURE``.
 
 
 Volume_Percentage

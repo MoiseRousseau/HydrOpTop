@@ -4,7 +4,8 @@ import numpy as np
 import h5py
 
 from ..PFLOTRAN import default_water_density, default_gravity, default_viscosity
-from .common import __cumsum_from_connection_to_array__
+from .common import __cumsum_from_connection_to_array__, \
+                    smooth_abs_function, d_smooth_abs_function
 
 
 
@@ -14,7 +15,7 @@ class Sum_Flux:
   the viscosity and density constant (for simplicity).
   Note: calculation valid only for internal face
   """
-  def __init__(self, connections=None, square = False):
+  def __init__(self, connections=None, option="signed"):#, square = False):
     """
     Connections is a 2D array storing the cell ids shared by the face
     Squared permit to sum all flux in absolute value and differentiable in 0
@@ -32,7 +33,9 @@ class Sum_Flux:
       if (True in (self.connections_to_sum <= 0)):
         print("Error: some connections implied a cell id <= 0")
         exit(1)
-    self.squared = square
+    #self.squared = square
+    self.option = option
+    
     #inputs
     self.d_fraction = None
     self.K = None
@@ -119,7 +122,16 @@ class Sum_Flux:
     X_n2 = X[self.connection_ids[:,1]-1]
     return X_n1 * X_n2 / (self.d_fraction * X_n1 + (1-self.d_fraction) * X_n2)
     
-
+  
+  def calculate_flux_at_faces(self):
+    k_con = self.interpole_at_face(self.k)[self.mask]
+    d_P_con = (self.pressure[self.connection_ids[:,1]-1] - 
+                        self.pressure[self.connection_ids[:,0]-1])[self.mask]
+    eg = default_water_density * default_gravity
+    fluxes = - self.sign * self.area_con * k_con / default_viscosity * \
+                (d_P_con + eg * self.d_z_con) / self.distance_con
+    return fluxes
+  
   
   ### COST FUNCTION ###
   def evaluate(self, p):
@@ -128,16 +140,16 @@ class Sum_Flux:
     Return the sum of the flux calculated at the given connection [m3/s]
     """
     if not self.initialized: self.__initialize__()
-    k_con = self.interpole_at_face(self.k)[self.mask]
-    d_P_con = (self.pressure[self.connection_ids[:,1]-1] - 
-                        self.pressure[self.connection_ids[:,0]-1])[self.mask]
-    eg = default_water_density * default_gravity
-    cf = - self.sign * self.area_con * k_con / default_viscosity * \
-                (d_P_con + eg * self.d_z_con) / self.distance_con
+    fluxes = self.calculate_flux_at_faces()
                 
-    if self.squared: 
-      cf *= - self.sign * (d_P_con + eg * self.d_z_con) / self.distance_con
-    return np.sum(cf)
+    if self.option == "signed_reverse":
+      fluxes = -fluxes
+    elif self.option == "absolute":
+      fluxes = smooth_abs_function(fluxes)
+    
+    #if self.squared: 
+    #  cf *= - self.sign * (d_P_con + eg * self.d_z_con) / self.distance_con
+    return np.sum(fluxes)
   
   
   def d_objective_dP(self,p): 
@@ -146,20 +158,27 @@ class Sum_Flux:
     Required the solve the adjoint, thus must have the size of the grid
     """
     if not self.initialized: self.__initialize__()
-    k_con = self.interpole_at_face(self.k)[self.mask]
     if self.dobj_dP is None:
       self.dobj_dP = np.zeros(len(self.pressure), dtype='f8') #pressure size of the grid
     else:
       self.dobj_dP[:] = 0
-    if self.squared:
-      d_P_con = self.pressure[self.connection_ids[:,1][self.mask]-1] - \
-                               self.pressure[self.connection_ids[:,0][self.mask]-1]
-      eg = default_water_density * default_gravity
-      deriv = -2 * abs(self.sign) * self.area_con * k_con / default_viscosity * \
-                                   (d_P_con + eg * self.d_z_con) / self.distance_con**2
-    else:
-      deriv = self.sign * self.area_con * k_con / (self.distance_con * \
+    
+    k_con = self.interpole_at_face(self.k)[self.mask]
+    deriv = self.sign * self.area_con * k_con / (self.distance_con * \
                                                                    default_viscosity)
+    
+    if self.option == "signed_reverse":
+      deriv = -deriv
+    elif self.option == "absolute":
+      fluxes = self.calculate_flux_at_faces()
+      deriv = d_smooth_abs_function(fluxes) * deriv
+    
+    #if self.squared:
+    #  d_P_con = self.pressure[self.connection_ids[:,1][self.mask]-1] - \
+    #                           self.pressure[self.connection_ids[:,0][self.mask]-1]
+    #  eg = default_water_density * default_gravity
+    #  deriv = -2 * abs(self.sign) * self.area_con * k_con / default_viscosity * \
+    #                               (d_P_con + eg * self.d_z_con) / self.distance_con**2
     
     __cumsum_from_connection_to_array__(self.dobj_dP, 
                                      self.connection_ids[:,0][self.mask]-1,
@@ -213,10 +232,18 @@ class Sum_Flux:
     eg = default_water_density * default_gravity
     prefactor = -self.sign * self.area_con *  (d_P_con + eg * \
                               self.d_z_con) / (self.distance_con * default_viscosity)
-    if self.squared: 
-      prefactor *= -self.sign * (d_P_con + eg * self.d_z_con) / self.distance_con
+    #if self.squared: 
+    #  prefactor *= -self.sign * (d_P_con + eg * self.d_z_con) / self.distance_con
     dK1 = prefactor * K2**2 * (1-self.d_fraction_con) / den
     dK2 = prefactor * K1**2 * self.d_fraction_con / den
+    
+    if self.option == "signed_reverse":
+      dK1 = -dK1
+      dK2 = -dK2
+    elif self.option == "absolute":
+      fluxes = self.calculate_flux_at_faces()
+      dK1 = dK1 * d_smooth_abs_function(fluxes)
+      dK2 = dK2 * d_smooth_abs_function(fluxes)
 
     __cumsum_from_connection_to_array__(self.dobj_dmat_props[2], \
                                      self.connection_ids[:,0][self.mask]-1, dK1)
@@ -255,7 +282,6 @@ class Sum_Flux:
     cf = self.evaluate(p)
     if grad.size > 0:
       self.d_objective_dp_total(p,grad)
-    print(f"Current {self.name}: {cf:.6e}")
     return cf
   
   
@@ -273,7 +299,7 @@ class Sum_Flux:
     else:
       #transform a to have unique key
       offset = int(10**(np.ceil(np.log10(np.max(self.connection_ids)))+1))
-      unique_id_con = offset*self.connection_ids[:,0] + self.connection_ids[:,1]
+      unique_id_con = offset*(self.connection_ids[:,0]).astype('i8') + self.connection_ids[:,1]
       unique_id_to_sum = offset*self.connections_to_sum[:,0] + self.connections_to_sum[:,1]
       self.mask = np.isin(unique_id_con, unique_id_to_sum)
       self.sign = np.where(self.mask, 2., 0.)
@@ -283,6 +309,9 @@ class Sum_Flux:
       self.sign += np.where(self.mask, -1., 0.)
       self.sign = self.sign[self.mask]
       test = len(self.connections_to_sum) - len(np.where(self.mask)[0])
+      if len(self.sign) < 1:
+        print("ERROR! No connections found!")
+        exit(1)
       if test < 0:
         print("\n###\nWARNING!\nSome connections are duplicated!\n###\n")
       elif test > 0:

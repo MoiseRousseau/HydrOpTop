@@ -44,7 +44,6 @@ class Mean_Liquid_Piezometric_Head:
     self.dobj_dmat_props = None
     self.dobj_dp_partial = None
     self.adjoint = None
-    self.filter = None
     
     #required for problem crafting
     self.output_variable_needed = ["LIQUID_PRESSURE", "Z_COORDINATE", "VOLUME"]
@@ -78,10 +77,6 @@ class Mean_Liquid_Piezometric_Head:
   
   def set_p_to_cell_ids(self,p_ids):
     self.p_ids = p_ids
-    return
-    
-  def set_filter(self, filter):
-    self.filter = filter
     return
   
   def set_adjoint_problem(self, x):
@@ -169,11 +164,8 @@ class Mean_Liquid_Piezometric_Head:
   ### WRAPPER FOR NLOPT ###
   def nlopt_optimize(self,p,grad):
     cf = self.evaluate(p)
-    print(f"Current {self.name}: {cf:.6e}")
     if grad.size > 0:
       self.d_objective_dp_total(p,grad)
-      print(f"Min gradient: {np.min(grad):.6e} at cell id {np.argmin(grad)}")
-      print(f"Max gradient: {np.max(grad):.6e} at cell id {np.argmax(grad)}")
     return cf
   
   def __initialize__(self):

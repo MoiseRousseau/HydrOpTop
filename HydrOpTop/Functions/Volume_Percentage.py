@@ -104,7 +104,6 @@ class Volume_Percentage:
     cf = self.evaluate(p)
     if grad.size > 0:
       self.d_objective_dp_total(p, grad)
-    print(f"Current {self.name}: {cf+self.max_v_frac:.3%}")
     return cf
     
   

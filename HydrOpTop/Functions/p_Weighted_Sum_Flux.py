@@ -176,11 +176,9 @@ flux in material designed by p=0
     
     __cumsum_from_connection_to_array__(self.dobj_dP, 
                                         self.connection_ids[:,0]-1, 
-                                        d_flux_con,
-                                        sorted_index=self.sorted_connections1)
+                                        d_flux_con)
     __cumsum_from_connection_to_array__(self.dobj_dP, self.connection_ids[:,1]-1,
-                                        -d_flux_con,
-                                        sorted_index=self.sorted_connections2)
+                                        -d_flux_con)
     return
     
   
@@ -226,11 +224,9 @@ flux in material designed by p=0
     p_ += np.where(self.connection_is_to_sum_2, pp[self.connections2_to_p], 0.)
     
     __cumsum_from_connection_to_array__(self.dobj_dmat_props[2], 
-                                    self.connection_ids[:,0]-1, 
-                                    p_*dK1, sorted_index=self.sorted_connections1)
+                                    self.connection_ids[:,0]-1, p_*dK1)
     __cumsum_from_connection_to_array__(self.dobj_dmat_props[2], 
-                                    self.connection_ids[:,1]-1, 
-                                    p_*dK2, sorted_index=self.sorted_connections2)
+                                    self.connection_ids[:,1]-1, p_*dK2)
     return None
   
   
@@ -287,11 +283,8 @@ flux in material designed by p=0
     """
     #could be used as is
     cf = self.evaluate(p)
-    print(f"Current {self.name}: {cf:.6e}")
     if grad.size > 0:
       self.d_objective_dp_total(p,grad)
-      print(f"Min gradient: {np.min(grad):.6e} at cell id {np.argmin(grad)}")
-      print(f"Max gradient: {np.max(grad):.6e} at cell id {np.argmax(grad)}")
     return cf
   
   
@@ -336,10 +329,7 @@ flux in material designed by p=0
     self.connections1_to_p = self.ids_p[self.connection_ids[:,0]-1]
     self.connections2_to_p = self.ids_p[self.connection_ids[:,1]-1]
     #constant d_z_con
-    self.d_z_con = self.z[self.connection_ids[:,1]-1] - self.z[self.connection_ids[:,0]-1] 
-    #sorted indexes
-    self.sorted_connections1 = np.argsort(self.connection_ids[:,0])
-    self.sorted_connections2 = np.argsort(self.connection_ids[:,1])
+    self.d_z_con = self.z[self.connection_ids[:,1]-1] - self.z[self.connection_ids[:,0]-1]
     return
   
   ### REQUIRED FOR CRAFTING ###

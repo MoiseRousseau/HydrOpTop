@@ -28,25 +28,25 @@ conditions.
 It is build upon popular Python packages such as numpy and scipy to run topology optimization, while the hydrogeological solver uses the finite volume flow 
 and transport code PFLOTRAN (see X). 
 
+Installation
+============
+
+HydrOpTop could be installed using Python3 ``pip3`` command:
+
+``pip3 install hydroptop``
+
+Note to be able to run optimization problems, PFLOTRAN should be installed
+on your system which should be called by a terminal command named ``pflotran``.
+
+
+Citing
+======
 If you are using HydrOpTop in a scientic publication, please consider citing
 the following reference:
 
 Rousseau Moise (2021), HydrOpTop: a Python package to solve topology
 optimization problems in geoenvironmental engineering.
 
-
-
-Installation
-============
-
-HydrOpTop could be installed using python `pip` command:
-
-```
-pip install hydroptop
-```
-
-Note to be able to run optimization problems, PFLOTRAN should be installed
-on your system which should be called by a terminal command named `pflotran`.
 
 Index
 =====
@@ -58,6 +58,7 @@ Index
    getting_started/your_first_optimization.rst
    user_guide/classes_description.rst
    theory_guide/theory.rst
+   examples/examples.rst
    personalization/how_it_work.rst
    personalization/dev_notes.rst
    troubleshoot/troubleshoot.rst
