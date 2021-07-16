@@ -30,6 +30,7 @@ class PFLOTRAN:
     #running
     self.mpicommand = ""
     self.nproc = 1
+    self.no_run = False #boolean flag to not run PFLOTRAN for debugging
     
     #output
     self.pft_out = '.'.join(pft_in.split('.')[:-1])+'.h5'
@@ -83,6 +84,9 @@ class PFLOTRAN:
   def get_grid_size(self):
     return self.n_cells
   
+  def disable_run(self):
+    self.no_run = True
+    return
   
   
   # interacting with data #
@@ -105,9 +109,8 @@ class PFLOTRAN:
       print(f"No region \"{reg_name}\" found in PFLOTRAN input file, stop...")
       exit(1)
     
-    if self.mesh_type == "ugi" or self.mesh_type == "uge":
-      cell_ids = np.genfromtxt(filename, dtype='i8')
-    elif self.mesh_type == "h5": #h5 region have same name in pflotran
+    #try hdf5
+    try:
       src = h5py.File(filename, 'r')
       if reg_name in src["Regions"]:
         cell_ids = np.array(src["Regions/"+reg_name+"/Cell Ids"])
@@ -116,9 +119,13 @@ class PFLOTRAN:
         src.close()
         print(f"Region not found in mesh file {filename}")
         exit(1)
-    elif self.mesh_type == "h5e":
-      cell_ids = np.genfromtxt(filename, dtype='i8')
-    return cell_ids
+    #else ascii
+    except:
+      try:
+        cell_ids = np.genfromtxt(filename, dtype='i8')
+      except:
+        print(f"File {filename} not readable")
+    return cell_ids 
   
   def get_connections_ids_integral_flux(self, integral_flux_name):
     """
@@ -238,6 +245,7 @@ class PFLOTRAN:
     """
     Run PFLOTRAN. No argument method
     """
+    if self.no_run: return 0
     print("Running PFLOTRAN: ",end='')
     if self.mpicommand:
       cmd = [self.mpicommand, "-n", str(self.nproc), "pflotran", "-pflotranin", self.pft_in]
@@ -296,25 +304,26 @@ class PFLOTRAN:
       src.close()
       return out
     #treat separately face normal as it is not ouputted by PFLOTRAN
+#    if var in ["FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"] and \
+#      self.mesh_type == "h5e":
+#      src = h5py.File(self.input_folder + self.mesh_file, 'r')
+#      if "Normals" in src["Domain/Connections"]:
+#        temp = np.array(src["Domain/Connections/Normals"])
+#        if var == "FACE_NORMAL_X": temp = temp[:,0]
+#        elif var == "FACE_NORMAL_Y": temp = temp[:,1]
+#        else: temp = temp[:,2]
+#        if out is None:
+#          out = temp
+#        else:
+#          out[:] = temp
+#        print(var, temp[:100])
+#        return out
+#      else:
+#        print(f"{var} information not available, switch to FACE_CELL_CENTER_VECTOR instead")
+#        var = "FACE_CELL_CENTER_VECTOR_" + var[-1]
+#      src.close()
     if var in ["FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"] and \
-       self.mesh_type == "h5e":
-      try:
-        src = h5py.File(self.input_folder + self.mesh_file, 'r')
-        temp = np.array(src["Domain/Connections/Normals"])
-        if var == "FACE_NORMAL_X": temp = temp[:,0]
-        elif var == "FACE_NORMAL_Y": temp = temp[:,1]
-        else: temp = temp[:,2]
-        if out is None:
-          out = temp
-        else:
-          out[:] = temp
-        src.close()
-        return out
-      except:
-        print(f"{var} information not available, switch to FACE_CELL_CENTER_VECTOR instead")
-        var = "FACE_CELL_CENTER_VECTOR_" + var[-1]
-    if var in ["FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"] and \
-              self.mesh_type == "uge":
+              self.mesh_type in ["uge","h5e"]:
       print(f"{var} information not available, switch to FACE_CELL_CENTER_VECTOR instead")
       var = "FACE_CELL_CENTER_VECTOR_" + var[-1]
     #treat separately grid output since they could be in the mesh_info file
@@ -334,6 +343,8 @@ class PFLOTRAN:
         break
     if not found:
       print(f"\nOutput variable \"{self.dict_var_out[var]}\" not found in PFLOTRAN output")
+      print(f"Available variable are:")
+      print(src[right_time].keys())
       print(f"Do you forgot to add the \"{var}\" output variable under the OUTPUT card?\n")
       exit(1)
     if out is None:

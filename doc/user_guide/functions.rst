@@ -9,6 +9,8 @@ Classed by alphabetical order.
 Head_Gradient
 -------------
 
+Calculate the mean head gradient in the prescribed domain:
+
 .. math::
    :label: head_gradient
    
@@ -16,7 +18,12 @@ Head_Gradient
 
 Head is defined as:
 
-Gradient is estimated using the Green-Gauss cell-centered scheme:
+.. math::
+   :label: head_definition
+   
+   h_i = \frac{P_i-P_{ref}}{\rho g}
+
+and gradient is estimated using the Green-Gauss cell-centered scheme:
 
 .. math::
    :label: head_gradient_scheme
@@ -26,9 +33,45 @@ Gradient is estimated using the Green-Gauss cell-centered scheme:
 
 Constructor is:
 
-``Head_Gradient(ids_to_consider="everywhere", power=1)``
+``Head_Gradient(ids_to_consider="everywhere", power=1., gravity=9.8068, density=997.16, ref_pressure=101325, restrict_domain=False)``
 
-Where.
+where ``ids_to_consider`` is the cell ids on which to compute the mean gradient, 
+``power`` the penalizing power `n` (default 1) and ``gravity``, ``density`` and ``ref_pressure``
+the (constant) value of the gravity, fluid density and the reference pressure.
+``restrict_domain`` is an option to calculate the gradient in the considered cells
+instead considering the whole simulation. Might change the gradient calculated
+at the boundary of the considered cells.
+
+Require the PFLOTRAN output variables ``LIQUID_PRESSURE``, ``CONNECTION_IDS``, 
+``FACE_AREA``, ``FACE_UPWIND_FRACTION``, ``VOLUME``, ``Z_COORDINATE``, 
+``FACE_NORMAL_X``, ``FACE_NORMAL_Y`` and ``FACE_NORMAL_Z``.
+
+
+
+p_Weighted_Head_Gradient
+------------------------
+
+Calculate the mean head gradient in the prescribed domain weighted by the density
+parameter `p`. In practice, can be used to just consider the mean head gradient in
+the material defined by `p`=1:
+
+.. math::
+   :label: head_gradient
+   
+   f = \frac{1}{V_D} \sum_{i \in D} p_i V_i ||\nabla {h_i} ||^n
+
+For more detail, also see description of the objective function `Head_Gradient`.
+
+Constructor is:
+
+``Head_Gradient(ids_to_consider="everywhere", power=1., gravity=9.8068, density=997.16, ref_pressure=101325, invert_weighting=False)``
+
+Constructor's argument are the same than `Head_Gradient` objective function. A additional
+argument ``invert_weighting`` can be set to ``True`` to rather consider the mean head
+gradient in the material designed by `p`=0.
+
+Require the same PFLOTRAN input variable as `Head_Gradient` objective function.
+
 
 
 Mean_Liquid_Piezometric_Head
@@ -99,38 +142,6 @@ Require the PFLOTRAN outputs ``FACE_AREA``, ``VOLUME``,
 ``FACE_CELL_CENTER_VECTOR_{direction}`` and ``PRINT_CONNECTION_IDS``.
 
 
-p_Weighted_Sum_Flux
--------------------
-
-`p_Weighted_Sum_Flux` return a number characterizing the total flowrate in
-material designed by `p=1` in the considered cell.
-In practice, it could be used to minimize the mean flux in material designed 
-by `p=1`.
-
-`p_Weighted_Sum_Flux` returned value is defined as the sum of the squared flux
-through each connection of each considered cell and weighted by the cell 
-material parameter:
-
-.. math::
-   :label: p_weighted_sum_flux
-   
-   f = \sum_{i \in D} p_i \sum_{j \in \partial i} A_{ij} \frac{k_{ij}}{\mu} \frac{\left[P_i - P_j + \rho g (z_i - z_j)\right]} {d_{ij}}
-
-Constructor is:
-
-``p_Weighted_Sum_Flux(cell_ids_to_consider=None, invert_weighting=False)``
-
-where ``cell_ids_to_consider`` is a list of the cell to sum the 
-flowrate on and ``invert_weighting`` a boolean to invert the weighting and 
-rather consider the flux in the material given by `p=0` (i.e. 
-:math:`p'=1-p`).
-
-Require the PFLOTRAN outputs ``LIQUID_PRESSURE``, ``FACE_AREA``, 
-``PERMEABILITY``, ``FACE_UPWIND_FRACTION``, ``FACE_DISTANCE_BETWEEN_CENTER``, 
-``Z_COORDINATE`` and ``CONNECTION_IDS``.
-
-
-
 Sum_Flux
 --------
 
@@ -165,6 +176,37 @@ Require the PFLOTRAN outputs ``LIQUID_PRESSURE``, ``FACE_AREA``,
 
 
 
+p_Weighted_Sum_Flux
+-------------------
+
+`p_Weighted_Sum_Flux` return a number characterizing the total flowrate in
+material designed by `p=1` in the considered cell.
+In practice, it could be used to minimize the mean flux in material designed 
+by `p=1`.
+
+`p_Weighted_Sum_Flux` returned value is defined as the sum of the squared flux
+through each connection of each considered cell and weighted by the cell 
+material parameter:
+
+.. math::
+   :label: p_weighted_sum_flux
+   
+   f = \sum_{i \in D} p_i \sum_{j \in \partial i} A_{ij} \frac{k_{ij}}{\mu} \frac{\left[P_i - P_j + \rho g (z_i - z_j)\right]} {d_{ij}}
+
+Constructor is:
+
+``p_Weighted_Sum_Flux(cell_ids_to_consider=None, invert_weighting=False)``
+
+where ``cell_ids_to_consider`` is a list of the cell to sum the 
+flowrate on and ``invert_weighting`` a boolean to invert the weighting and 
+rather consider the flux in the material given by `p=0` (i.e. 
+:math:`p'=1-p`).
+
+Require the PFLOTRAN outputs ``LIQUID_PRESSURE``, ``FACE_AREA``, 
+``PERMEABILITY``, ``FACE_UPWIND_FRACTION``, ``FACE_DISTANCE_BETWEEN_CENTER``, 
+``Z_COORDINATE`` and ``CONNECTION_IDS``.
+
+
 Volume_Percentage
 -----------------
 
@@ -178,10 +220,14 @@ designed by `p=1` on a prescribed domain :math:`D`:
 
 Constructor is
 
-``Volume_Percentage(cell_ids_to_consider, max_volume)``
+``Volume_Percentage(ids_to_sum_volume, max_volume_percentage, volume_of_p0=False)``
 
-where ``cell_ids_to_consider`` is a list of cell ids on which to compute the
-volume percentage and ``max_volume`` the maximum volume fraction allowed on the
-domain :math:`D` if it is used as a constrain.
+where ``ids_to_sum_volume`` is a list of cell ids on which to compute the
+volume percentage and ``max_volume_percentage`` the maximum volume fraction 
+of the material designed by p=1 allowed on the
+domain :math:`D` if it is used as a constrain. 
+``volume_of_p0`` can be used to switch the material and rather calculate the volume
+fraction of the material designed by p=0.
+In this case :math:`p_i` is remplaced by :math:`p'_i = 1-p_i`.
 
 Require the PFLOTRAN output variable ``VOLUME``.

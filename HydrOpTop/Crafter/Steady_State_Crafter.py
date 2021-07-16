@@ -4,6 +4,7 @@ import nlopt
 import functools
 
 from HydrOpTop.Adjoints import Sensitivity_Richards
+from HydrOpTop import IO
 
 
 class Steady_State_Crafter:
@@ -48,6 +49,7 @@ class Steady_State_Crafter:
     self.print_every = 0
     self.print_out = "HydrOpTop.h5"
     self.print_number = 0
+    self.print_density_diff = False
     self.print_gradient = False
     self.print_constrain = False
     #ascii file storing the optimization path
@@ -58,8 +60,8 @@ class Steady_State_Crafter:
     self.first_call_gradient = True
     self.func_eval = 0
     self.last_p = None
-    self.do_not_run = False
     self.first_cf = None
+    self.first_p = None
     
     self.__initialize_IO_array__()
     self.__initialize_filter__()
@@ -67,13 +69,13 @@ class Steady_State_Crafter:
   
   def get_problem_size(self): return self.problem_size
     
-  def do_not_run_simulation(self, x=True):
-    self.do_not_run = x
-    return
-    
   
   def create_density_parameter_vector(self, init_val=0.):
     return np.zeros(self.problem_size, dtype='f8') + init_val
+  
+  def create_random_density_parameter_vector(self, bounds):
+    m, M = bounds
+    return (M - m) * np.random.random(self.problem_size) + m
     
   def simulation_ids_to_p(self, ids):
     """
@@ -94,6 +96,13 @@ class Steady_State_Crafter:
     """
     self.print_every = every_it
     if out is not None: self.print_out = out
+    return
+  
+  def output_density_difference(self, x=True):
+    """
+    Enable output the density parameter difference (p_start - p_iteration) (default False)
+    """
+    self.print_density_diff = x
     return
     
   def output_gradient(self,x=True):
@@ -159,6 +168,14 @@ class Steady_State_Crafter:
                     h5_file_name=self.print_out, h5_mode='a', X_ids=self.p_ids)
       var_list.append(f"{name}/Iteration {self.func_eval}")
       var_name.append(name)
+    #save density diff results with start
+    if self.print_density_diff:
+      diff_p = p_bar - self.first_p
+      self.solver.write_output_variable(X_dataset=diff_p, 
+            dataset_name=f"Density parameter difference/Iteration {self.func_eval}", 
+            h5_file_name=self.print_out, h5_mode='a', X_ids=self.p_ids)
+      var_list.append(f"Density parameter difference/Iteration {self.func_eval}")
+      var_name.append("Density parameter difference")
     #save gradient
     if self.print_gradient and grad is not None:
       self.solver.write_output_variable(X_dataset=grad, 
@@ -214,9 +231,8 @@ class Steady_State_Crafter:
       self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                     X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
     #run PFLOTRAN
-    if self.do_not_run == False: #for debug purpose
-      ret_code = self.solver.run_PFLOTRAN()
-      if ret_code: exit(1)
+    ret_code = self.solver.run_PFLOTRAN()
+    if ret_code: exit(ret_code)
     ### UPDATE OBJECTIVE ###
     if self.Yi is None: #need to initialize
       self.Yi = []
@@ -271,6 +287,7 @@ class Steady_State_Crafter:
       for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
         self.solver.get_output_variable(var, self.filter_i[i], -1) #last timestep
       p_bar = self.filter.get_filtered_density(p)
+    if self.first_p is None: self.first_p = p_bar.copy()
     ### PRE-EVALUATION
     self.pre_evaluation_objective(p_bar)
     ### OBJECTIVE EVALUATION AND DERIVATIVE
@@ -281,6 +298,7 @@ class Steady_State_Crafter:
     ### OUTPUT ###
     if self.print_every != 0 and (self.func_eval % self.print_every) == 0:
       self.__output__(p,grad)
+    if self.func_eval == 1: self.__output__(p,grad) #always output first iteration
     #normalize cf to 1
     cf /= self.first_cf
     grad /= self.first_cf
@@ -388,10 +406,9 @@ class Steady_State_Crafter:
         self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                       X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
       #run PFLOTRAN
-      if not self.do_not_run:
-        if not self.solver.mesh_info_present:
-          ret_code = self.solver.run_PFLOTRAN()
-          if ret_code: exit(1)
+      if not self.solver.mesh_info_present:
+        ret_code = self.solver.run_PFLOTRAN()
+        if ret_code: exit(ret_code)
     
     self.filter_i = [np.zeros(self.solver.n_cells, dtype='f8') for x in range(n_inputs)]
     for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
