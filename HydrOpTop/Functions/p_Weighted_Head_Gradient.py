@@ -10,7 +10,7 @@ class p_Weighted_Head_Gradient:
   """
   def __init__(self, ids_to_consider="everywhere", power=1., correction_iteration=2,
                gravity=9.8068, density=997.16, ref_pressure=101325, invert_weighting=False,
-               tol = 0):
+               restrict_domain=False, tol = 0):
     #the correction could be more powerfull considering the iterative scheme 
     #decribed in moukalled 2016.
     #inputs for function evaluation
@@ -31,6 +31,7 @@ class p_Weighted_Head_Gradient:
     self.gravity = gravity
     self.ref_pressure = ref_pressure
     self.invert_weighting = invert_weighting
+    self.restrict_domain = restrict_domain
     self.tol = tol #in case used as a constrain
     
     #quantities derived from the input calculated one time
@@ -61,7 +62,7 @@ class p_Weighted_Head_Gradient:
   def set_inputs(self, inputs):
     no_bc_connections = (inputs[1][:,0] > 0) * (inputs[1][:,1] > 0)
     self.pressure = inputs[0]
-    self.connection_ids = inputs[1][no_bc_connections]
+    self.connection_ids = inputs[1][no_bc_connections]-1
     self.areas = inputs[2][no_bc_connections]
     self.fraction = inputs[3][no_bc_connections]
     self.volume = inputs[4]
@@ -97,16 +98,23 @@ class p_Weighted_Head_Gradient:
     """
     if not self.initialized: self.__initialize__()
     #prepare gradient at connection for the sum
-    head_i, head_j = head[self.connection_ids[:,0]-1], head[self.connection_ids[:,1]-1]
+    head_i, head_j = head[self.connection_ids[:,0]], head[self.connection_ids[:,1]]
     head_con = head_i * self.fraction + (1-self.fraction) * head_j
     grad_con = self.vec_con * head_con[:,np.newaxis]
     #sum
     grad = np.zeros((len(head),3), dtype='f8') #gradient at each considered cells
-    for i in range(3):
-      __cumsum_from_connection_to_array__(grad[:,i], self.connection_ids[:,0]-1,
-                                          grad_con[:,i])
-      __cumsum_from_connection_to_array__(grad[:,i], self.connection_ids[:,1]-1,
-                                          -grad_con[:,i])
+    if self.restrict_domain: 
+      for i in range(3):
+        __cumsum_from_connection_to_array__(grad[:,i], self.connection_ids[:,0][self.mask_restricted],
+                                            grad_con[:,i][self.mask_restricted])
+        __cumsum_from_connection_to_array__(grad[:,i], self.connection_ids[:,1][self.mask_restricted],
+                                            -grad_con[:,i][self.mask_restricted])
+    else: 
+      for i in range(3):
+        __cumsum_from_connection_to_array__(grad[:,i], self.connection_ids[:,0],
+                                            grad_con[:,i])
+        __cumsum_from_connection_to_array__(grad[:,i], self.connection_ids[:,1],
+                                            -grad_con[:,i])
     
     grad /= self.volume[:,np.newaxis]
     return grad
@@ -149,35 +157,39 @@ class p_Weighted_Head_Gradient:
     
     #increase of head at i on grad at i
     d_grad = self.fraction[:,np.newaxis] * self.vec_con
-    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,0]-1], axis=1)
-    d_con = d_norm * grad_mag[self.connection_ids[:,0]-1]**(n-2)
-    d_con[self.mask_i] *= p_[self.ids_p[self.connection_ids[self.mask_i,0]-1]]
+    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,0]], axis=1)
+    d_con = d_norm * grad_mag[self.connection_ids[:,0]]**(n-2)
+    d_con[self.mask_i] *= p_[self.ids_p[self.connection_ids[self.mask_i,0]]]
     d_con[~self.mask_i] = 0.
+    if self.restrict_domain: d_con[~self.mask_restricted] = 0.
     __cumsum_from_connection_to_array__(self.dobj_dP, self.ids_i,
                                         d_con[self.mask_ij])
     #increase of head at j on grad at i
     d_grad = self.vec_con * (1-self.fraction[:,np.newaxis])
-    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,0]-1,:], axis=1)
-    d_con = d_norm * grad_mag[self.connection_ids[:,0]-1]**(n-2)
-    d_con[self.mask_i] *= p_[self.ids_p[self.connection_ids[self.mask_i,0]-1]]
+    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,0],:], axis=1)
+    d_con = d_norm * grad_mag[self.connection_ids[:,0]]**(n-2)
+    d_con[self.mask_i] *= p_[self.ids_p[self.connection_ids[self.mask_i,0]]]
     d_con[~self.mask_i] = 0.
+    if self.restrict_domain: d_con[~self.mask_restricted] = 0.
     __cumsum_from_connection_to_array__(self.dobj_dP, self.ids_j,
                                         d_con[self.mask_ij])
                                         
     #increase of head at j on grad at j
     d_grad = -self.vec_con * (1-self.fraction[:,np.newaxis])
-    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,1]-1,:], axis=1)
-    d_con = d_norm * grad_mag[self.connection_ids[:,1]-1]**(n-2)
-    d_con[self.mask_j] *= p_[self.ids_p[self.connection_ids[self.mask_j,1]-1]]
+    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,1],:], axis=1)
+    d_con = d_norm * grad_mag[self.connection_ids[:,1]]**(n-2)
+    d_con[self.mask_j] *= p_[self.ids_p[self.connection_ids[self.mask_j,1]]]
     d_con[~self.mask_j] = 0.
+    if self.restrict_domain: d_con[~self.mask_restricted] = 0.
     __cumsum_from_connection_to_array__(self.dobj_dP, self.ids_j,
                                         d_con[self.mask_ij])
     #increase of head at i on grad at j
     d_grad = -self.vec_con * self.fraction[:,np.newaxis]
-    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,1]-1,:], axis=1)
-    d_con = d_norm * grad_mag[self.connection_ids[:,1]-1]**(n-2)
-    d_con[self.mask_j] *= p_[self.ids_p[self.connection_ids[self.mask_j,1]-1]]
+    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,1],:], axis=1)
+    d_con = d_norm * grad_mag[self.connection_ids[:,1]]**(n-2)
+    d_con[self.mask_j] *= p_[self.ids_p[self.connection_ids[self.mask_j,1]]]
     d_con[~self.mask_j] = 0.
+    if self.restrict_domain: d_con[~self.mask_restricted] = 0.
     __cumsum_from_connection_to_array__(self.dobj_dP, self.ids_i,
                                         d_con[self.mask_ij])
     
@@ -256,19 +268,20 @@ class p_Weighted_Head_Gradient:
     self.initialized = True
     self.V_tot = np.sum(self.volume[self.ids_to_consider])
     #correspondance between cell ids and p
-    self.ids_p = -np.ones(np.max(self.connection_ids),dtype='i8')
+    self.ids_p = -np.ones(np.max(self.connection_ids)+1,dtype='i8')
     self.ids_p[self.p_ids-1] = np.arange(len(self.p_ids))
     #parametrized
     #mask on connection to know which to sum
-    self.mask_i = np.isin(self.connection_ids[:,0],self.ids_to_consider+1)
-    self.mask_j = np.isin(self.connection_ids[:,1],self.ids_to_consider+1)
+    self.mask_i = np.isin(self.connection_ids[:,0],self.ids_to_consider)
+    self.mask_j = np.isin(self.connection_ids[:,1],self.ids_to_consider)
     self.mask_ij = self.mask_i + self.mask_j
+    self.mask_restricted = self.mask_i * self.mask_j
     #the cell center vector
     self.face_normal = np.array(self.normal).transpose()
     self.vec_con = (-self.face_normal*self.areas[:,np.newaxis])
     #index of sorted connections
-    self.ids_i = self.connection_ids[:,0][self.mask_ij]-1
-    self.ids_j = self.connection_ids[:,1][self.mask_ij]-1
+    self.ids_i = self.connection_ids[:,0][self.mask_ij]
+    self.ids_j = self.connection_ids[:,1][self.mask_ij]
     #index in p of ids to consider
     self.ids_to_consider_p = self.ids_p[self.ids_to_consider]
     #bc correction

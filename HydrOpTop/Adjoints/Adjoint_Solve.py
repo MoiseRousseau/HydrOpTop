@@ -7,16 +7,20 @@ try:
   from petsc4py import PETSc
 except:
   pass
+try:
+  import cupy
+  import cupyx.scipy.sparse as css
+except:
+  pass
 
 
 
 class Adjoint_Solve:
-  def __init__(self, method=None, library="SciPy"):
-    self.method = None
-    if self.method is not None:
-      self.method = method.lower()
-    self.lib = library.lower()
+  def __init__(self, algo=None):
+    if algo is not None: self.algo = algo.lower()
     self.last_l = None
+    if "gpu" in self.algo: 
+      print("WARNING: gpu solve is highly experimental")
     
     #default parameter for some algorithm
     self.cg_tol = 5e-4
@@ -25,47 +29,66 @@ class Adjoint_Solve:
   
   def solve(self, A, b):
     #default parameter
-    if self.method is None:
-      if len(b) > 60000: self.method = "bicgstab"
-      else: self.method = "lu"
-    print(f"Solve adjoint equation using {self.method}")
+    if self.algo is None:
+      if len(b) > 60000: self.also = "bicgstab"
+      else: self.also = "lu"
+    #solve
+    print(f"Solve adjoint equation using {self.algo}")
     t_start = time.time()
-    if self.method == "spsolve":
-      l = spla.spsolve(A.tocsr(), b) 
-    if self.method == "lu":
+    if self.algo == "spsolve":
+      l = self.__sp_solve__(A,b)
+    if self.algo == "lu":
       l = self.__lu_solve__(A,b)
-    elif self.method == "bicgstab":
+    elif self.algo == "bicgstab":
       l = self.__bicgstab_solve__(A,b)
+    elif self.algo == "cg_gpu":
+      l = self.__cg_solve_gpu__(A,b)
     print(f"Time to solve adjoint: {(time.time() - t_start)} s")
     return l
   
+  def __sp_solve__(self, A, b):
+    _A = A.tocsr()
+    l = spla.spsolve(_A, b) 
+    return
+  
   def __lu_solve__(self, A, b):
-    if self.lib == "scipy":
-      _A = A.tocsc() #[L-1]
-      LU = spla.splu(_A)
-      l = LU.solve(b)
-    elif self.lib == "petsc":
-      pass
+    _A = A.tocsc() #[L-1]
+    LU = spla.splu(_A)
+    l = LU.solve(b)
     return l
   
   def __bicgstab_solve__(self, A, b):
-    if self.lib == "scipy":
-      #always use jacobi preconditioning
-      D_ = dia_matrix((np.sqrt(1/A.diagonal()),[0]), shape=A.shape)
-      _A = D_ * A * D_
-      _b = D_ * b
-      l, info = spla.bicgstab(_A, _b, x0=self.last_l, 
-                                tol=self.cg_tol, atol=-1) #do not rely on atol
-      #copy for making starting guess for future iteration
-      if self.last_l is None: self.last_l = np.copy(l)
-      else: self.last_l[:] = l
-      if info: 
-        print("Some error append during BiConjugate Gradient Stabilized solve")
-        print(f"Error code: {info}")
-        exit(1)
-      l = D_ * l
-    elif self.lib == "petsc":
-      pass
+    #always use jacobi preconditioning
+    D_ = dia_matrix((np.sqrt(1/A.diagonal()),[0]), shape=A.shape)
+    _A = D_ * A * D_
+    _b = D_ * b
+    l, info = spla.bicgstab(_A, _b, x0=self.last_l, 
+                              tol=self.cg_tol, atol=-1) #do not rely on atol
+    #copy for making starting guess for future iteration
+    if self.last_l is None: self.last_l = np.copy(l)
+    else: self.last_l[:] = l
+    if info: 
+      print("Some error append during BiConjugate Gradient Stabilized solve")
+      print(f"Error code: {info}")
+      exit(1)
+    l = D_ * l
     return l
+  
+  def __cg_solve_gpu__(self, A,b):
+    #always use jacobi preconditioning
+    D_ = dia_matrix((np.sqrt(1/A.diagonal()),[0]), shape=A.shape)
+    #set up gpu array
+    _A = css.csr_matrix(D_ * A * D_)
+    _b = cupy.array(D_ * b)
+    #solve gpu
+    l, info = css.linalg.cg(_A,_b, x0=self.last_l, tol=self.cg_tol, atol=-1)
+    if self.last_l is None: self.last_l = cupy.copy(l)
+    else: self.last_l[:] = l
+    if info: 
+      print("Some error append during Conjugate Gradient GPU solve")
+      print(f"Error code: {info}")
+      exit(1)
+    return np.array(D_ * l)
+    
 
 
