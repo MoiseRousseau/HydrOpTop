@@ -4,6 +4,7 @@ __pycache__/
 *.mat
 *.xmf
 *.h5
+*.vtu
 *diff.txt
 *out.txt
 *-int.dat

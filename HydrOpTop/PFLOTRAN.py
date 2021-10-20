@@ -88,6 +88,9 @@ class PFLOTRAN:
     self.no_run = True
     return
   
+  def get_var_location(self):
+    return "cell"
+  
   
   # interacting with data #
   def get_region_ids(self, reg_name):
@@ -200,48 +203,56 @@ class PFLOTRAN:
       out.create_dataset("Cell Ids", data=X_ids)
     out.close()
     return
-  
-  
-  def write_output_variable(self, X_dataset, dataset_name, h5_file_name, h5_mode,
-                                  X_ids=None):
-    """
-    Write the "X_dataset" in the HDF5 file "h5_file_name" and link it to the input mesh
-    for visualization
-    """
-    #correct X_dataset if not of the size of the mesh
-    if len(X_dataset) != self.n_cells:
-      if X_ids is None: 
-        print("Error: user must provide the cell ids corresponding to the dataset")
-        return 1
-      X_new = np.zeros(self.n_cells, dtype='f8')-999
-      X_new[:] = np.nan
-      X_new[X_ids-1] = X_dataset
-      X_dataset = X_new
-    #write it
-    out = h5py.File(h5_file_name, h5_mode)
-    out.create_dataset(dataset_name, data=X_dataset)
-    out.close()
-    return
-  
-  def write_output_xmdf(self, out_number, out_file, var_list, var_name):
-    """
-    Write a xdmf file for visualizing the variable "in var_list"
-    """
-    if out_number < 10: out_number = "00"+str(out_number)
-    elif out_number < 100: out_number = "0"+str(out_number)
-    out_xdmf = '.'.join(out_file.split(".")[:-1]) + f"-{out_number}.xmf"
-    out = open(out_xdmf, 'w')
-    self.__write_xdmf_header__(out,out_number)
-    self.__write_xdmf_grid__(out)
-    for att_name, att_var in zip(var_name,var_list):
-      self.__write_xdmf_attribute__(out, out_file, att_name, att_var)
-    self.__write_xdmf_footer__(out)
-    out.close()
-    return out_xdmf
+   
+    
+  def get_mesh(self):
+    #should return the mesh ready to be pass to meshio
+    if self.mesh_type in ["ugi","h5"]:
+      mesh_path = self.input_folder + self.mesh_file
+      if self.mesh_type == "h5":
+        mesh = h5py.File(mesh_path, 'r')
+        vert = np.array(mesh["Domain/Vertices"])
+        elem = np.array(mesh["Domain/Cells"])
+        mesh.close()
+      elif self.mesh_type == "ugi":
+        mesh = open(mesh_path,'r')
+        n_e, n_v = [int(x) for x in mesh.readline().split()]
+        elem = np.zeros((n_e,9),dtype='i8')
+        for iline in range(n_e):
+          line = [int(x) for x in mesh.readline().split()[1:]]
+          elem[iline,0] = len(line)
+          elem[iline,1:len(line)+1] = line
+        vert = np.zeros((n_v,3),dtype='f8')
+        for iline in range(n_v):
+          vert[iline] = [float(x) for x in mesh.readline().split()]
+        mesh.close()
+      #convert to meshio structure
+      elem_type_code = {"tetra":4, "pyramid":5, "wedge":6, "hexahedron":8}
+      cells = []
+      for elem_type, elem_code in elem_type_code.items():
+         cond = (elem[:,0] == elem_code)
+         cells_of_type = elem[cond][:,1:elem_code+1]
+         if len(cells_of_type):
+             cells.append((elem_type, cells_of_type-1))
+      #create a cell data to store natural id
+      index = np.arange(0,len(elem))
+      indexes = []
+      for elem_type, elem_code in elem_type_code.items():
+         cond = (elem[:,0] == elem_code)
+         cells_of_type = index[cond]
+         if np.sum(cond):
+             indexes.append((elem_type,cells_of_type))
+    else:
+      mesh = open(self.domain_file,'r')
+      vert = np.array(mesh["Domain/Vertices"])
+      elem = np.array(mesh["Domain/Cells"])
+      mesh.close()
+      #TODO polyhedron
+    return vert, cells, indexes
 
   
   # running
-  def run_PFLOTRAN(self):
+  def run(self):
     """
     Run PFLOTRAN. No argument method
     """
@@ -522,47 +533,4 @@ class PFLOTRAN:
         break
     return filename
     
-  
-  #for xmdf output
-  def __write_xdmf_header__(self, out, out_number):
-    out.write(f"""\
-<?xml version="1.0" ?>
-<!DOCTYPE Xdmf SYSTEM "Xdmf.dtd" []>
-<Xdmf>
-  <Domain>
-    <Grid Name="Mesh">
-      <Time Value = "{out_number}" />""")
-    return
-  def __write_xdmf_footer__(self,out):
-    out.write("""
-    </Grid>
-  </Domain>
-</Xdmf>""")
-    return
-  def __write_xdmf_grid__(self,out):
-    dim = -1
-    if self.domain_file:
-      src = h5py.File(self.domain_file, 'r')
-      dim = len(src["Domain/Cells"])
-      src.close()
-    out.write(f"""
-      <Topology Type="Mixed" NumberOfElements="{self.n_cells}">
-        <DataItem Format="HDF" DataType="Int" Dimensions="{dim}">
-          {self.domain_file}:/Domain/Cells
-        </DataItem>
-      </Topology>
-      <Geometry GeometryType="XYZ">
-        <DataItem Format="HDF" Dimensions="{self.n_vertices} 3">
-          {self.domain_file}:/Domain/Vertices
-        </DataItem>
-      </Geometry>""")
-    return
-  def __write_xdmf_attribute__(self, out, out_file, att_name, att_dataset):
-    out.write(f"""
-      <Attribute Name="{att_name}" AttributeType="Scalar"  Center="Cell">
-        <DataItem Dimensions="{self.n_cells} 1" Format="HDF">
-          {out_file}:{att_dataset}
-        </DataItem>
-      </Attribute>""")
-    return
     

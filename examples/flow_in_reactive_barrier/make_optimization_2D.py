@@ -13,6 +13,7 @@ from HydrOpTop.Materials import Permeability
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Filters import Density_Filter
 from HydrOpTop import PFLOTRAN
+from HydrOpTop import IO
 
 
 
@@ -42,7 +43,9 @@ if __name__ == "__main__":
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
   crafted_problem = Steady_State_Crafter(cf, sim, [perm], [max_vol], filter)
-  crafted_problem.output_every_iteration(10) #output every 10 iterations
+  crafted_problem.IO.output_every_iteration(2)
+  crafted_problem.IO.output_gradient(True)
+  crafted_problem.IO.define_output_format('vtu')
   
   ###
   # At this point, the optimization problem is set
