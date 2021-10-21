@@ -53,7 +53,7 @@ class PFLOTRAN:
                          "FACE_NORMAL_X": "Face Normal X Component",
                          "FACE_NORMAL_Y": "Face Normal Y Component",
                          "FACE_NORMAL_Z": "Face Normal Z Component",
-                         "FACE_CELL_CENTER_VECTOR_X": "Face Cell Vector X Component",
+                         "FACE_CELL_CENTER_VECTOR_X": "Face Cell Center X Component",
                          "FACE_CELL_CENTER_VECTOR_Y": "Face Cell Vector Y Component",
                          "FACE_CELL_CENTER_VECTOR_Z": "Face Cell Vector Z Component",
                          "LIQUID_CONDUCTIVITY" : "Liquid Conductivity",
@@ -67,6 +67,10 @@ class PFLOTRAN:
          {"PERMEABILITY":"permeability","LIQUID_PRESSURE":"pressure"}
     self.dict_var_sensitivity_hdf5 = \
          {"PERMEABILITY":"Permeability []","LIQUID_PRESSURE":"Pressure []"}
+    return
+  
+  def set_polyhedral_mesh_file(self, x):
+    self.domain_file = x
     return
     
   def set_parallel_calling_command(self, processes, command):
@@ -243,11 +247,41 @@ class PFLOTRAN:
          if np.sum(cond):
              indexes.append((elem_type,cells_of_type))
     else:
-      mesh = open(self.domain_file,'r')
+      mesh = h5py.File(self.domain_file,'r')
       vert = np.array(mesh["Domain/Vertices"])
       elem = np.array(mesh["Domain/Cells"])
       mesh.close()
-      #TODO polyhedron
+      i = 0
+      count = 0
+      cells_temp = [[] for x in range(100)] #up to 100 faces
+      indexes_temp = [[] for x in range(100)]
+      while i < len(elem):
+        x = elem[i]
+        if x == 16: #polyhedron
+          cell_face = []
+          i += 1
+          n_faces = elem[i]
+          for face in range(n_faces):
+            face_node = []
+            i += 1
+            n_nodes = elem[i]
+            for node in range(n_nodes):
+              i += 1
+              face_node.append(elem[i])
+            cell_face.append(face_node)
+          cells_temp[n_faces].append(cell_face)
+          indexes_temp[n_faces].append(count)
+        else:
+          print("TODO: add other cell type")
+          return
+        i += 1
+        count += 1
+      cells = []
+      indexes = []
+      for i,x in enumerate(cells_temp):
+        if x:
+          cells.append((f"polyhedron{i}", x))
+          indexes.append((f"polyhedron{i}", indexes_temp[i]))
     return vert, cells, indexes
 
   

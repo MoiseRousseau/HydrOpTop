@@ -148,9 +148,10 @@ class Steady_State_Crafter:
     if self.filter and grad.size > 0:
       grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
     ### OUTPUT ###
+    #TODO: constraint not outputed
     if self.filter is None: 
       self.IO.output(self.func_eval, 
-                     cf, [0], p, grad, [0], val_at) #TODO
+                     cf, [0], p, grad, [0], val_at=self.p_ids-1)
       #self.IO.output(self.func_eval, cf, constraints_val, p, grad_cf, grad_constraints, p_bar)
     else:
       self.IO.output(self.func_eval, cf, [0], p, grad, [0], p_bar, val_at=self.p_ids-1)

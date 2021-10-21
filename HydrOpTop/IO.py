@@ -10,7 +10,7 @@ class IO:
   @param fileformat: output file format (xdmf, vtk)
   @param logfile: log filename (for cost function value, constrain, ...)
   """
-  def __init__(self, filename="HydrOpTop", logfile="out.txt", fileformat="xdmf"):
+  def __init__(self, filename="HydrOpTop", logfile="out.txt", fileformat="vtu"):
     self.output_filename = filename
     self.output_log_name = logfile 
     self.output_format = fileformat
@@ -74,25 +74,22 @@ class IO:
     self.constrains_names = constrains
   
   def output(self, it, cf, constrains_val, p_raw, grad_cf, grad_constrains, p_filtered=None, val_at=None):
-    """
-    Main output method
-    """
+
+    if not self.initialized: self.initiate_output() 
+    
+    #output to log
+    out = open(self.output_log_name, 'a')
+    out.write(f"{it}\t{cf:.6e}")
+    for c in constrains_val:
+      out.write(f"\t{c:.6e}")
+    out.write("\n")
+    out.close()
     
     if (not self.output_number) and (not self.output_initial):
       return
     if (self.output_every == 0 or \
        (it % self.output_every) != 0) and (self.output_number):
       return
-    
-    if not self.initialized: self.initiate_output() 
-    
-    #output to log
-    out = open(self.output_log_name, 'r+')
-    out.write(f"{it}\t{cf:.6e}")
-    out.write(f"\t{cf:.6e}")
-    for c in constrains_val:
-      out.write(f"\t{c:.6e}")
-    out.close()
     
     if not self.output_number:
       if not self.output_initial: 
@@ -136,9 +133,9 @@ class IO:
     self.initialized = True
     #initiate log
     out = open(self.output_log_name, 'w')
-    out.write(f"{self.cf_name}")
+    out.write(f"Iteration\t{self.cf_name}")
     for name in self.constrains_names:
-      out.write(f" {name}")
+      out.write(f"\t{name}")
     out.write('\n')
     out.close()
     #initiate output
@@ -146,7 +143,7 @@ class IO:
       self.outputter = IO_XDMF(self.output_filename)
     if self.output_format == "xdmf":
       self.outputter = IO_XDMF_MESHIO(self.output_filename)
-    elif self.output_format in ["vtu", "medit", "medit_binary"]:
+    else:
       self.outputter = IO_MESHIO(self.output_filename, self.output_format)
     self.outputter.set_mesh(self.vertices, self.elements, 
                             self.indexes, self.var_loc)
@@ -166,6 +163,7 @@ class IO:
     
 
 class IO_XDMF_MESHIO:
+  #TODO: not working right now
   def __init__(self, f):
     self.filename = f
     self.vertices = None
@@ -209,7 +207,7 @@ class IO_MESHIO:
   def __init__(self, f, format_):
     self.n_output = 0
     self.filename = f
-    corresp = {"vtu":"vtu", "medit":"mesh", "medit_binary":"meshb", "med":"med"}
+    corresp = {"vtu":"vtu", "medit":"mesh", "medit_binary":"meshb", "med":"med", "cgns":"cgns"}
     self.fileformat = corresp[format_]
     self.vertices = None
     self.elements = None
