@@ -38,7 +38,7 @@ class Steady_State_Crafter:
                       #i.e. p[0] parametrize cell X, p[1] cell Y, ...
     self.ids_p = None #correspondance between the cell ids in the solver and p
                       #i.e. cell ids x is parametrize by p index ids_p[x-1]
-    self.constrain_inputs_arrays = None
+    self.constraint_inputs_arrays = None
     self.adjoint_algo = None
     self.adjoint_tol = None
     
@@ -53,7 +53,8 @@ class Steady_State_Crafter:
     self.__initialize_filter__()
     return
   
-  def get_problem_size(self): return self.problem_size
+  def get_problem_size(self): 
+    return self.problem_size
     
   
   def create_density_parameter_vector(self, init_val=0.):
@@ -103,25 +104,72 @@ class Steady_State_Crafter:
           self.solver.get_output_variable(var, self.Yi[i], -1) #last timestep
       
     ### UPDATE constraints ###
-    if self.constrain_inputs_arrays is None: #need to initialize
-      self.constrain_inputs_arrays = []
-      for constrain in self.constraints:
+    if self.constraint_inputs_arrays is None: #need to initialize
+      self.constraint_inputs_arrays = []
+      for constraint in self.constraints:
         temp = []
-        for var in constrain.__get_PFLOTRAN_output_variable_needed__():
+        for var in constraint.__get_PFLOTRAN_output_variable_needed__():
           if var == "CONNECTION_IDS":
             temp.append(self.solver.get_internal_connections())
             continue
           temp.append(self.solver.get_output_variable(var))
-        self.constrain_inputs_arrays.append(temp)
-        constrain.set_inputs(self.constrain_inputs_arrays[-1])
+        self.constraint_inputs_arrays.append(temp)
+        constraint.set_inputs(self.constraint_inputs_arrays[-1])
     else: 
-      for i,constrain in enumerate(self.constraints):
-        for j,var in enumerate(constrain.__get_PFLOTRAN_output_variable_needed__()):
+      for i,constraint in enumerate(self.constraints):
+        for j,var in enumerate(constraint.__get_PFLOTRAN_output_variable_needed__()):
           if var == "CONNECTION_IDS":
-            self.solver.get_internal_connections(self.constrain_inputs_arrays[i][j])
+            self.solver.get_internal_connections(self.constraint_inputs_arrays[i][j])
             continue
-          self.solver.get_output_variable(var, self.constrain_inputs_arrays[i][j], -1)
+          self.solver.get_output_variable(var, self.constraint_inputs_arrays[i][j], -1)
     return
+  
+  
+  ### OPTIMIZER ###
+  def optimize(self, optimizer="nlopt", 
+                     initial_guess=None,
+                     action="minimize", 
+                     density_parameter_bounds=[0.001, 1],
+                     tolerance_constraints=0.005,
+                     max_it=50,
+                     rtol=None):
+    if optimizer == "nlopt":
+      algorithm = nlopt.LD_MMA #use MMA algorithm
+      opt = nlopt.opt(algorithm, self.problem_size)
+      opt.set_max_objective(self.nlopt_function_to_optimize) 
+      #add constraints
+      for i in range(len(self.constraints)):
+        opt.add_inequality_constraint(self.nlopt_constraint(i),
+                                      tolerance_constraints)
+      #define minimum and maximum bounds
+      opt.set_lower_bounds(np.zeros(self.get_problem_size(), dtype='f8') +
+                           density_parameter_bounds[0])
+      opt.set_upper_bounds(np.zeros(self.get_problem_size(), dtype='f8') +
+                           density_parameter_bounds[1])
+      #define stop criterion
+      opt.set_maxeval(30)
+      if rtol is not None: 
+        opt.set_ftol_rel(rtol)
+      #initial guess
+      if initial_guess is None:
+        initial_guess = np.zeros(self.get_problem_size(), dtype='f8') + \
+                           density_parameter_bounds[0]
+      try:
+        p_opt = opt.optimize(initial_guess)
+      except(KeyboardInterrupt):
+        p_opt = self.last_p
+    else:
+      print(f"Error: Unknown optimizer \"{optimizer}\"")
+      
+    self.IO.output(self.func_eval, 
+                   self.last_cf, 
+                   self.last_constraints, 
+                   self.last_p, 
+                   self.last_grad, 
+                   [0], 
+                   val_at=self.p_ids-1)
+    print("END!")
+    return p_opt
     
   
   
@@ -130,6 +178,27 @@ class Steady_State_Crafter:
     """
     Cost function to pass to NLopt method "set_min/max_objective()"
     """
+    #save last iteration
+    if self.func_eval != 0:
+      if self.filter is None: 
+        self.IO.output(self.func_eval, 
+                       self.last_cf, 
+                       self.last_constraints, 
+                       self.last_p, 
+                       self.last_grad, 
+                       [0], 
+                       val_at=self.p_ids-1)
+        #self.IO.output(self.func_eval, cf, constraints_val, p, grad_cf, grad_constraints, p_bar)
+      else:
+        self.IO.output(self.func_eval, 
+                       self.last_cf, 
+                       self.last_constraints, 
+                       self.last_p, 
+                       self.last_grad, 
+                       [0], 
+                       self.last_p_bar, 
+                       val_at=self.p_ids-1)
+    #start new it
     self.func_eval += 1
     print(f"\nFonction evaluation {self.func_eval}")
     ###FILTERING: convert p to p_bar
@@ -152,21 +221,18 @@ class Steady_State_Crafter:
       #            dobj_dmat_props, self.obj.output_variable_needed) + \
       #            dobj_dp_partial
       self.obj.d_objective_dp_total(p_bar,grad)
-    if self.first_cf is None: self.first_cf = cf
+    if self.first_cf is None: 
+      self.first_cf = cf
     if self.filter and grad.size > 0:
       grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
-    ### OUTPUT ###
-    #TODO: constraint not outputed
-    if self.filter is None: 
-      self.IO.output(self.func_eval, 
-                     cf, [0], p, grad, [0], val_at=self.p_ids-1)
-      #self.IO.output(self.func_eval, cf, constraints_val, p, grad_cf, grad_constraints, p_bar)
-    else:
-      self.IO.output(self.func_eval, cf, [0], p, grad, [0], p_bar, val_at=self.p_ids-1)
+    #save for output at next iteration
+    self.last_cf = cf
+    self.last_grad = grad
+    self.last_p[:] = p
+    self.last_p_bar = p_bar
     #normalize cf to 1
     cf /= self.first_cf
     grad /= self.first_cf
-    self.last_p[:] = p
     #print to user
     print(f"Current {self.obj.name}: {cf*self.first_cf:.6e}")
     print(f"Min gradient: {np.min(grad*self.first_cf):.6e} at cell id {np.argmin(grad)+1}")
@@ -174,13 +240,13 @@ class Steady_State_Crafter:
     return cf
     
   
-  def nlopt_constrain(self, i):
+  def nlopt_constraint(self, i):
     """
-    Function defining the ith constraints to pass to nlopt "set_(in)equality_constrain()"
+    Function defining the ith constraints to pass to nlopt "set_(in)equality_constraint()"
     """
-    return functools.partial(self.__nlopt_generic_constrain_to_optimize__, iconstrain=i)
+    return functools.partial(self.__nlopt_generic_constraint_to_optimize__, iconstraint=i)
   
-  def __nlopt_generic_constrain_to_optimize__(self, p, grad, iconstrain=0):
+  def __nlopt_generic_constraint_to_optimize__(self, p, grad, iconstraint=0):
     ###FILTERING: convert p to p_bar
     if self.filter is None:
       p_bar = p
@@ -188,9 +254,9 @@ class Steady_State_Crafter:
       for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
         self.solver.get_output_variable(var, self.filter_i[i], -1) #last timestep
       p_bar = self.filter.get_filtered_density(p)
-    constrain = self.constraints[iconstrain].evaluate(p_bar)
+    constraint = self.constraints[iconstraint].evaluate(p_bar)
     if grad.size > 0:
-      self.constraints[iconstrain].d_objective_dp_total(p_bar, grad)
+      self.constraints[iconstraint].d_objective_dp_total(p_bar, grad)
     
       #dobj_dP = self.obj.d_objective_dP(p_bar)
       #dobj_dp_partial = self.obj.d_objective_dp_partial(p_bar)
@@ -201,9 +267,10 @@ class Steady_State_Crafter:
       
     if self.filter:
       grad[:] = self.filter.get_filter_derivative(p_bar).transpose().dot(grad)
-    tol = self.constraints[iconstrain].__get_constrain_tol__()
-    print(f"Current {self.constraints[iconstrain].name} constrain: {constrain+tol:.6e}")
-    return constrain
+    tol = self.constraints[iconstraint].__get_constraint_tol__()
+    print(f"Current {self.constraints[iconstraint].name} constraint: {constraint+tol:.6e}")
+    self.last_constraints[iconstraint] = constraint+tol
+    return constraint
     
    
   def scipy_function_to_optimize():
@@ -246,13 +313,14 @@ class Steady_State_Crafter:
     self.obj.set_p_to_cell_ids(self.p_ids)
     
     #initialize adjoint for constraints
-    for constrain in self.constraints:
-      if constrain.__require_adjoint__() and (constrain.adjoint is None):
+    self.last_constraints = [0. for x in self.constraints]
+    for constraint in self.constraints:
+      if constraint.__require_adjoint__() and (constraint.adjoint is None):
         which = self.obj.__require_adjoint__()
         if which == "RICHARDS":
           adjoint = Sensitivity_Richards(self.mat_props, self.solver, self.p_ids)
-          constrain.set_adjoint_problem(adjoint)
-      constrain.set_p_to_cell_ids(self.p_ids)
+          constraint.set_adjoint_problem(adjoint)
+      constraint.set_p_to_cell_ids(self.p_ids)
     #initialize IO
     self.IO.communicate_functions_names(self.obj.__get_name__(), 
          [x.__get_name__() for x in self.constraints])

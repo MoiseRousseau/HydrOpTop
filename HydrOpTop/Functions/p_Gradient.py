@@ -251,5 +251,5 @@ class p_Gradient:
   def __get_PFLOTRAN_output_variable_needed__(self):
     return self.output_variable_needed 
   def __get_name__(self): return self.name
-  def __get_constrain_tol__(self): return self.tol
+  def __get_constraint_tol__(self): return self.tol
                        
