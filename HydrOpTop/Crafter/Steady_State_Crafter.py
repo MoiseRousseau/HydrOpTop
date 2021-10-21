@@ -143,7 +143,15 @@ class Steady_State_Crafter:
     ### PRE-EVALUATION
     self.pre_evaluation_objective(p_bar)
     ### OBJECTIVE EVALUATION AND DERIVATIVE
-    cf = self.obj.nlopt_optimize(p_bar,grad)
+    cf = self.obj.evaluate(p_bar)
+    if grad.size > 0:
+      #dobj_dP = self.obj.d_objective_dP(p_bar)
+      #dobj_dp_partial = self.obj.d_objective_dp_partial(p_bar)
+      #dobj_dmat_props = self.obj.d_objective_d_mat_props(p_bar)
+      #grad[:] = self.adjoint.compute_sensitivity(p_bar, dobj_dP, 
+      #            dobj_dmat_props, self.obj.output_variable_needed) + \
+      #            dobj_dp_partial
+      self.obj.d_objective_dp_total(p_bar,grad)
     if self.first_cf is None: self.first_cf = cf
     if self.filter and grad.size > 0:
       grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
@@ -180,7 +188,17 @@ class Steady_State_Crafter:
       for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
         self.solver.get_output_variable(var, self.filter_i[i], -1) #last timestep
       p_bar = self.filter.get_filtered_density(p)
-    constrain = self.constraints[iconstrain].nlopt_optimize(p_bar,grad)
+    constrain = self.constraints[iconstrain].evaluate(p_bar)
+    if grad.size > 0:
+      self.constraints[iconstrain].d_objective_dp_total(p_bar, grad)
+    
+      #dobj_dP = self.obj.d_objective_dP(p_bar)
+      #dobj_dp_partial = self.obj.d_objective_dp_partial(p_bar)
+      #dobj_dmat_props = self.obj.d_objective_d_mat_props(p_bar)
+      #grad[:] = self.adjoint.compute_sensitivity(p_bar, dobj_dP, 
+      #            dobj_dmat_props, self.obj.output_variable_needed) + \
+      #            dobj_dp_partial
+      
     if self.filter:
       grad[:] = self.filter.get_filter_derivative(p_bar).transpose().dot(grad)
     tol = self.constraints[iconstrain].__get_constrain_tol__()

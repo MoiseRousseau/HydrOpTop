@@ -165,19 +165,6 @@ class My_Function:
     return out
   
   
-  ### WRAPPER FOR NLOPT ###
-  def nlopt_optimize(self,p,grad):
-    """
-    Wrapper to evaluate and compute the derivative of the cost function
-    for calling in nlopt
-    """
-    #could be used as is
-    cf = self.evaluate(p)
-    if grad.size > 0:
-      self.d_objective_dp_total(p,grad)
-    print(f"Current {self.name}: {cf:.6e}")
-    return cf
-  
   
   ### INITIALIZER FUNCTION ###
   def __initialize__(self):

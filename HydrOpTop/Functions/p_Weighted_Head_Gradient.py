@@ -201,10 +201,10 @@ class p_Weighted_Head_Gradient:
     
     V = np.sum(p_[self.ids_to_consider_p]*self.volume[self.ids_to_consider])
     self.dobj_dP *= n / V / (self.density * self.gravity) 
-    return None
+    return self.dobj_dP
   
   def d_objective_d_mat_props(self, p):
-    return None
+    return 0.
   
   def d_objective_dp_partial(self, p):
     if self.dobj_dp_partial is None:
@@ -225,7 +225,7 @@ class p_Weighted_Head_Gradient:
     den = np.sum(p_[self.ids_to_consider_p]*self.volume[self.ids_to_consider])
     d_den = factor * self.volume[self.ids_to_consider]
     self.dobj_dp_partial[self.ids_to_consider_p] = (d_num * den - d_den*num) / den**2
-    return None
+    return self.dobj_dp_partial
   
   
   ### TOTAL DERIVATIVE ###
@@ -244,19 +244,6 @@ class p_Weighted_Head_Gradient:
     out[:] = self.adjoint.compute_sensitivity(p, self.dobj_dP, 
                self.dobj_dmat_props, self.output_variable_needed) + self.dobj_dp_partial
     return out
-  
-  
-  ### WRAPPER FOR NLOPT ###
-  def nlopt_optimize(self,p,grad):
-    """
-    Wrapper to evaluate and compute the derivative of the cost function
-    for calling in nlopt
-    """
-    #could be used as is
-    cf = self.evaluate(p)
-    if grad.size > 0:
-      self.d_objective_dp_total(p,grad)
-    return cf
   
   
   ### INITIALIZER FUNCTION ###

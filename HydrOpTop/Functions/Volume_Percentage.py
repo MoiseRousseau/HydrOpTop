@@ -99,14 +99,6 @@ class Volume_Percentage:
     return out
     
   
-  ### WRAPPER ###
-  def nlopt_optimize(self, p, grad):
-    cf = self.evaluate(p)
-    if grad.size > 0:
-      self.d_objective_dp_total(p, grad)
-    return cf
-    
-  
   ### INITIALIZER FUNCTION ###
   def __initialize__(self):
     """

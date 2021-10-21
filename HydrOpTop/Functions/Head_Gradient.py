@@ -235,20 +235,6 @@ class Head_Gradient:
                self.dobj_dmat_props, self.output_variable_needed) + self.dobj_dp_partial
     return out
   
-  
-  ### WRAPPER FOR NLOPT ###
-  def nlopt_optimize(self,p,grad):
-    """
-    Wrapper to evaluate and compute the derivative of the cost function
-    for calling in nlopt
-    """
-    #could be used as is
-    cf = self.evaluate(p)
-    if grad.size > 0:
-      self.d_objective_dp_total(p,grad)
-    return cf
-  
-  
   ### INITIALIZER FUNCTION ###
   def __initialize__(self):
     """
