@@ -13,7 +13,6 @@ from HydrOpTop.Materials import Permeability
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Filters import Density_Filter
 from HydrOpTop import PFLOTRAN
-from HydrOpTop import IO
 
 
 
@@ -46,33 +45,7 @@ if __name__ == "__main__":
   crafted_problem.IO.output_every_iteration(2)
   crafted_problem.IO.output_gradient(True)
   crafted_problem.IO.define_output_format('vtu')
-  
-  ###
-  # At this point, the optimization problem is set
-  # Create the optimizer using nlopt
-  ###
-  algorithm = nlopt.LD_MMA #use MMA algorithm
-  opt = nlopt.opt(algorithm, crafted_problem.get_problem_size()) #set up optimization
-  opt.set_max_objective(crafted_problem.nlopt_function_to_optimize) #pass the cost function to nlopt
-  
-  #add constrains
-  opt.add_inequality_constraint(crafted_problem.nlopt_constrain(0), #max volume
-                                0.005) #function, tolerance
-  
-  #define minimum and maximum bounds for the optimization variable (i.e. p)
-  opt.set_lower_bounds(np.zeros(crafted_problem.get_problem_size(), dtype='f8')+0.001)
-  opt.set_upper_bounds(np.ones(crafted_problem.get_problem_size(), dtype='f8'))
-  
-  #define stop criterion
-  opt.set_maxeval(30)
-  
-  ###
-  # Perform optimization
-  ###
+
   p = np.zeros(crafted_problem.get_problem_size(), dtype='f8')+0.05 #initial guess
-  try:
-    p_opt = opt.optimize(p)
-    crafted_problem.output_results()
-  except(KeyboardInterrupt):
-    crafted_problem.output_results()
+  crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=25, initial_guess=p)
   

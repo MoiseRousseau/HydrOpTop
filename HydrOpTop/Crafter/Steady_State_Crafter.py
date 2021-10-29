@@ -126,17 +126,24 @@ class Steady_State_Crafter:
   
   
   ### OPTIMIZER ###
-  def optimize(self, optimizer="nlopt", 
+  def optimize(self, optimizer="nlopt-mma", 
                      initial_guess=None,
                      action="minimize", 
                      density_parameter_bounds=[0.001, 1],
                      tolerance_constraints=0.005,
                      max_it=50,
                      rtol=None):
-    if optimizer == "nlopt":
+    if optimizer == "nlopt-mma":
       algorithm = nlopt.LD_MMA #use MMA algorithm
       opt = nlopt.opt(algorithm, self.problem_size)
-      opt.set_max_objective(self.nlopt_function_to_optimize) 
+      if action == "minimize":
+        opt.set_min_objective(self.nlopt_function_to_optimize) 
+      elif action == "maximize":
+        opt.set_max_objective(self.nlopt_function_to_optimize) 
+      else:
+        print(f"Error: Unknown action \"{action}\" (should be \"minimize\" or \"maximize\"")
+        return None
+        
       #add constraints
       for i in range(len(self.constraints)):
         opt.add_inequality_constraint(self.nlopt_constraint(i),
@@ -147,7 +154,7 @@ class Steady_State_Crafter:
       opt.set_upper_bounds(np.zeros(self.get_problem_size(), dtype='f8') +
                            density_parameter_bounds[1])
       #define stop criterion
-      opt.set_maxeval(30)
+      opt.set_maxeval(max_it)
       if rtol is not None: 
         opt.set_ftol_rel(rtol)
       #initial guess
@@ -156,10 +163,12 @@ class Steady_State_Crafter:
                            density_parameter_bounds[0]
       try:
         p_opt = opt.optimize(initial_guess)
+        print(initial_guess)
       except(KeyboardInterrupt):
         p_opt = self.last_p
     else:
       print(f"Error: Unknown optimizer \"{optimizer}\"")
+      return None
       
     self.IO.output(self.func_eval, 
                    self.last_cf, 
