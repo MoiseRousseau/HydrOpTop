@@ -1,2 +1,2 @@
-from .Permeability import Permeability
-from .Source_Sink import Source_Sink
+from .Log_SIMP import Log_SIMP
+from .SIMP import SIMP
