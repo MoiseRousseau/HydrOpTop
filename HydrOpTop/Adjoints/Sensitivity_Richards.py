@@ -10,7 +10,8 @@ class Sensitivity_Richards:
   distribution parameter p in Richards mode.
   Arguments:
   Note: vector derivative should be numpy array, and matrix in (I,J,data) 
-  format as output by PFLOTRAN.get_sensitivity() method.
+  format as output by solver.get_sensitivity() method.
+  I,J are 0 based indexing
   If cost_deriv_mat_prop is None, assume the cost function does not depend on
   the material property distribution.
   """
@@ -22,7 +23,7 @@ class Sensitivity_Richards:
     self.solved_vars = solved_vars
     self.parametrized_mat_props = parametrized_mat_props
     self.solver = solver
-    self.assign_at_ids = p_ids #in PFLOTRAN format!
+    self.assign_at_ids = p_ids #in solver format!
     
     self.adjoint = Adjoint_Solve()
     
@@ -55,8 +56,8 @@ class Sensitivity_Richards:
     parameter p.
     Argument:
     - p : the material parameter
-    - dc_dYi : derivative of the function wrt pressure (Solver ordering)
-    - dc_dXi : derivative of the function wrt function inputs (p ordering)
+    - dc_dYi : derivative of the function wrt solved variable (Solver ordering)
+    - dc_dXi : derivative of the function wrt input variable (p ordering)
     - Xi_name : name of the function input variables
     """
     #create or update structures

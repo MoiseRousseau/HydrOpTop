@@ -1,10 +1,9 @@
 # This file is a part of the topology optimization program by Moise Rousseau
 
 import numpy as np
-import h5py
+from .Base_Function_class import Base_Function
 
-
-class Mean_Liquid_Piezometric_Head:
+class Mean_Liquid_Piezometric_Head(Base_Function):
   """
   Function which return the sum of the liquid piezometric head
   with a penalizing power in a given region.
@@ -46,8 +45,9 @@ class Mean_Liquid_Piezometric_Head:
     self.adjoint = None
     
     #required for problem crafting
-    self.output_variable_needed = ["LIQUID_PRESSURE", "Z_COORDINATE", "VOLUME"]
-    self.name = "Head Sum"
+    self.solved_variables_needed = ["LIQUID_PRESSURE"]
+    self.input_variables_needed = ["Z_COORDINATE", "VOLUME"]
+    self.name = "Mean PZ Head"
     self.initialized = None
     return
     
@@ -74,14 +74,6 @@ class Mean_Liquid_Piezometric_Head:
     
   def get_inputs(self):
     [self.pressure, self.z, self.volume]
-  
-  def set_p_to_cell_ids(self,p_ids):
-    self.p_ids = p_ids
-    return
-  
-  def set_adjoint_problem(self, x):
-    self.adjoint = x
-    return
 
   
   ### COST FUNCTION ###
@@ -101,7 +93,7 @@ class Mean_Liquid_Piezometric_Head:
   
   
   ### PARTIAL DERIVATIVES ###
-  def d_objective_dP(self,p): 
+  def d_objective_dY(self,p): 
     """
     Evaluate the derivative of the function according to the pressure.
     If a numpy array is provided, derivative will be copied 
@@ -123,42 +115,8 @@ class Mean_Liquid_Piezometric_Head:
       self.dobj_dP[self.ids_to_sum-1] = \
                        (self.penalizing_power * deriv * \
                        pz_head**(self.penalizing_power-1))[self.ids_to_sum-1]
-    return
+    return [self.dobj_dP]
   
-  
-  def d_objective_d_mat_props(self,p):
-    # Does not depend on other variable
-    # TODO: add density dependance ?
-    self.dobj_dmat_props = [0., 0.]
-    return None
-  
-  
-  def d_objective_dp_partial(self,p): 
-    """
-    Evaluate the PARTIAL derivative of the function according to the density
-    parameter p.
-    """
-    self.dobj_dp_partial = 0.
-    return None
-  
-  
-  
-  ### TOTAL DERIVATIVE ###
-  def d_objective_dp_total(self, p, out=None): 
-    """
-    Evaluate the TOTAL derivative of the function according to the density
-    parameter p. If a numpy array is provided, derivative will be copied 
-    in this array, else create a new numpy array.
-    Derivative have a length dimension [L]
-    """
-    if out is None:
-      out = np.zeros(len(p), dtype='f8')
-    self.d_objective_dP(p) #update objective derivative wrt pressure
-    self.d_objective_d_mat_props(p) #update objective derivative wrt mat prop
-    self.d_objective_dp_partial(p)
-    out[:] = self.adjoint.compute_sensitivity(p, self.dobj_dP, 
-               self.dobj_dmat_props, self.output_variable_needed) + self.dobj_dp_partial
-    return out
   
   def __initialize__(self):
     self.initialized = True
@@ -167,11 +125,4 @@ class Mean_Liquid_Piezometric_Head:
     else:
       self.V_tot = np.sum(self.volume[self.ids_to_sum-1])
     return
-  
-  
-  ### REQUIRED FOR CRAFTING ###
-  def __require_adjoint__(self): return "RICHARDS"
-  def __get_PFLOTRAN_output_variable_needed__(self):
-    return self.output_variable_needed
-  def __get_name__(self): return self.name
                       

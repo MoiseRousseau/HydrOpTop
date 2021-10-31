@@ -1,8 +1,7 @@
 import numpy as np
+from .Base_Function_class import Base_Function
 
-
-
-class Volume_Percentage:
+class Volume_Percentage(Base_Function):
   """
   Function that compute the percentage of the volume occupied the material represented by
   p=1 (default) or by p=0 by setting the option volume_of_p0 to True.
@@ -38,6 +37,7 @@ class Volume_Percentage:
     self.dobj_dp_partial = None
     self.adjoint = None
     
+    self.solved_variables_needed = []
     self.input_variables_needed = ["VOLUME"] 
     self.name = "Volume"
     return
@@ -70,14 +70,7 @@ class Volume_Percentage:
     else:
       cf = np.sum((self.V[self.ids_to_consider-1]*p_))/self.V_tot - self.max_v_frac
     return cf
-  
-  
-  ### PARTIAL DERIVATIVES ###
-  def d_objective_dP(self,p): 
-    return 0.
-    
-  def d_objective_d_mat_props(self,p): 
-    return [0.]
+
   
   def d_objective_dp_partial(self,p): 
     if self.dobj_dp_partial is None:
@@ -89,15 +82,7 @@ class Volume_Percentage:
       self.dobj_dp_partial[:] = factor * self.V[self.p_ids-1]/self.V_tot
     else:
       self.dobj_dp_partial[:] = factor * self.V[self.ids_to_consider-1]/self.V_tot
-    return
-  
-  ### TOTAL DERIVATIVE ###
-  def d_objective_dp_total(self, p, out=None):
-    if out is None: out = np.zeros(len(p),dtype='f8')
-    self.d_objective_dp_partial(p)
-    out[:] = self.dobj_dp_partial
-    return out
-    
+    return self.dobj_dp_partial
   
   ### INITIALIZER FUNCTION ###
   def __initialize__(self):
@@ -114,8 +99,5 @@ class Volume_Percentage:
   
   
   ### REQUIRED FOR CRAFTING ###
-  def __get_solved_variables_needed__(self): return []
-  def __get_input_variables_needed__(self): return self.input_variables_needed
-  def __get_name__(self): return "Volume"
   def __get_constraint_tol__(self): return self.max_v_frac
 

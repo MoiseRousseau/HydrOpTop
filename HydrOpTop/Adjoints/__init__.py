@@ -1,4 +1,2 @@
 from .Sensitivity_Richards import Sensitivity_Richards
-from .Sensitivity_Richards_Reactive_Transport_Coupled \
-  import Sensitivity_Richards_Reactive_Transport_Coupled
-from .Sensitivity_Reactive_Transport import Sensitivity_Reactive_Transport
+from .No_Adjoint import No_Adjoint

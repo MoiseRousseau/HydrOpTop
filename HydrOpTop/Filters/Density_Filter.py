@@ -81,7 +81,9 @@ class Density_Filter:
     return out
  
   
-  def __get_PFLOTRAN_output_variable_needed__(self):
+  def __get_solved_variables_needed__(self):
+    return []
+  def __get_input_variables_needed__(self):
     return self.output_variable_needed 
   
 

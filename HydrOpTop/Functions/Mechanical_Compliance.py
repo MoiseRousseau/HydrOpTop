@@ -1,7 +1,6 @@
 # This file is a part of the topology optimization program by Moise Rousseau
 
 import numpy as np
-import h5py
 from .Base_Function_class import Base_Function
 
 

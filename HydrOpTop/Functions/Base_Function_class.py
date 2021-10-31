@@ -14,6 +14,7 @@ class Base_Function:
                                      #calculate the function
     self.input_variable_needed = [] #a lilst of variables NOT solved by the solver needed to 
                                      #calculate the function (e.g. material properties)
+    self.constraint_tol = 0.
     self.initialized = False
     self.adjoint = None #a variable to stored the adjoint when passed by the crafter
     return
@@ -89,5 +90,7 @@ class Base_Function:
   ### REQUIRED FOR CRAFTING ###
   def __get_solved_variables_needed__(self): return self.solved_variables_needed
   def __get_input_variables_needed__(self): return self.input_variables_needed
+  def __get_all_variables_needed__(self): return self.solved_variables_needed + self.input_variables_needed
   def __get_name__(self): return self.name
+  def __get_constraint_tol__(self): return self.constraint_tol
                       

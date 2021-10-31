@@ -3,7 +3,7 @@ import numpy as np
 import nlopt
 import functools
 
-from HydrOpTop.Adjoints import Sensitivity_Richards
+from HydrOpTop.Adjoints import *
 from HydrOpTop.IO import IO
 
 
@@ -13,19 +13,19 @@ class Steady_State_Crafter:
   Argument:
   - mat_props: a list of material properties that vary with the density
                parameter p (Material classes instances)
-  - solver: object that manage the PDE solver (PFLOTRAN class instance)
+  - solver: object that manage the PDE solver (Solver class instance)
   - objective: the objective function (Function class instance)
   - constraints: a list of constraints (Function class instances
   - filter: the filter to be used to relate the density to a filtered density
             (a fitler class instance) (None by default).
   """
-  def __init__(self, objective, solver, mat_props, constraints, filter=None, io=None):
+  def __init__(self, objective, solver, mat_props, constraints, filters=None, io=None):
     self.__print_information__()
     self.mat_props = mat_props
     self.solver = solver
     self.obj = objective
     self.constraints = constraints
-    self.filter = filter
+    self.filters = filters
     if io is None:
       self.IO = IO()
     else:
@@ -50,7 +50,7 @@ class Steady_State_Crafter:
     self.first_p = None
     
     self.__initialize_IO_array__()
-    self.__initialize_filter__()
+    self.filters_initialized = False
     return
   
   def get_problem_size(self): 
@@ -91,19 +91,35 @@ class Steady_State_Crafter:
     for j,var in enumerate(func.__get_input_variables_needed__()):
       self.solver.get_output_variable(var, func_var[i+j], -1) #last timestep
     return
+    
+  def filter_density(self, p):
+    if not self.filters:
+      return p
+    if not self.filters_initialized:
+      self.__initialize_filter__(p)
+    p_bar = p.copy()
+    for filter_ in self.filters: #apply filter consecutively
+      self.initialize_function_vars(filter_) #update filter var
+      p_bar = filter_.get_filtered_density(p_bar)
+    return p_bar
   
   ### PRE-EVALUATION ###
   def pre_evaluation_objective(self, p):
-    ### UPDATE MAT PROPERTIES AND RUN PFLOTRAN ###
-    #Given p, update material properties
+    """
+    Perform filtering and projection, parametrization, run the solver 
+    and get result (i.e. update function parameter)
+    """
+    ### FILTERING
+    p_bar = self.filter_density(p)
+    ### UPDATE MAT PROPERTIES
     for mat_prop in self.mat_props:
       X = mat_prop.convert_p_to_mat_properties(p)
       self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                     X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
-    #run solver
+    ### RUN SOLVER
     ret_code = self.solver.run()
-    if ret_code: exit(ret_code)
-    
+    if ret_code: 
+      exit(ret_code)
     ### UPDATE FUNCTION VARIABLES ###
     # Objective
     if self.Yi is None:
@@ -119,7 +135,7 @@ class Steady_State_Crafter:
     else:
       for i,constraint in enumerate(self.constraints):
         self.update_function_vars(constraint, self.constraint_inputs_arrays[i])
-    return
+    return p_bar
   
   ### OPTIMIZER ###
   def optimize(self, optimizer="nlopt-mma", 
@@ -129,6 +145,12 @@ class Steady_State_Crafter:
                      tolerance_constraints=0.005,
                      max_it=50,
                      ftol=None):
+    ### DEFAULT INPUTS
+    if initial_guess is None:
+      initial_guess = np.zeros(self.get_problem_size(), dtype='f8') + \
+                         density_parameter_bounds[0]
+    self.first_p = initial_guess.copy()
+    ### OPTIMIZE
     if optimizer == "nlopt-mma":
       algorithm = nlopt.LD_MMA #use MMA algorithm
       opt = nlopt.opt(algorithm, self.problem_size)
@@ -139,7 +161,6 @@ class Steady_State_Crafter:
       else:
         print(f"Error: Unknown action \"{action}\" (should be \"minimize\" or \"maximize\"")
         return None
-        
       #add constraints
       for i in range(len(self.constraints)):
         opt.add_inequality_constraint(self.nlopt_constraint(i),
@@ -153,19 +174,18 @@ class Steady_State_Crafter:
       opt.set_maxeval(max_it)
       if ftol is not None: 
         opt.set_ftol_rel(ftol)
-      #initial guess
-      if initial_guess is None:
-        initial_guess = np.zeros(self.get_problem_size(), dtype='f8') + \
-                           density_parameter_bounds[0]
+      #optimize
       try:
         p_opt = opt.optimize(initial_guess)
         print(initial_guess)
       except(KeyboardInterrupt):
         p_opt = self.last_p
+    
     else:
       print(f"Error: Unknown optimizer \"{optimizer}\"")
       return None
       
+    #print output
     self.IO.output(self.func_eval, 
                    self.last_cf, 
                    self.last_constraints, 
@@ -185,7 +205,7 @@ class Steady_State_Crafter:
     """
     #save last iteration
     if self.func_eval != 0:
-      if self.filter is None: 
+      if self.filters is None: 
         self.IO.output(self.func_eval, 
                        self.last_cf, 
                        self.last_constraints, 
@@ -206,16 +226,8 @@ class Steady_State_Crafter:
     #start new it
     self.func_eval += 1
     print(f"\nFonction evaluation {self.func_eval}")
-    ###FILTERING: convert p to p_bar
-    if self.filter is None:
-      p_bar = p
-    else:
-      for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
-        self.solver.get_output_variable(var, self.filter_i[i], -1) #last timestep
-      p_bar = self.filter.get_filtered_density(p)
-    if self.first_p is None: self.first_p = p_bar.copy()
     ### PRE-EVALUATION
-    self.pre_evaluation_objective(p_bar)
+    p_bar = self.pre_evaluation_objective(p)
     ### OBJECTIVE EVALUATION AND DERIVATIVE
     cf = self.obj.evaluate(p_bar)
     if grad.size > 0:
@@ -227,8 +239,11 @@ class Steady_State_Crafter:
                   dobj_dp_partial
     if self.first_cf is None: 
       self.first_cf = cf
-    if self.filter and grad.size > 0:
-      grad[:] = self.filter.get_filter_derivative(p).transpose().dot(grad)
+    if self.filters and grad.size > 0:
+      grad_filter = np.ones(len(grad), dtype='f8')
+      for filter_ in self.filters:
+        grad *= filter_.get_filter_derivative(p)
+      grad[:] = grad_filter.transpose().dot(grad)
     #save for output at next iteration
     self.last_cf = cf
     self.last_grad = grad
@@ -252,12 +267,7 @@ class Steady_State_Crafter:
   
   def __nlopt_generic_constraint_to_optimize__(self, p, grad, iconstraint=0):
     ###FILTERING: convert p to p_bar
-    if self.filter is None:
-      p_bar = p
-    else: 
-      for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
-        self.solver.get_output_variable(var, self.filter_i[i], -1) #last timestep
-      p_bar = self.filter.get_filtered_density(p)
+    p_bar = self.filter_density(p)
     the_constraint = self.constraints[iconstraint]
     constraint = the_constraint.evaluate(p_bar)
     if grad.size > 0:
@@ -268,17 +278,17 @@ class Steady_State_Crafter:
                   dobj_dX, the_constraint.__get_input_variables_needed__()) + \
                   dobj_dp_partial
       
-    if self.filter:
-      grad[:] = self.filter.get_filter_derivative(p_bar).transpose().dot(grad)
+    if self.filters and grad.size > 0:
+      grad_filter = np.ones(len(grad), dtype='f8')
+      for filter_ in self.filters:
+        grad *= filter_.get_filter_derivative(p)
+      grad[:] = grad_filter.transpose().dot(grad)
+    
     tol = the_constraint.__get_constraint_tol__()
     print(f"Current {self.constraints[iconstraint].name} constraint: {constraint+tol:.6e}")
     self.last_constraints[iconstraint] = constraint+tol
     return constraint
     
-   
-  def scipy_function_to_optimize():
-    return
-  
   
   
   
@@ -300,7 +310,7 @@ class Steady_State_Crafter:
       self.p_ids = np.arange(1, self.problem_size+1) 
     else: 
       self.problem_size = len(X)
-      self.p_ids = X #from 0 based indexing to PFLOTRAN indexing
+      self.p_ids = X #from 0 based indexing to solver indexing
     self.last_p = np.zeros(len(self.p_ids),dtype='f8')
     
     #initialize solver output for objective function
@@ -318,12 +328,15 @@ class Steady_State_Crafter:
     #initialize adjoint for constraints
     self.last_constraints = [0. for x in self.constraints]
     for constraint in self.constraints:
-      if constraint.__get_solved_variables_needed__() and (constraint.adjoint is None):
+      constraint.set_p_to_cell_ids(self.p_ids)
+      if constraint.adjoint is None:
+        if len(constraint.__get_solved_variables_needed__()) == 0:
+          adjoint = No_Adjoint(self.mat_props, self.p_ids)
         if len(constraint.__get_solved_variables_needed__()) == 1:
           adjoint = Sensitivity_Richards(constraint.__get_solved_variables_needed__(),
-                                         self.mat_props, self.solver, self.p_ids)
-          constraint.set_adjoint_problem(adjoint)
-      constraint.set_p_to_cell_ids(self.p_ids)
+	                                       self.mat_props, self.solver, self.p_ids)
+        constraint.set_adjoint_problem(adjoint)
+        
     #initialize IO
     self.IO.communicate_functions_names(self.obj.__get_name__(), 
          [x.__get_name__() for x in self.constraints])
@@ -333,38 +346,29 @@ class Steady_State_Crafter:
     return
     
   
-  def __initialize_filter__(self):
+  def __initialize_filter__(self, p):
     print("Filter initialization")
-    #filter initialization is tricky, because it may need PFLOTRAN output variable
+    #filter initialization is tricky, because it may need solver output variables
     # that have not been created yet. Thus, for instance, we have to run
-    # PFLOTRAN one time to initialize the filter (even if it's costly)...
-    if self.filter is None:
+    # solver one time to initialize the filter (even if it's costly)...
+    if self.filters is None:
       return
-      
-    self.filter.set_p_to_cell_ids(self.p_ids)
-    n_inputs = len(self.filter.__get_PFLOTRAN_output_variable_needed__())
     
-    #TODO: refactor below as I don't like to make one iteration just for
-    # initalize the filter
-    if n_inputs > 0:
-      #run pflotran to get its output
-      
-      #Given p, update material properties
-      p_bar = np.zeros(self.problem_size, dtype='f8')
-      for mat_prop in self.mat_props:
-        X = mat_prop.convert_p_to_mat_properties(p_bar)
-        self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
+    for mat_prop in self.mat_props:
+      X = mat_prop.convert_p_to_mat_properties(p)
+      self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                       X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
-      #run PFLOTRAN
-      if not self.solver.mesh_info_present:
-        ret_code = self.solver.run()
-        if ret_code: exit(ret_code)
+    #run Solver
+    if not self.solver.mesh_info_present:
+      ret_code = self.solver.run()
+      if ret_code: 
+        exit(ret_code)
     
-    self.filter_i = [np.zeros(self.solver.n_cells, dtype='f8') for x in range(n_inputs)]
-    for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
-      self.solver.get_output_variable(var, self.filter_i[i], -1) #last timestep
-    self.filter.set_inputs(self.filter_i)
-    self.filter.initialize()
+    for filter_ in self.filters:
+      self.initialize_function_vars(filter_)
+      filter_.set_p_to_cell_ids(self.p_ids)
+      filter_.initialize()
+    self.filters_initialized = True
     return
     
   
