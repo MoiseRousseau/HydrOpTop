@@ -17,7 +17,10 @@ except:
 
 class Adjoint_Solve:
   def __init__(self, algo=None):
-    if algo is not None: self.algo = algo.lower()
+    if algo is not None: 
+      self.algo = algo.lower()
+    else: 
+      self.algo = ""
     self.last_l = None
     if "gpu" in self.algo: 
       print("WARNING: gpu solve is highly experimental")
@@ -29,9 +32,11 @@ class Adjoint_Solve:
   
   def solve(self, A, b):
     #default parameter
-    if self.algo is None:
-      if len(b) > 60000: self.also = "bicgstab"
-      else: self.also = "lu"
+    if self.algo == "":
+      if len(b) > 60000: 
+        self.algo = "bicgstab"
+      else: 
+        self.algo = "lu"
     #solve
     print(f"Solve adjoint equation using {self.algo}")
     t_start = time.time()

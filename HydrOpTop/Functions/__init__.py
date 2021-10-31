@@ -5,3 +5,5 @@ from .p_Weighted_Sum_Flux import p_Weighted_Sum_Flux
 from .p_Gradient import p_Gradient
 from .Head_Gradient import Head_Gradient
 from .p_Weighted_Head_Gradient import p_Weighted_Head_Gradient
+from .Mechanical_Compliance import Mechanical_Compliance
+from .Base_Function_class import Base_Function

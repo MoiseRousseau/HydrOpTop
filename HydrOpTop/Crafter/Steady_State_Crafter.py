@@ -89,19 +89,16 @@ class Steady_State_Crafter:
     ### UPDATE OBJECTIVE ###
     if self.Yi is None: #need to initialize
       self.Yi = []
-      for var in self.obj.__get_PFLOTRAN_output_variable_needed__():
-        if var == "CONNECTION_IDS":
-          self.Yi.append(self.solver.get_internal_connections())
-          continue
+      for var in self.obj.__get_solved_variables_needed__():
+        self.Yi.append(self.solver.get_output_variable(var))
+      for var in self.obj.__get_input_variables_needed__():
         self.Yi.append(self.solver.get_output_variable(var))
       self.obj.set_inputs(self.Yi)
     else: 
-      for i,var in enumerate(self.obj.__get_PFLOTRAN_output_variable_needed__()):
-        if var == "CONNECTION_IDS":
-          self.solver.get_internal_connections(self.Yi[i])
-          continue
-        else:
-          self.solver.get_output_variable(var, self.Yi[i], -1) #last timestep
+      for i,var in enumerate(self.obj.__get_solved_variables_needed__()):
+        self.solver.get_output_variable(var, self.Yi[i], -1) #last timestep
+      for i,var in enumerate(self.obj.__get_input_variables_needed__()):
+        self.solver.get_output_variable(var, self.Yi[i], -1) #last timestep
       
     ### UPDATE constraints ###
     if self.constraint_inputs_arrays is None: #need to initialize
@@ -132,7 +129,7 @@ class Steady_State_Crafter:
                      density_parameter_bounds=[0.001, 1],
                      tolerance_constraints=0.005,
                      max_it=50,
-                     rtol=None):
+                     ftol=None):
     if optimizer == "nlopt-mma":
       algorithm = nlopt.LD_MMA #use MMA algorithm
       opt = nlopt.opt(algorithm, self.problem_size)
@@ -155,8 +152,8 @@ class Steady_State_Crafter:
                            density_parameter_bounds[1])
       #define stop criterion
       opt.set_maxeval(max_it)
-      if rtol is not None: 
-        opt.set_ftol_rel(rtol)
+      if ftol is not None: 
+        opt.set_ftol_rel(ftol)
       #initial guess
       if initial_guess is None:
         initial_guess = np.zeros(self.get_problem_size(), dtype='f8') + \
@@ -223,13 +220,12 @@ class Steady_State_Crafter:
     ### OBJECTIVE EVALUATION AND DERIVATIVE
     cf = self.obj.evaluate(p_bar)
     if grad.size > 0:
-      #dobj_dP = self.obj.d_objective_dP(p_bar)
-      #dobj_dp_partial = self.obj.d_objective_dp_partial(p_bar)
-      #dobj_dmat_props = self.obj.d_objective_d_mat_props(p_bar)
-      #grad[:] = self.adjoint.compute_sensitivity(p_bar, dobj_dP, 
-      #            dobj_dmat_props, self.obj.output_variable_needed) + \
-      #            dobj_dp_partial
-      self.obj.d_objective_dp_total(p_bar,grad)
+      dobj_dY = self.obj.d_objective_dY(p_bar)
+      dobj_dp_partial = self.obj.d_objective_dp_partial(p_bar)
+      dobj_dX = self.obj.d_objective_dX(p_bar)
+      grad[:] = self.obj.adjoint.compute_sensitivity(p_bar, dobj_dY, 
+                  dobj_dX, self.obj.__get_input_variables_needed__()) + \
+                  dobj_dp_partial
     if self.first_cf is None: 
       self.first_cf = cf
     if self.filter and grad.size > 0:

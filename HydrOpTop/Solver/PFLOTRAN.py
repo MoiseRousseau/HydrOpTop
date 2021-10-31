@@ -337,6 +337,8 @@ class PFLOTRAN:
     - out: the numpy output array (default=None)
     - timestep: the i-th timestep to extract
     """
+    if var == "CONNECTION_IDS":
+      return self.get_internal_connections()
     #treat coordinate separately as they are in Domain/XC unless for uge grid
     if var in ["X_COORDINATE", "Y_COORDINATE", "Z_COORDINATE"] and \
                                             self.mesh_type not in ["uge","h5e"]:
