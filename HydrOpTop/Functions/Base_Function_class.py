@@ -86,14 +86,8 @@ class Base_Function:
     """
     return 0.
     
-  def __initialize__(self):
-    self.initialized = True
-    return 
-  
-  
-  
-  
   ### REQUIRED FOR CRAFTING ###
-  def __require_adjoint__(self): return "RICHARDS"
+  def __get_solved_variables_needed__(self): return self.solved_variables_needed
+  def __get_input_variables_needed__(self): return self.input_variables_needed
   def __get_name__(self): return self.name
                       

@@ -14,11 +14,12 @@ class Sensitivity_Richards:
   If cost_deriv_mat_prop is None, assume the cost function does not depend on
   the material property distribution.
   """
-  def __init__(self, parametrized_mat_props, solver, p_ids):
+  def __init__(self, solved_vars, parametrized_mat_props, solver, p_ids):
     
     #vector
     #self.dc_dP = cost_deriv_pressure #dim = [cost] * L * T2 / M
     #self.dc_dXi = cost_deriv_mat_prop #[cost] / [mat_prop]
+    self.solved_vars = solved_vars
     self.parametrized_mat_props = parametrized_mat_props
     self.solver = solver
     self.assign_at_ids = p_ids #in PFLOTRAN format!
@@ -27,7 +28,7 @@ class Sensitivity_Richards:
     
     self.dXi_dp = None
     self.dR_dXi = None
-    self.dR_dP = None
+    self.dR_dYi = None
     self.initialized = False
     return
     
@@ -41,19 +42,20 @@ class Sensitivity_Richards:
     return
   
   def update_residual_derivatives(self):
-    self.solver.get_sensitivity("LIQUID_PRESSURE", coo_mat=self.dR_dP)
+    for i,solved_var in enumerate(self.solved_vars):
+      self.solver.get_sensitivity(solved_var, coo_mat=self.dR_dXi[i])
     for i,mat_prop in enumerate(self.parametrized_mat_props):
       self.solver.get_sensitivity(mat_prop.get_name(), coo_mat=self.dR_dXi[i])
     return 
   
   
-  def compute_sensitivity(self, p, dc_dP, dc_dXi, Xi_name):
+  def compute_sensitivity(self, p, dc_dYi, dc_dXi, Xi_name):
     """
     Compute the total cost function derivative according to material density
     parameter p.
     Argument:
     - p : the material parameter
-    - dc_dP : derivative of the function wrt pressure (PFLOTRAN ordering)
+    - dc_dYi : derivative of the function wrt pressure (Solver ordering)
     - dc_dXi : derivative of the function wrt function inputs (p ordering)
     - Xi_name : name of the function input variables
     """
@@ -64,11 +66,11 @@ class Sensitivity_Richards:
       self.update_mat_derivative(p)
       self.update_residual_derivatives()
     
-    #compute adjoint
-    l = self.adjoint.solve(self.dR_dP, dc_dP) #PFLOTRAN ordering
+    #compute adjoint #TODO: multi variable adjoint
+    l = self.adjoint.solve(self.dR_dYi[0], dc_dYi[0]) #solver ordering
     
     #compute dc/dp
-    #note: dR_dXi in PFLOTRAN ordering, so we convert it to p ordering with assign_at_ids
+    #note: dR_dXi in solver ordering, so we convert it to p ordering with assign_at_ids
     # and dXi_dP in p ordering
     #thus: dR_dXi_dXi_dp in p ordering
     temp = coo_matrix( ( self.dXi_dp[0], 
@@ -101,8 +103,9 @@ class Sensitivity_Richards:
       
     self.dR_dXi = [self.solver.get_sensitivity(mat_prop.get_name()) 
                                             for mat_prop in self.parametrized_mat_props]
-                      
-    self.dR_dP = self.solver.get_sensitivity("LIQUID_PRESSURE")
+
+    self.dR_dYi = [self.solver.get_sensitivity(solved_var) 
+                                            for solved_var in self.solved_vars]
     
     self.initialized = True
     return

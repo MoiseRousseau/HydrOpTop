@@ -75,6 +75,23 @@ class Steady_State_Crafter:
     return self.ids_p[ids-1]
   
   
+  def initialize_function_vars(self, func):
+    func_var = []
+    for var in func.__get_solved_variables_needed__():
+      func_var.append(self.solver.get_output_variable(var))
+    for var in func.__get_input_variables_needed__():
+      func_var.append(self.solver.get_output_variable(var))
+    func.set_inputs(func_var)
+    return func_var
+    
+  def update_function_vars(self, func, func_var):
+    for i,var in enumerate(func.__get_solved_variables_needed__()):
+      self.solver.get_output_variable(var, func_var[i], -1) #last timestep
+    i = len(func.__get_solved_variables_needed__())
+    for j,var in enumerate(func.__get_input_variables_needed__()):
+      self.solver.get_output_variable(var, func_var[i+j], -1) #last timestep
+    return
+  
   ### PRE-EVALUATION ###
   def pre_evaluation_objective(self, p):
     ### UPDATE MAT PROPERTIES AND RUN PFLOTRAN ###
@@ -83,44 +100,26 @@ class Steady_State_Crafter:
       X = mat_prop.convert_p_to_mat_properties(p)
       self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                     X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
-    #run PFLOTRAN
+    #run solver
     ret_code = self.solver.run()
     if ret_code: exit(ret_code)
-    ### UPDATE OBJECTIVE ###
-    if self.Yi is None: #need to initialize
-      self.Yi = []
-      for var in self.obj.__get_solved_variables_needed__():
-        self.Yi.append(self.solver.get_output_variable(var))
-      for var in self.obj.__get_input_variables_needed__():
-        self.Yi.append(self.solver.get_output_variable(var))
-      self.obj.set_inputs(self.Yi)
-    else: 
-      for i,var in enumerate(self.obj.__get_solved_variables_needed__()):
-        self.solver.get_output_variable(var, self.Yi[i], -1) #last timestep
-      for i,var in enumerate(self.obj.__get_input_variables_needed__()):
-        self.solver.get_output_variable(var, self.Yi[i], -1) #last timestep
-      
-    ### UPDATE constraints ###
+    
+    ### UPDATE FUNCTION VARIABLES ###
+    # Objective
+    if self.Yi is None:
+      self.Yi = self.initialize_function_vars(self.obj)
+    else:
+      self.update_function_vars(self.obj, self.Yi)
+    # constraints
     if self.constraint_inputs_arrays is None: #need to initialize
       self.constraint_inputs_arrays = []
       for constraint in self.constraints:
-        temp = []
-        for var in constraint.__get_PFLOTRAN_output_variable_needed__():
-          if var == "CONNECTION_IDS":
-            temp.append(self.solver.get_internal_connections())
-            continue
-          temp.append(self.solver.get_output_variable(var))
+        temp = self.initialize_function_vars(constraint)
         self.constraint_inputs_arrays.append(temp)
-        constraint.set_inputs(self.constraint_inputs_arrays[-1])
-    else: 
+    else:
       for i,constraint in enumerate(self.constraints):
-        for j,var in enumerate(constraint.__get_PFLOTRAN_output_variable_needed__()):
-          if var == "CONNECTION_IDS":
-            self.solver.get_internal_connections(self.constraint_inputs_arrays[i][j])
-            continue
-          self.solver.get_output_variable(var, self.constraint_inputs_arrays[i][j], -1)
+        self.update_function_vars(constraint, self.constraint_inputs_arrays[i])
     return
-  
   
   ### OPTIMIZER ###
   def optimize(self, optimizer="nlopt-mma", 
@@ -259,20 +258,19 @@ class Steady_State_Crafter:
       for i,var in enumerate(self.filter.__get_PFLOTRAN_output_variable_needed__()):
         self.solver.get_output_variable(var, self.filter_i[i], -1) #last timestep
       p_bar = self.filter.get_filtered_density(p)
-    constraint = self.constraints[iconstraint].evaluate(p_bar)
+    the_constraint = self.constraints[iconstraint]
+    constraint = the_constraint.evaluate(p_bar)
     if grad.size > 0:
-      self.constraints[iconstraint].d_objective_dp_total(p_bar, grad)
-    
-      #dobj_dP = self.obj.d_objective_dP(p_bar)
-      #dobj_dp_partial = self.obj.d_objective_dp_partial(p_bar)
-      #dobj_dmat_props = self.obj.d_objective_d_mat_props(p_bar)
-      #grad[:] = self.adjoint.compute_sensitivity(p_bar, dobj_dP, 
-      #            dobj_dmat_props, self.obj.output_variable_needed) + \
-      #            dobj_dp_partial
+      dobj_dY = the_constraint.d_objective_dY(p_bar)
+      dobj_dp_partial = the_constraint.d_objective_dp_partial(p_bar)
+      dobj_dX = the_constraint.d_objective_dX(p_bar)
+      grad[:] = the_constraint.adjoint.compute_sensitivity(p_bar, dobj_dY, 
+                  dobj_dX, the_constraint.__get_input_variables_needed__()) + \
+                  dobj_dp_partial
       
     if self.filter:
       grad[:] = self.filter.get_filter_derivative(p_bar).transpose().dot(grad)
-    tol = self.constraints[iconstraint].__get_constraint_tol__()
+    tol = the_constraint.__get_constraint_tol__()
     print(f"Current {self.constraints[iconstraint].name} constraint: {constraint+tol:.6e}")
     self.last_constraints[iconstraint] = constraint+tol
     return constraint
@@ -310,20 +308,20 @@ class Steady_State_Crafter:
     #in case of face output
     
     #initialize adjoint for objective function
-    if self.obj.__require_adjoint__() and (self.obj.adjoint is None):
-      which = self.obj.__require_adjoint__()
-      if which == "RICHARDS":
-        adjoint = Sensitivity_Richards(self.mat_props, self.solver, self.p_ids)
+    if self.obj.__get_solved_variables_needed__() and (self.obj.adjoint is None):
+      if len(self.obj.__get_solved_variables_needed__()) == 1: #one variable
+        adjoint = Sensitivity_Richards(self.obj.__get_solved_variables_needed__(),
+                                       self.mat_props, self.solver, self.p_ids)
         self.obj.set_adjoint_problem(adjoint)
     self.obj.set_p_to_cell_ids(self.p_ids)
     
     #initialize adjoint for constraints
     self.last_constraints = [0. for x in self.constraints]
     for constraint in self.constraints:
-      if constraint.__require_adjoint__() and (constraint.adjoint is None):
-        which = self.obj.__require_adjoint__()
-        if which == "RICHARDS":
-          adjoint = Sensitivity_Richards(self.mat_props, self.solver, self.p_ids)
+      if constraint.__get_solved_variables_needed__() and (constraint.adjoint is None):
+        if len(constraint.__get_solved_variables_needed__()) == 1:
+          adjoint = Sensitivity_Richards(constraint.__get_solved_variables_needed__(),
+                                         self.mat_props, self.solver, self.p_ids)
           constraint.set_adjoint_problem(adjoint)
       constraint.set_p_to_cell_ids(self.p_ids)
     #initialize IO

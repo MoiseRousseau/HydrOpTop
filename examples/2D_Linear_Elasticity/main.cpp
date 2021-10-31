@@ -39,7 +39,6 @@ SOFTWARE.*/
 struct Element
 {
 	void CalculateStiffnessMatrix(const Eigen::Matrix3f& D, std::vector<Eigen::Triplet<float> >& triplets);
-	void CalculateDStiffnessMatrix(const Eigen::Matrix3f& D, std::vector<Eigen::Triplet<float> >& triplets);
 
 	Eigen::Matrix<float, 3, 6> B;
 	int nodesIds[3];
@@ -251,7 +250,7 @@ int main(int argc, char *argv[])
 
 	Eigen::SparseMatrix<float> globalK(2 * nodesCount, 2 * nodesCount);
 	Eigen::SparseMatrix<float> DglobalK(2 * nodesCount, 2 * nodesCount);
-	globalK.setFromTriplets(triplets.begin(), triplets.end());
+	globalK.setFromTriplets(triplets.begin(), triplets.end()); //TODO: add values ?
 	DglobalK.setFromTriplets(Dtriplets.begin(), Dtriplets.end());
 
 	ApplyConstraints(globalK, constraints);

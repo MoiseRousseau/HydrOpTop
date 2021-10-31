@@ -27,7 +27,6 @@ class Linear_Elasticity_2D:
     
     self.areas = None #areas of elements
     self.solver_command = "./MinimalFEM"
-    self.log = "solver_log.log" #log file where the solver verbose is redirected
     self.no_run = False
     return
     
@@ -81,7 +80,7 @@ class Linear_Elasticity_2D:
       elems[i] = [int(x) for x in src.readline().split()]
     src.close()
     cells = [("triangle",elems)]
-    indexes = {"triangle":np.arange(self.n_cells)}
+    indexes = [("triangle",np.arange(self.n_cells))]
     if self.areas is None:
       self.areas = np.zeros(self.n_cells,dtype='f8')
       for i,nodes in enumerate(elems):
@@ -100,7 +99,7 @@ class Linear_Elasticity_2D:
     print("Running Solver: ",end='')
     cmd = [self.solver_command, self.prefix] 
     tstart = time.time()
-    ret = subprocess.call(cmd, stdout=open(self.log,'w'))
+    ret = subprocess.call(cmd)
     print(f"{time.time() - tstart} s to run simulation")
     if ret: 
       print("\n!!! Error occured in Solver !!!")
@@ -163,10 +162,10 @@ class Linear_Elasticity_2D:
     - timestep: the timestep 
     - coo_mat: a scipy COO matrix for in place assignment
     """
-    if var == "DISPLACEMENT":
+    if var == "DISPLACEMENTS":
       f = self.prefix + "_jacobian.mtx"
     elif var == "YOUNG_MODULUS":
-      f = self.prefix + "_jacobian.mtx"
+      f = self.prefix + "_sensitivity.mtx"
     else:
       print(f"Unknown variable {var} sensibility")
       exit(1)
@@ -174,7 +173,7 @@ class Linear_Elasticity_2D:
       new_mat = mmread(f)
       return new_mat
     else:
-      coo_mat.data[:] = mmread(f)
+      coo_mat.data[:] = mmread(f).data
     return
     
     

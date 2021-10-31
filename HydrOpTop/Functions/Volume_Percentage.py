@@ -38,7 +38,7 @@ class Volume_Percentage:
     self.dobj_dp_partial = None
     self.adjoint = None
     
-    self.output_variable_needed = ["VOLUME"] 
+    self.input_variables_needed = ["VOLUME"] 
     self.name = "Volume"
     return
   
@@ -114,9 +114,8 @@ class Volume_Percentage:
   
   
   ### REQUIRED FOR CRAFTING ###
-  def __require_adjoint__(self): return False
-  def __get_PFLOTRAN_output_variable_needed__(self):
-    return self.output_variable_needed
+  def __get_solved_variables_needed__(self): return []
+  def __get_input_variables_needed__(self): return self.input_variables_needed
   def __get_name__(self): return "Volume"
   def __get_constraint_tol__(self): return self.max_v_frac
 

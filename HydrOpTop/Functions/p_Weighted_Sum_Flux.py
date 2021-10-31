@@ -2,7 +2,7 @@
 
 import numpy as np
 import h5py
-from ..PFLOTRAN import default_water_density, default_gravity, default_viscosity
+from ..Solver.PFLOTRAN import default_water_density, default_gravity, default_viscosity
 from .common import __cumsum_from_connection_to_array__
 
 

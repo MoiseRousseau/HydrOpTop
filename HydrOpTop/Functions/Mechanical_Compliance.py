@@ -62,16 +62,4 @@ class Mechanical_Compliance(Base_Function):
     """
     return [self.u]
   
-    
-  def __initialize__(self):
-    self.initialized = True
-    return 
-  
-  
-  
-  
-  ### REQUIRED FOR CRAFTING ###
-  def __get_solved_variables_needed__(self): return self.solved_variables_needed
-  def __get_input_variables_needed__(self): return self.input_variables_needed
-  def __get_name__(self): return self.name
                       
