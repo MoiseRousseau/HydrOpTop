@@ -108,7 +108,7 @@ class Steady_State_Crafter:
     dobj_dp_partial = func.d_objective_dp_partial(p_bar)
     dobj_dX = func.d_objective_dX(p_bar)
     grad = func.adjoint.compute_sensitivity(p_bar, dobj_dY, 
-                dobj_dX, self.obj.__get_input_variables_needed__()) + \
+                dobj_dX, func.__get_input_variables_needed__()) + \
                 dobj_dp_partial
     return grad
   
@@ -312,7 +312,7 @@ class Steady_State_Crafter:
           exit(1)
     #create correspondance and problem size
     if X is None: #i.e. parametrize all cell in the simulation
-      self.problem_size = self.solver.n_cells
+      self.problem_size = self.solver.get_grid_size()
       self.p_ids = np.arange(1, self.problem_size+1) 
     else: 
       self.problem_size = len(X)

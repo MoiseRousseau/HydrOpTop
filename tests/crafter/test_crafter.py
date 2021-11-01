@@ -1,0 +1,152 @@
+import sys
+import os
+path = os.getcwd() + '/../../'
+sys.path.append(path)
+
+import numpy as np
+from HydrOpTop.Solver import Dummy_Simulator
+from HydrOpTop.Adjoints import Sensitivity_Richards
+from HydrOpTop.Functions import Sum_Variable
+from HydrOpTop.Materials import Identity
+from HydrOpTop.Crafter import Steady_State_Crafter
+
+
+class Test_Crafter:
+
+  rgn = np.random.default_rng(232)
+  n = 10
+  A = rgn.random(n)
+  b = rgn.random(n)
+
+
+  def test_sensitivity_manual_1_param_A(self):
+    """
+    Test adjoint derivative compared to analytical value with 1 input parametrized
+    """
+    solver = Dummy_Simulator()
+    solver.create_cell_indexed_dataset(self.A,"A")
+    solver.create_cell_indexed_dataset(self.b,"b")
+    obj = Sum_Variable("x", solved=True)
+    parametrization = Identity("all", "A")
+    solver.run()
+    obj.set_inputs([solver.get_output_variable("x")])
+    sens = Sensitivity_Richards("x",
+                   [parametrization], solver, np.arange(1,self.n+1)) 
+    #compute
+    S_adjoint = sens.compute_sensitivity(self.b, 
+                                         obj.d_objective_dY(None),
+                                         obj.d_objective_dX(None),
+                                         []) #p, dc_dYi, dc_dXi, Xi_name):
+    #analytic deriv
+    S_ana = solver.analytical_deriv_dy_dx('A')
+    print(S_ana, S_adjoint)
+    assert np.allclose(S_adjoint, S_ana, atol=1e-6, rtol=1e-6)  
+  
+  def test_crafter_derivative_1_param_A(self):
+    """
+    Test adjoint derivative compared to analytical value with 1 input parametrized
+    """
+    solver = Dummy_Simulator()
+    solver.create_cell_indexed_dataset(self.A,"A")
+    solver.create_cell_indexed_dataset(self.b,"b")
+    obj = Sum_Variable("x", solved=True)
+    parametrization = Identity("all", "A")
+    solver.run()
+    obj.set_inputs([solver.get_output_variable("x")])
+    craft = Steady_State_Crafter(obj, solver, [parametrization], [])
+    
+    S_adjoint = craft.evaluate_total_gradient(obj, self.b)
+    #analytic deriv
+    S_ana = solver.analytical_deriv_dy_dx('A')
+    print(S_ana, S_adjoint)
+    assert np.allclose(S_adjoint, S_ana, atol=1e-6, rtol=1e-6)
+
+
+  def test_sensitivity_manual_1_param_b(self):
+    """
+    Test adjoint derivative compared to analytical value with 1 input parametrized
+    """
+    solver = Dummy_Simulator()
+    solver.create_cell_indexed_dataset(self.A,"A")
+    solver.create_cell_indexed_dataset(self.b,"b")
+    obj = Sum_Variable("x", solved=True)
+    parametrization = Identity("all", "b")
+    solver.run()
+    obj.set_inputs([solver.get_output_variable("x")])
+    sens = Sensitivity_Richards("x",
+                   [parametrization], solver, np.arange(1,self.n+1)) 
+    #compute
+    S_adjoint = sens.compute_sensitivity(self.b, 
+                                         obj.d_objective_dY(None),
+                                         obj.d_objective_dX(None),
+                                         []) #p, dc_dYi, dc_dXi, Xi_name):
+    #analytic deriv
+    S_ana = solver.analytical_deriv_dy_dx('b')
+    print(S_ana, S_adjoint)
+    assert np.allclose(S_adjoint, S_ana, atol=1e-6, rtol=1e-6)    
+  
+  def test_crafter_derivative_1_param_b(self):
+    """
+    Test adjoint derivative compared to analytical value with 1 input parametrized
+    """
+    solver = Dummy_Simulator()
+    solver.create_cell_indexed_dataset(self.A,"A")
+    solver.create_cell_indexed_dataset(self.b,"b")
+    obj = Sum_Variable("x", solved=True)
+    parametrization = Identity("all", "b")
+    solver.run()
+    obj.set_inputs([solver.get_output_variable("x")])
+    craft = Steady_State_Crafter(obj, solver, [parametrization], [])
+    
+    S_adjoint = craft.evaluate_total_gradient(obj, self.b)
+    #analytic deriv
+    S_ana = solver.analytical_deriv_dy_dx('b')
+    print(S_ana, S_adjoint)
+    assert np.allclose(S_adjoint, S_ana, atol=1e-6, rtol=1e-6)
+  
+  
+  def test_crafter_adjoint_2_param(self):
+    """
+    Test adjoint derivative compared to analytical value with 1 input parametrized
+    """
+    solver = Dummy_Simulator()
+    solver.create_cell_indexed_dataset(self.A,"A")
+    solver.create_cell_indexed_dataset(self.b,"b")
+    obj = Sum_Variable("x", solved=True)
+    parametrizationA = Identity("all", "A")
+    parametrizationb = Identity("all", "b")
+    solver.run()
+    obj.set_inputs([solver.get_output_variable("x")])
+    craft = Steady_State_Crafter(obj, solver, [parametrizationA,parametrizationb], [])
+    S_adjoint = craft.evaluate_total_gradient(obj, self.b)
+    #analytic deriv
+    S_ana = solver.analytical_deriv_dy_dx('b')
+    print(S_ana, S_adjoint)
+    assert np.allclose(S_adjoint, S_ana, atol=1e-6, rtol=1e-6) 
+  
+  def test_crafter_adjoint_with_filter_1_param_A(self):
+    """
+    Test adjoint derivative compared to analytical value with 1 input parametrized
+    """
+    from HydrOpTop.Filters import Heavyside_Filter
+    solver = Dummy_Simulator()
+    solver.create_cell_indexed_dataset(self.A,"A")
+    solver.create_cell_indexed_dataset(self.b,"b")
+    obj = Sum_Variable("x", solved=True)
+    parametrization = Identity("all", "A")
+    filter_ = Heavyside_Filter()
+    craft = Steady_State_Crafter(obj, solver, [parametrization], [filter_])
+    #crafter adjoint
+    S_adjoint = craft.evaluate_total_gradient(obj, self.b)
+    #analytic deriv
+    A_filtered = filter_.get_filtered_density(self.A)
+    solver.create_cell_indexed_dataset(A_filtered,"A")
+    solver.run()
+    obj.set_inputs([solver.get_output_variable("x")])
+    S_ana = solver.analytical_deriv_dy_dx('A')*filter_.get_filter_derivative(self.A)
+    
+    print(S_ana, S_adjoint)
+    assert np.allclose(S_adjoint, S_ana, atol=1e-6, rtol=1e-6)
+   
+ 
+

@@ -7,3 +7,4 @@ from .Head_Gradient import Head_Gradient
 from .p_Weighted_Head_Gradient import p_Weighted_Head_Gradient
 from .Mechanical_Compliance import Mechanical_Compliance
 from .Base_Function_class import Base_Function
+from .Sum_Variable import Sum_Variable

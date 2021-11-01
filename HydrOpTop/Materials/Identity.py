@@ -26,7 +26,8 @@ class Identity:
     Return the derivative of the material properties according to 
     material parameter p.
     """
-    out = np.ones(len(p),dtype='f8')
+    if out is None: out = np.zeros(len(p),dtype='f8')
+    out[:] = np.ones(len(p),dtype='f8')
     return out
   
   def get_name(self):

@@ -44,7 +44,7 @@ class Sensitivity_Richards:
   
   def update_residual_derivatives(self):
     for i,solved_var in enumerate(self.solved_vars):
-      self.solver.get_sensitivity(solved_var, coo_mat=self.dR_dXi[i])
+      self.solver.get_sensitivity(solved_var, coo_mat=self.dR_dYi[i])
     for i,mat_prop in enumerate(self.parametrized_mat_props):
       self.solver.get_sensitivity(mat_prop.get_name(), coo_mat=self.dR_dXi[i])
     return 
