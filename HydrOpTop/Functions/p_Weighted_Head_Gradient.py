@@ -3,8 +3,9 @@
 import numpy as np
 import h5py
 from .common import __cumsum_from_connection_to_array__
+from .Base_Function_class import Base_Function
 
-class p_Weighted_Head_Gradient:
+class p_Weighted_Head_Gradient(Base_Function):
   """
   Description
   """
@@ -48,16 +49,14 @@ class p_Weighted_Head_Gradient:
     self.adjoint = None #attribute storing adjoint
     
     #required for problem crafting
-    self.output_variable_needed = ["LIQUID_PRESSURE", "CONNECTION_IDS", 
+    self.solved_variables_needed = ["LIQUID_PRESSURE"]
+    self.input_variables_needed = ["CONNECTION_IDS", 
                                    "FACE_AREA", "FACE_UPWIND_FRACTION", 
                                    "VOLUME", "Z_COORDINATE", 
                                    "FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"] 
     self.name = "p-Weighted Head Gradient"
     return
-    
-  def set_ids_to_consider(self, x):
-    self.ids_to_consider = x-1
-    return
+
     
   def set_inputs(self, inputs):
     no_bc_connections = (inputs[1][:,0] > 0) * (inputs[1][:,1] > 0)
@@ -68,10 +67,6 @@ class p_Weighted_Head_Gradient:
     self.volume = inputs[4]
     self.z = inputs[5]
     self.normal = [x[no_bc_connections] for x in inputs[6:]]
-    return
-  
-  def set_adjoint_problem(self, x):
-    self.adjoint = x
     return
   
   def set_p_to_cell_ids(self,p_ids):
@@ -139,7 +134,7 @@ class p_Weighted_Head_Gradient:
   
   
   ### PARTIAL DERIVATIVES ###
-  def d_objective_dP(self,p):
+  def d_objective_dY(self,p):
     if not self.initialized: self.__initialize__()
     if self.dobj_dP is None:
       self.dobj_dP = np.zeros(len(self.pressure), dtype='f8')
@@ -201,10 +196,8 @@ class p_Weighted_Head_Gradient:
     
     V = np.sum(p_[self.ids_to_consider_p]*self.volume[self.ids_to_consider])
     self.dobj_dP *= n / V / (self.density * self.gravity) 
-    return self.dobj_dP
-  
-  def d_objective_d_mat_props(self, p):
-    return 0.
+    return [self.dobj_dP]
+
   
   def d_objective_dp_partial(self, p):
     if self.dobj_dp_partial is None:
@@ -226,24 +219,6 @@ class p_Weighted_Head_Gradient:
     d_den = factor * self.volume[self.ids_to_consider]
     self.dobj_dp_partial[self.ids_to_consider_p] = (d_num * den - d_den*num) / den**2
     return self.dobj_dp_partial
-  
-  
-  ### TOTAL DERIVATIVE ###
-  def d_objective_dp_total(self, p, out=None): 
-    """
-    Evaluate the TOTAL derivative of the function according to the density
-    parameter p. If a numpy array is provided, derivative will be copied 
-    in this array, else create a new numpy array.
-    """
-    if not self.initialized: self.__initialize__()
-    #this method could be used as is
-    if out is None:
-      out = np.zeros(len(p), dtype='f8')
-    self.d_objective_dP(p) #update function derivative wrt mat parameter p
-    self.d_objective_dp_partial(p)
-    out[:] = self.adjoint.compute_sensitivity(p, self.dobj_dP, 
-               self.dobj_dmat_props, self.output_variable_needed) + self.dobj_dp_partial
-    return out
   
   
   ### INITIALIZER FUNCTION ###
@@ -275,11 +250,4 @@ class p_Weighted_Head_Gradient:
     head = np.ones(len(self.volume),dtype='f8')
     self.grad_correction = self.compute_head_gradient(head)
     return
-  
-  ### REQUIRED FOR CRAFTING ###
-  def __require_adjoint__(self): return "RICHARDS" 
-  def __get_PFLOTRAN_output_variable_needed__(self):
-    return self.output_variable_needed 
-  def __get_name__(self): return self.name
-  def __get_constraint_tol__(self): return self.tol
                        

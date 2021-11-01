@@ -14,15 +14,15 @@ class Dummy_Simulator:
   - meshfile: a path to a meshio readable mesh
   - var_loc: the variable location
   """
-  def __init__(self, meshfile=None, var_loc="cell"):
+  def __init__(self, meshfile=None, var_loc="cell", problem_size=None):
     self.meshfile = meshfile
-    self.input_variables_needed = ['A','b']
+    self.input_variables_needed = ['a','b']
     self.solved_variables_needed = ['x']
     self.var_loc = var_loc
     self.no_run = False
     
     self.input_variables_value = {}
-    self.problem_size = None
+    self.problem_size = problem_size
     return
     
   def get_grid_size(self):
@@ -67,7 +67,7 @@ class Dummy_Simulator:
     """
     Compute the sum of input value
     """
-    self.value = self.input_variables_value["b"]/self.input_variables_value["A"]
+    self.value = self.input_variables_value["b"]/self.input_variables_value["a"]
     return 0
   
   def get_output_variable(self, var, out=None, i_timestep=-1):
@@ -84,8 +84,8 @@ class Dummy_Simulator:
   def get_sensitivity(self, var, timestep=None, coo_mat=None):
     #R = Ax-b
     if var == 'x':
-      data = self.input_variables_value['A']
-    elif var == "A":
+      data = self.input_variables_value['a']
+    elif var == "a":
       data = self.value
     elif var == "b":
       data = -np.ones(len(self.input_variables_value['b']), dtype='f8')
@@ -99,10 +99,10 @@ class Dummy_Simulator:
     return
   
   def analytical_deriv_dy_dx(self, var):
-    A = self.input_variables_value['A']
+    A = self.input_variables_value['a']
     b = self.input_variables_value['b']
     #x=b/A
-    if var == "A":
+    if var == "a":
       return -b/(A*A)
     elif var == 'b':
       return 1/A

@@ -9,3 +9,4 @@ from .Volume_Preserving_Heavyside_Filter import \
 from .No_Filter import No_Filter
 from .Heavyside_Filter import Heavyside_Filter
 from .Helmholtz_Density_Filter import Helmholtz_Density_Filter
+from .Base_Filter_class import Base_Filter

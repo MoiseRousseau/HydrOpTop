@@ -16,7 +16,7 @@ class Test_Common_Function:
                              comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   sim_exp_grid.create_cell_indexed_dataset(perm_field, "permeability", "permeability.h5", cell_ids)
-  sim_exp_grid.run_PFLOTRAN()
+  sim_exp_grid.run()
   
   pit_ids = sim_exp_grid.get_region_ids("pit")
   obj = Volume_Percentage(pit_ids, 0.15)

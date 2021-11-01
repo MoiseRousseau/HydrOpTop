@@ -10,7 +10,7 @@ import nlopt
                                   
 from HydrOpTop.Functions import Mean_Liquid_Piezometric_Head #objective
 from HydrOpTop.Functions import Volume_Percentage #constrain
-from HydrOpTop.Materials import Log_SIMP
+from HydrOpTop.Materials import SIMP
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Filters import Density_Filter
 from HydrOpTop import PFLOTRAN
@@ -23,7 +23,7 @@ if __name__ == "__main__":
   
   #get cell ids in the region to optimize and parametrize permeability
   #same name than in pflotran input file
-  perm = Log_SIMP(cell_ids_to_parametrize="all", property_name="PERMEABILITY", bounds=[1e-14, 1e-10], power=3)
+  perm = SIMP(cell_ids_to_parametrize="all", property_name="PERMEABILITY", bounds=[1e-14, 1e-10], power=3)
   
   #define cost function as sum of the head in the pit
   cf = Mean_Liquid_Piezometric_Head(ids_to_sum="everywhere", penalizing_power=1)

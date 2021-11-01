@@ -6,18 +6,19 @@ sys.path.append(path)
 import numpy as np
 from HydrOpTop import PFLOTRAN
 from HydrOpTop.Functions import Head_Gradient
+from common import __add_inputs__
 
 class Test_Head_Gradient:
   #run PFLOTRAN simulation to set up the tests
   pft_problem = "9x9x1"
   pflotranin = f"../PFLOTRAN_problems/{pft_problem}/source_sink_center.in"
   sim_ss = PFLOTRAN(pflotranin)
-  sim_ss.run_PFLOTRAN()
+  sim_ss.run()
   
   pft_problem = "9x9x1"
   pflotranin = f"../PFLOTRAN_problems/{pft_problem}/uniform_flow.in"
   sim_uniform = PFLOTRAN(pflotranin)
-  sim_uniform.run_PFLOTRAN()
+  sim_uniform.run()
   
   pft_problem = "pit_3d"
   pflotranin = f"../PFLOTRAN_problems/{pft_problem}/pflotran.in"
@@ -26,7 +27,7 @@ class Test_Head_Gradient:
                              comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   sim_exp_grid.create_cell_indexed_dataset(perm_field, "permeability", "permeability.h5", cell_ids)
-  sim_exp_grid.run_PFLOTRAN()
+  sim_exp_grid.run()
   
   
   def test_value_source_sink(self):
@@ -36,7 +37,7 @@ class Test_Head_Gradient:
     #initiate objective
     center_id = self.sim_ss.get_region_ids("center")
     obj = Head_Gradient(ids_to_consider=center_id, power=1) #the center cell id where the sink is
-    self.__add_inputs__(obj, self.sim_ss)
+    __add_inputs__(obj, self.sim_ss)
     obj.set_p_to_cell_ids(np.arange(1,82))
     cf = obj.evaluate(None)
     print(f"Head Gradient: {cf} (should be very close to 0.)")
@@ -50,7 +51,7 @@ class Test_Head_Gradient:
     """
     #initiate objective
     obj = Head_Gradient(power=1) 
-    self.__add_inputs__(obj, self.sim_uniform)
+    __add_inputs__(obj, self.sim_uniform)
     obj.set_p_to_cell_ids(np.arange(10,73))
     cf = obj.evaluate(None)
     print(f"Head Gradient: {cf} (should be very close to 0.01)")
@@ -65,7 +66,7 @@ class Test_Head_Gradient:
     #initiate objective
     center_id = self.sim_uniform.get_region_ids("center")
     obj = Head_Gradient(ids_to_consider=center_id, power=1, restrict_domain=True) 
-    self.__add_inputs__(obj,self.sim_ss)
+    __add_inputs__(obj,self.sim_ss)
     obj.set_p_to_cell_ids(np.arange(1,82))
     cf = obj.evaluate(None)
     print(f"Head Gradient: {cf} (should be very close to 0.)")
@@ -80,11 +81,10 @@ class Test_Head_Gradient:
     """
     #set up Head_Gradient object
     obj = Head_Gradient(ids_to_consider=np.arange(1,41), power=1.) 
-    self.__add_inputs__(obj, self.sim_ss)
+    __add_inputs__(obj, self.sim_ss)
     obj.set_p_to_cell_ids(np.arange(1,82))
     #get analytic derivative
-    obj.d_objective_dP(None)
-    d_obj = obj.dobj_dP
+    d_obj = obj.d_objective_dY(None)[0]
     ref_val = obj.evaluate(None)
     #get finite difference derivative
     pressure = obj.pressure
@@ -114,11 +114,10 @@ class Test_Head_Gradient:
     #set up Head_Gradient object
     pit_ids = self.sim_exp_grid.get_region_ids("pit")
     obj = Head_Gradient(ids_to_consider=pit_ids, power=2.) 
-    self.__add_inputs__(obj, self.sim_exp_grid)
+    __add_inputs__(obj, self.sim_exp_grid)
     obj.set_p_to_cell_ids(np.arange(1,self.sim_exp_grid.n_cells+1))
     #get analytic derivative
-    obj.d_objective_dP(None)
-    d_obj = obj.dobj_dP
+    d_obj = obj.d_objective_dY(None)[0]
     ref_val = obj.evaluate(None)
     #get finite difference derivative
     pressure = obj.pressure
@@ -147,11 +146,10 @@ class Test_Head_Gradient:
     #set up Head_Gradient object
     pit_ids = self.sim_exp_grid.get_region_ids("pit")
     obj = Head_Gradient(ids_to_consider=pit_ids, restrict_domain=True) 
-    self.__add_inputs__(obj, self.sim_exp_grid)
+    __add_inputs__(obj, self.sim_exp_grid)
     obj.set_p_to_cell_ids(np.arange(1,self.sim_exp_grid.n_cells+1))
     #get analytic derivative
-    obj.d_objective_dP(None)
-    d_obj = obj.dobj_dP
+    d_obj = obj.d_objective_dY(None)[0]
     ref_val = obj.evaluate(None)
     #get finite difference derivative
     pressure = obj.pressure
@@ -171,17 +169,6 @@ class Test_Head_Gradient:
       print(f"{i+1}, {d_obj_fd[i]:.6e}, {d_obj[pit_ids[i]-1]:.6e}")
     assert distance < 1e-5
     assert abs(d_obj[0]) < 1e-6
-    return
-  
-  
-  def __add_inputs__(self, obj, sim):
-    inputs = []
-    for output in obj.__get_PFLOTRAN_output_variable_needed__():
-      if output == "CONNECTION_IDS": 
-        inputs.append(sim.get_internal_connections())
-        continue
-      inputs.append(sim.get_output_variable(output))
-    obj.set_inputs(inputs)
     return
   
   

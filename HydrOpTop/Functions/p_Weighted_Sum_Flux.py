@@ -4,9 +4,10 @@ import numpy as np
 import h5py
 from ..Solver.PFLOTRAN import default_water_density, default_gravity, default_viscosity
 from .common import __cumsum_from_connection_to_array__
+from .Base_Function_class import Base_Function
 
 
-class p_Weighted_Sum_Flux:
+class p_Weighted_Sum_Flux(Base_Function):
   """
 Compute the sum of the squared flux through the connection of the cell given and
 weighted by the material parameter.
@@ -54,7 +55,8 @@ flux in material designed by p=0
     self.adjoint = None #attribute storing adjoint
     
     #required for problem crafting
-    self.output_variable_needed = ["LIQUID_PRESSURE", "FACE_AREA",
+    self.solved_variables_needed = ["LIQUID_PRESSURE"]
+    self.input_variables_needed = ["FACE_AREA",
                                    "PERMEABILITY", "FACE_UPWIND_FRACTION", 
                                    "FACE_DISTANCE_BETWEEN_CENTER",
                                    "Z_COORDINATE", "CONNECTION_IDS"] 
@@ -105,10 +107,6 @@ flux in material designed by p=0
         exit(1)
     return 
     
-  def set_adjoint_problem(self, x):
-    self.adjoint = x
-    return
-    
   def interpole_at_face(self, X):
     """
     Interpole the given cell centered variable at face
@@ -150,7 +148,7 @@ flux in material designed by p=0
   
   
   ### PARTIAL DERIVATIVES ###
-  def d_objective_dP(self,p): 
+  def d_objective_dY(self,p): 
     """
     Evaluate the derivative of the function according to the pressure.
     Must have the size of the input problem
@@ -179,10 +177,10 @@ flux in material designed by p=0
                                         d_flux_con)
     __cumsum_from_connection_to_array__(self.dobj_dP, self.connection_ids[:,1]-1,
                                         -d_flux_con)
-    return
+    return [self.dobj_dP]
     
   
-  def d_objective_d_mat_props(self, p):
+  def d_objective_dX(self, p):
     """
     Derivative of the function according to input variable
     Must have the size of the input problem and ordered as in PFLOTRAN output, i.e.
@@ -227,7 +225,7 @@ flux in material designed by p=0
                                     self.connection_ids[:,0]-1, p_*dK1)
     __cumsum_from_connection_to_array__(self.dobj_dmat_props[2], 
                                     self.connection_ids[:,1]-1, p_*dK2)
-    return None
+    return self.dobj_dmat_props
   
   
   def d_objective_dp_partial(self, p): 
@@ -254,25 +252,6 @@ flux in material designed by p=0
                                         self.connections2_to_p, flux_con)
     
     return 
-  
-  
-  ### TOTAL DERIVATIVE ###
-  def d_objective_dp_total(self, p, out=None): 
-    """
-    Evaluate the TOTAL derivative of the function according to the density
-    parameter p. If a numpy array is provided, derivative will be copied 
-    in this array, else create a new numpy array.
-    """
-    if not self.initialized: self.__initialize__()
-    #this method could be used as is
-    if out is None:
-      out = np.zeros(len(self.p), dtype='f8')
-    self.d_objective_dP(p) #update function derivative wrt pressure
-    self.d_objective_d_mat_props(p) #update function derivative wrt mat prop
-    self.d_objective_dp_partial(p) #update function derivative wrt mat parameter p
-    out[:] = self.adjoint.compute_sensitivity(p, self.dobj_dP, 
-                 self.dobj_dmat_props, self.output_variable_needed) + self.dobj_dp_partial
-    return out
   
   
   
@@ -317,12 +296,4 @@ flux in material designed by p=0
     self.connections2_to_p = self.ids_p[self.connection_ids[:,1]-1]
     #constant d_z_con
     self.d_z_con = self.z[self.connection_ids[:,1]-1] - self.z[self.connection_ids[:,0]-1]
-    return
-  
-  ### REQUIRED FOR CRAFTING ###
-  def __require_adjoint__(self): return "RICHARDS"
-  def __get_PFLOTRAN_output_variable_needed__(self):
-    return self.output_variable_needed 
-  def __get_name__(self): return self.name
-
-                      
+    return         

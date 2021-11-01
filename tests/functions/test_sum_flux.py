@@ -8,20 +8,16 @@ class Test_Sum_Flux:
   #create PFLOTRAN simulation object
   from HydrOpTop import PFLOTRAN
   from HydrOpTop.Functions import Sum_Flux
+  from common import __add_inputs__
+  
   pft_problem = "pit_3d"
   pflotranin = f"../PFLOTRAN_problems/{pft_problem}/pflotran.in"
   sim = PFLOTRAN(pflotranin)
-  sim.run_PFLOTRAN()
+  sim.run()
   #create sum flux object
   connection_to_sum = sim.get_connections_ids_integral_flux("interface")
   obj = Sum_Flux(connection_to_sum, option="signed")
-  inputs = []
-  for output in obj.__get_PFLOTRAN_output_variable_needed__():
-    if output == "CONNECTION_IDS": 
-      inputs.append(sim.get_internal_connections())
-      continue
-    inputs.append(sim.get_output_variable(output))
-  obj.set_inputs(inputs)
+  __add_inputs__(obj, sim)
     
   def test_sum_flux_signed_vs_PFLOTRAN_integral_flux(self):
     self.obj.option = "signed"
@@ -72,8 +68,7 @@ class Test_Sum_Flux:
     self.obj.option = "signed"
     ids_to_test = np.unique(self.connection_to_sum.flatten())
     #get analytic derivative
-    self.obj.d_objective_dP(None)
-    d_obj = self.obj.dobj_dP
+    d_obj = self.obj.d_objective_dY(None)[0]
     #get finite difference derivative
     d_obj_fd = self.FD_dP(ids_to_test)
     #perform comparison
@@ -89,8 +84,7 @@ class Test_Sum_Flux:
     self.obj.option = "absolute"
     ids_to_test = np.unique(self.connection_to_sum.flatten())
     #get analytic derivative
-    self.obj.d_objective_dP(None)
-    d_obj = self.obj.dobj_dP
+    d_obj = self.obj.d_objective_dY(None)[0]
     #get finite difference derivative
     d_obj_fd = self.FD_dP(ids_to_test)
     #perform comparison
@@ -120,8 +114,7 @@ class Test_Sum_Flux:
     self.obj.option = "signed"
     ids_to_test = np.unique(self.connection_to_sum.flatten())
     #get analytic derivative
-    self.obj.d_objective_d_mat_props(None)
-    d_obj = self.obj.dobj_dmat_props[2]
+    d_obj = self.obj.d_objective_dX(None)[1]
     #get finite difference derivative
     d_obj_fd = self.FD_dK(ids_to_test)
     #perform comparison
@@ -137,8 +130,7 @@ class Test_Sum_Flux:
     self.obj.option = "absolute"
     ids_to_test = np.unique(self.connection_to_sum.flatten())
     #get analytic derivative
-    self.obj.d_objective_d_mat_props(None)
-    d_obj = self.obj.dobj_dmat_props[2]
+    d_obj = self.obj.d_objective_dX(None)[1]
     #get finite difference derivative
     d_obj_fd = self.FD_dK(ids_to_test)
     #perform comparison

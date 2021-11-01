@@ -6,18 +6,19 @@ sys.path.append(path)
 import numpy as np
 from HydrOpTop import PFLOTRAN
 from HydrOpTop.Functions import p_Weighted_Head_Gradient
+from common import __add_inputs__
 
 class Test_Head_Gradient:
   #run PFLOTRAN simulation to set up the tests
   pft_problem = "9x9x1"
   pflotranin = f"../PFLOTRAN_problems/{pft_problem}/source_sink_center.in"
   sim_ss = PFLOTRAN(pflotranin)
-  sim_ss.run_PFLOTRAN()
+  sim_ss.run()
   
   pft_problem = "9x9x1"
   pflotranin = f"../PFLOTRAN_problems/{pft_problem}/uniform_flow.in"
   sim_uniform = PFLOTRAN(pflotranin)
-  sim_uniform.run_PFLOTRAN()
+  sim_uniform.run()
   
   pft_problem = "pit_3d"
   pflotranin = f"../PFLOTRAN_problems/{pft_problem}/pflotran.in"
@@ -26,7 +27,7 @@ class Test_Head_Gradient:
                              comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   sim_exp_grid.create_cell_indexed_dataset(perm_field, "permeability", "permeability.h5", cell_ids)
-  sim_exp_grid.run_PFLOTRAN()
+  sim_exp_grid.run()
   
   
   def test_value_uniform(self):
@@ -37,13 +38,7 @@ class Test_Head_Gradient:
     #initiate objective
     center_id = self.sim_uniform.get_region_ids("center")
     obj = p_Weighted_Head_Gradient(power=1) 
-    inputs = []
-    for output in obj.__get_PFLOTRAN_output_variable_needed__():
-      if output == "CONNECTION_IDS": 
-        inputs.append(self.sim_uniform.get_internal_connections())
-        continue
-      inputs.append(self.sim_uniform.get_output_variable(output))
-    obj.set_inputs(inputs)
+    __add_inputs__(obj,self.sim_uniform)
     obj.set_p_to_cell_ids(np.arange(10,73))
     p = np.zeros(63, dtype='f8')+0.3
     cf = obj.evaluate(p)
@@ -53,18 +48,11 @@ class Test_Head_Gradient:
   
   
   def common_test_derivative_dP(self, obj):
-    inputs = []
-    for output in obj.__get_PFLOTRAN_output_variable_needed__():
-      if output == "CONNECTION_IDS": 
-        inputs.append(self.sim_ss.get_internal_connections())
-        continue
-      inputs.append(self.sim_ss.get_output_variable(output))
-    obj.set_inputs(inputs)
+    __add_inputs__(obj,self.sim_ss)
     obj.set_p_to_cell_ids(np.arange(1,82))
     #get analytic derivative
     p = np.random.random(82)
-    obj.d_objective_dP(p)
-    d_obj = obj.dobj_dP
+    d_obj = obj.d_objective_dY(p)[0]
     ref_val = obj.evaluate(p)
     #get finite difference derivative
     pressure = obj.pressure
@@ -95,26 +83,29 @@ class Test_Head_Gradient:
     obj = p_Weighted_Head_Gradient(ids_to_consider=np.arange(1,41), power=1.) 
     self.common_test_derivative_dP(obj)
     return
+    
+  def test_derivative_dP_restricted(self):
+    """
+    Same as previous test but with restricted domain
+    """
+    obj = p_Weighted_Head_Gradient(ids_to_consider=np.arange(1,41), power=2., invert_weighting=True, restrict_domain=True) 
+    self.common_test_derivative_dP(obj)
+    return
   
   def test_derivative_dP_invert_weighting(self):
     """
-    Same as previous test but with invert weighting and power
+    Same as 2nd previous test but with invert weighting and power
     """
     obj = p_Weighted_Head_Gradient(ids_to_consider=np.arange(1,41), power=2., invert_weighting=True) 
     self.common_test_derivative_dP(obj)
     return
+  
     
   
   
   def common_test_derivative_dp_partial(self, obj):
-    inputs = []
-    for output in obj.__get_PFLOTRAN_output_variable_needed__():
-      if output == "CONNECTION_IDS": 
-        inputs.append(self.sim_exp_grid.get_internal_connections())
-        continue
-      inputs.append(self.sim_exp_grid.get_output_variable(output))
     param_cells = obj.ids_to_consider+1
-    obj.set_inputs(inputs)
+    __add_inputs__(obj,self.sim_exp_grid)
     obj.set_p_to_cell_ids(param_cells)
     p = np.random.random(len(param_cells))
     #get analytic derivative
@@ -146,7 +137,7 @@ class Test_Head_Gradient:
     Use a random parameter p so test may fail randomly...
     """
     pit_ids = self.sim_exp_grid.get_region_ids("pit")
-    obj = p_Weighted_Head_Gradient(ids_to_consider=pit_ids, power=2.) 
+    obj = p_Weighted_Head_Gradient(ids_to_consider=pit_ids, power=2., restrict_domain=True) 
     self.common_test_derivative_dp_partial(obj)
     return
     

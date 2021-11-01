@@ -1,9 +1,9 @@
 from .Mesh_NNR import Mesh_NNR
 import numpy as np
 from scipy.sparse import dia_matrix
+from .Base_Filter_class import Base_Filter
 
-
-class Density_Filter:
+class Density_Filter(Base_Filter):
   """
   Filter the density parameter according to Bruns and Tortorelli (2001) and 
   Bourdin (2001):
@@ -31,10 +31,6 @@ class Density_Filter:
     
     self.output_variable_needed = ["X_COORDINATE", "Y_COORDINATE",
                                    "Z_COORDINATE", "VOLUME"]
-    return
-  
-  def set_p_to_cell_ids(self, p_ids):
-    self.p_ids = p_ids #if None, this mean all the cell are parametrized
     return
   
   def set_inputs(self, inputs):
@@ -79,11 +75,4 @@ class Density_Filter:
     if not self.initialized: self.initialize()
     out = self.deriv
     return out
- 
-  
-  def __get_solved_variables_needed__(self):
-    return []
-  def __get_input_variables_needed__(self):
-    return self.output_variable_needed 
-  
 

@@ -19,7 +19,7 @@ class Steady_State_Crafter:
   - filter: the filter to be used to relate the density to a filtered density
             (a fitler class instance) (None by default).
   """
-  def __init__(self, objective, solver, mat_props, constraints, filters=None, io=None):
+  def __init__(self, objective, solver, mat_props, constraints=[], filters=None, io=None):
     self.__print_information__()
     self.mat_props = mat_props
     self.solver = solver
@@ -103,13 +103,28 @@ class Steady_State_Crafter:
       p_bar = filter_.get_filtered_density(p_bar)
     return p_bar
     
-  def evaluate_total_gradient(self, func, p_bar):
-    dobj_dY = func.d_objective_dY(p_bar)
-    dobj_dp_partial = func.d_objective_dp_partial(p_bar)
-    dobj_dX = func.d_objective_dX(p_bar)
-    grad = func.adjoint.compute_sensitivity(p_bar, dobj_dY, 
+  def evaluate_total_gradient(self, func, p, p_bar=None):
+    if self.filters:
+      if p_bar is None:
+        p_bar = self.filter_density(p)
+      p_ = p_bar
+    else:
+      p_ = p
+    dobj_dY = func.d_objective_dY(p_)
+    dobj_dp_partial = func.d_objective_dp_partial(p_)
+    dobj_dX = func.d_objective_dX(p_)
+    grad = func.adjoint.compute_sensitivity(p_, dobj_dY, 
                 dobj_dX, func.__get_input_variables_needed__()) + \
                 dobj_dp_partial
+    print("grad", grad)
+    if self.filters:
+      for i,filter_ in enumerate(self.filters):
+        if not i:
+          grad_filter = filter_.get_filter_derivative(p)
+        else:
+          grad_filter = filter_.get_filter_derivative(p).dot(grad_filter)
+      grad[:] = grad_filter.transpose().dot(grad)
+    print("grad_apres", grad)
     return grad
   
   
@@ -123,7 +138,7 @@ class Steady_State_Crafter:
     p_bar = self.filter_density(p)
     ### UPDATE MAT PROPERTIES
     for mat_prop in self.mat_props:
-      X = mat_prop.convert_p_to_mat_properties(p)
+      X = mat_prop.convert_p_to_mat_properties(p_bar)
       self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                     X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
     ### RUN SOLVER
@@ -244,14 +259,7 @@ class Steady_State_Crafter:
     if self.first_cf is None: 
       self.first_cf = cf
     if grad.size > 0:
-      grad[:] = self.evaluate_total_gradient(self.obj, p_bar)
-    if self.filters and grad.size > 0:
-      for i,filter_ in enumerate(self.filters):
-        if not i:
-          grad_filter = filter_.get_filter_derivative(p)
-        else:
-          grad_filter = filter_.get_filter_derivative(p).dot(grad_filter)
-      grad[:] = grad_filter.transpose().dot(grad)
+      grad[:] = self.evaluate_total_gradient(self.obj, p, p_bar)
     #save for output at next iteration
     self.last_cf = cf
     self.last_grad = grad.copy()
@@ -279,15 +287,7 @@ class Steady_State_Crafter:
     the_constraint = self.constraints[iconstraint]
     constraint = the_constraint.evaluate(p_bar)
     if grad.size > 0:
-      grad[:] = self.evaluate_total_gradient(the_constraint, p_bar)
-      
-    if self.filters and grad.size > 0:
-      for i,filter_ in enumerate(self.filters):
-        if not i:
-          grad_filter = filter_.get_filter_derivative(p)
-        else:
-          grad_filter = filter_.get_filter_derivative(p).dot(grad_filter)
-      grad[:] = grad_filter.transpose().dot(grad)
+      grad[:] = self.evaluate_total_gradient(the_constraint, p, p_bar)
     
     tol = the_constraint.__get_constraint_tol__()
     print(f"Current {self.constraints[iconstraint].name} constraint: {constraint+tol:.6e}")
@@ -305,7 +305,7 @@ class Steady_State_Crafter:
     X = self.mat_props[0].get_cell_ids_to_parametrize()
     if len(self.mat_props) > 1:
       for x in self.mat_props:
-        if x.get_ids_to_optimize() != X: 
+        if x.get_cell_ids_to_parametrize() != X: 
           print("Different cell ids to optimize")
           print("HydrOpTop require the different mat properties to parametrize \
                  the same cell ids")
@@ -341,7 +341,7 @@ class Steady_State_Crafter:
           adjoint = No_Adjoint(self.mat_props, self.p_ids)
         if len(constraint.__get_solved_variables_needed__()) == 1:
           adjoint = Sensitivity_Richards(constraint.__get_solved_variables_needed__(),
-	                                       self.mat_props, self.solver, self.p_ids)
+                                             self.mat_props, self.solver, self.p_ids)
         constraint.set_adjoint_problem(adjoint)
         
     #initialize IO
@@ -366,15 +366,15 @@ class Steady_State_Crafter:
       self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                       X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
     #run Solver
-    if not self.solver.mesh_info_present:
-      ret_code = self.solver.run()
-      if ret_code: 
-        exit(ret_code)
+    for filter_ in self.filters:
+      if filter_.__get_input_variables_needed__() or filter_.__get_solved_variables_needed__():
+        ret_code = self.solver.run()
+        if ret_code: 
+          exit(ret_code)
     
     for filter_ in self.filters:
       self.initialize_function_vars(filter_)
       filter_.set_p_to_cell_ids(self.p_ids)
-      filter_.initialize()
     self.filters_initialized = True
     return
     
