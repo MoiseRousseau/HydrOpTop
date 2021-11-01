@@ -102,6 +102,16 @@ class Steady_State_Crafter:
       self.initialize_function_vars(filter_) #update filter var
       p_bar = filter_.get_filtered_density(p_bar)
     return p_bar
+    
+  def evaluate_total_gradient(self, func, p_bar):
+    dobj_dY = func.d_objective_dY(p_bar)
+    dobj_dp_partial = func.d_objective_dp_partial(p_bar)
+    dobj_dX = func.d_objective_dX(p_bar)
+    grad = func.adjoint.compute_sensitivity(p_bar, dobj_dY, 
+                dobj_dX, self.obj.__get_input_variables_needed__()) + \
+                dobj_dp_partial
+    return grad
+  
   
   ### PRE-EVALUATION ###
   def pre_evaluation_objective(self, p):
@@ -136,6 +146,7 @@ class Steady_State_Crafter:
       for i,constraint in enumerate(self.constraints):
         self.update_function_vars(constraint, self.constraint_inputs_arrays[i])
     return p_bar
+  
   
   ### OPTIMIZER ###
   def optimize(self, optimizer="nlopt-mma", 
@@ -191,7 +202,7 @@ class Steady_State_Crafter:
                    self.last_constraints, 
                    self.last_p, 
                    self.last_grad, 
-                   [0], 
+                   self.last_grad_constraints, 
                    val_at=self.p_ids-1)
     print("END!")
     return p_opt
@@ -211,7 +222,7 @@ class Steady_State_Crafter:
                        self.last_constraints, 
                        self.last_p, 
                        self.last_grad, 
-                       [0], 
+                       self.last_grad_constraints, 
                        val_at=self.p_ids-1)
         #self.IO.output(self.func_eval, cf, constraints_val, p, grad_cf, grad_constraints, p_bar)
       else:
@@ -220,7 +231,7 @@ class Steady_State_Crafter:
                        self.last_constraints, 
                        self.last_p, 
                        self.last_grad, 
-                       [0], 
+                       self.last_grad_constraints, 
                        self.last_p_bar, 
                        val_at=self.p_ids-1)
     #start new it
@@ -230,23 +241,20 @@ class Steady_State_Crafter:
     p_bar = self.pre_evaluation_objective(p)
     ### OBJECTIVE EVALUATION AND DERIVATIVE
     cf = self.obj.evaluate(p_bar)
-    if grad.size > 0:
-      dobj_dY = self.obj.d_objective_dY(p_bar)
-      dobj_dp_partial = self.obj.d_objective_dp_partial(p_bar)
-      dobj_dX = self.obj.d_objective_dX(p_bar)
-      grad[:] = self.obj.adjoint.compute_sensitivity(p_bar, dobj_dY, 
-                  dobj_dX, self.obj.__get_input_variables_needed__()) + \
-                  dobj_dp_partial
     if self.first_cf is None: 
       self.first_cf = cf
+    if grad.size > 0:
+      grad[:] = self.evaluate_total_gradient(self.obj, p_bar)
     if self.filters and grad.size > 0:
-      grad_filter = np.ones(len(grad), dtype='f8')
-      for filter_ in self.filters:
-        grad *= filter_.get_filter_derivative(p)
+      for i,filter_ in enumerate(self.filters):
+        if not i:
+          grad_filter = filter_.get_filter_derivative(p)
+        else:
+          grad_filter = filter_.get_filter_derivative(p).dot(grad_filter)
       grad[:] = grad_filter.transpose().dot(grad)
     #save for output at next iteration
     self.last_cf = cf
-    self.last_grad = grad
+    self.last_grad = grad.copy()
     self.last_p[:] = p
     self.last_p_bar = p_bar
     #normalize cf to 1
@@ -271,22 +279,20 @@ class Steady_State_Crafter:
     the_constraint = self.constraints[iconstraint]
     constraint = the_constraint.evaluate(p_bar)
     if grad.size > 0:
-      dobj_dY = the_constraint.d_objective_dY(p_bar)
-      dobj_dp_partial = the_constraint.d_objective_dp_partial(p_bar)
-      dobj_dX = the_constraint.d_objective_dX(p_bar)
-      grad[:] = the_constraint.adjoint.compute_sensitivity(p_bar, dobj_dY, 
-                  dobj_dX, the_constraint.__get_input_variables_needed__()) + \
-                  dobj_dp_partial
+      grad[:] = self.evaluate_total_gradient(the_constraint, p_bar)
       
     if self.filters and grad.size > 0:
-      grad_filter = np.ones(len(grad), dtype='f8')
-      for filter_ in self.filters:
-        grad *= filter_.get_filter_derivative(p)
+      for i,filter_ in enumerate(self.filters):
+        if not i:
+          grad_filter = filter_.get_filter_derivative(p)
+        else:
+          grad_filter = filter_.get_filter_derivative(p).dot(grad_filter)
       grad[:] = grad_filter.transpose().dot(grad)
     
     tol = the_constraint.__get_constraint_tol__()
     print(f"Current {self.constraints[iconstraint].name} constraint: {constraint+tol:.6e}")
     self.last_constraints[iconstraint] = constraint+tol
+    self.last_grad_constraints[iconstraint] = grad.copy()
     return constraint
     
   
@@ -327,6 +333,7 @@ class Steady_State_Crafter:
     
     #initialize adjoint for constraints
     self.last_constraints = [0. for x in self.constraints]
+    self.last_grad_constraints = [None for x in self.constraints]
     for constraint in self.constraints:
       constraint.set_p_to_cell_ids(self.p_ids)
       if constraint.adjoint is None:

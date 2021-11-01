@@ -6,10 +6,10 @@ import h5py
 from ..Solver.PFLOTRAN import default_water_density, default_gravity, default_viscosity
 from .common import __cumsum_from_connection_to_array__, \
                     smooth_abs_function, d_smooth_abs_function
+from .Base_Function_class import Base_Function
 
 
-
-class Sum_Flux:
+class Sum_Flux(Base_Function):
   """
   Calculate the total flux through a surface (defined by its faces) considering 
   the viscosity and density constant (for simplicity).
@@ -58,13 +58,14 @@ class Sum_Flux:
     self.dobj_dP = None 
     #below: derivative are 0. except for permeability. So we put None such as the function
     #d_objective_d_inputs could initialized it
-    self.dobj_dmat_props = [0., 0., None, 0., 0., 0., 0., 0.] 
+    self.dobj_dmat_props = [0., None, 0., 0., 0., 0., 0.] 
     self.adjoint = None #attribute storing adjoint
     self.filter = None #store the filter object
     self.initialized = False
     
     #required for problem crafting
-    self.output_variable_needed = ["LIQUID_PRESSURE", "FACE_AREA",
+    self.solved_variables_needed = ["LIQUID_PRESSURE"]
+    self.input_variables_needed = ["FACE_AREA",
                                    "PERMEABILITY", "FACE_UPWIND_FRACTION", 
                                    "FACE_DISTANCE_BETWEEN_CENTER",
                                    "Z_COORDINATE", "CONNECTION_IDS"] 
@@ -96,22 +97,6 @@ class Sum_Flux:
   def get_inputs(self):
     return [self.pressure, self.areas, self.k, self.d_fraction, self.distance,
             self.z, self.connection_ids]
-  
-  def set_p_to_cell_ids(self,p_ids):
-    """
-    Method that pass the correspondance between the index in p and the
-    PFLOTRAN cell ids.
-    Required by the Crafter
-    """
-    self.p_ids = p_ids
-    return 
-  
-  def set_adjoint_problem(self, x):
-    """
-    Method used by the Crafter class to set the adjoint if needed
-    """
-    self.adjoint = x
-    return
     
   def interpole_at_face(self, X):
     """
@@ -152,7 +137,7 @@ class Sum_Flux:
     return np.sum(fluxes)
   
   
-  def d_objective_dP(self,p): 
+  def d_objective_dY(self,p): 
     """
     Evaluate the derivative of the cost function according to the pressure.
     Required the solve the adjoint, thus must have the size of the grid
@@ -186,27 +171,10 @@ class Sum_Flux:
     __cumsum_from_connection_to_array__(self.dobj_dP, 
                                      self.connection_ids[:,1][self.mask]-1,
                                      -deriv)
-    return
+    return [self.dobj_dP]
   
   
-  def d_objective_dp_partial(self,p):
-    """
-    Derivative of the objective function according to the density
-    parameter p
-    Argument:
-    - p : the material parameter
-    Return:
-    - the derivative
-    Note, could return a dummy value if the objective input does not 
-    depend on p explicitely 
-    Must have the size of p
-    """
-    if not self.initialized: self.__initialize__()
-    self.dobj_dp_partial = 0.
-    return None
-  
-  
-  def d_objective_d_mat_props(self,p):
+  def d_objective_dX(self,p):
     """
     Derivative of the objective function according to other input variable
     Argument:
@@ -219,10 +187,10 @@ class Sum_Flux:
     Must have the size of the inputs
     """
     if not self.initialized: self.__initialize__()
-    if self.dobj_dmat_props[2] is None:
-      self.dobj_dmat_props[2] = np.zeros(len(self.pressure),dtype='f8')
+    if self.dobj_dmat_props[1] is None:
+      self.dobj_dmat_props[1] = np.zeros(len(self.pressure),dtype='f8')
     else:
-      self.dobj_dmat_props[2][:] = 0.
+      self.dobj_dmat_props[1][:] = 0.
       
     K1 = self.k[self.connection_ids[:,0][self.mask]-1] 
     K2 = self.k[self.connection_ids[:,1][self.mask]-1]
@@ -245,31 +213,11 @@ class Sum_Flux:
       dK1 = dK1 * d_smooth_abs_function(fluxes)
       dK2 = dK2 * d_smooth_abs_function(fluxes)
 
-    __cumsum_from_connection_to_array__(self.dobj_dmat_props[2], \
+    __cumsum_from_connection_to_array__(self.dobj_dmat_props[1], \
                                      self.connection_ids[:,0][self.mask]-1, dK1)
-    __cumsum_from_connection_to_array__(self.dobj_dmat_props[2], \
+    __cumsum_from_connection_to_array__(self.dobj_dmat_props[1], \
                                      self.connection_ids[:,1][self.mask]-1, dK2)
-    return
-  
-  
-  
-  ### TOTAL DERIVATIVE ###
-  def d_objective_dp_total(self, p, out=None): 
-    """
-    Evaluate the derivative of the cost function according to the density
-    parameter p. If a numpy array is provided, derivative will be copied 
-    in this array, else create a new numpy array.
-    """
-    if not self.initialized: self.__initialize__()
-    #this method could be used as is
-    if out is None:
-      out = np.zeros(len(self.p), dtype='f8')
-    self.d_objective_dP(p) #update objective derivative wrt pressure
-    self.d_objective_d_mat_props(p) #update objective derivative wrt mat prop
-    self.d_objective_dp_partial(p)
-    out[:] = self.adjoint.compute_sensitivity(p, self.dobj_dP, 
-                 self.dobj_dmat_props, self.output_variable_needed) + self.dobj_dp_partial
-    return out
+    return self.dobj_dmat_props
   
   
   ### INITIALIZER FUNCTION ###
@@ -313,12 +261,4 @@ class Sum_Flux:
       self.d_z_con = self.d_z_con[self.mask]
       
     return
-    
-  
-  
-  ### REQUIRED FOR CRAFTING ###
-  def __require_adjoint__(self): return "RICHARDS"
-  def __get_PFLOTRAN_output_variable_needed__(self):
-    return self.output_variable_needed
-  def __get_name__(self): return self.name
 

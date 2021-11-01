@@ -22,7 +22,7 @@ class IO:
     self.output_every = 0
     self.output_number = 0
     self.output_gradient_obj = False
-    self.output_gradient_constrain = False
+    self.output_grad_constraints = False
     self.output_initial = True
     self.initialized = False
     
@@ -62,19 +62,18 @@ class IO:
     self.output_gradient_obj = x
     return
     
-  def output_gradient_constrain(self,x=True):
+  def output_gradient_constraints(self,x=True):
     """
     Enable output the constrain and their gradient wrt p (default False)
     """
-    self.output_gradient_constrain = x
+    self.output_grad_constraints = x
     return
     
   def communicate_functions_names(self, cf, constrains):
     self.cf_name = cf
     self.constrains_names = constrains
   
-  def output(self, it, cf, constrains_val, p_raw, grad_cf, grad_constrains, p_filtered=None, val_at=None):
-
+  def output(self, it, cf, constrains_val, p_raw, grad_cf, grad_constraints, p_filtered=None, val_at=None):
     if not self.initialized: self.initiate_output() 
     
     #output to log
@@ -107,8 +106,8 @@ class IO:
     if self.output_gradient_obj:
       dict_var[f"Gradient d{self.cf_name}_dp"] = self.correct_dataset_length(grad_cf, val_at)
     #add gradient constrain
-    if self.output_gradient_constrain:
-      for i,grad in enumerate(grad_constrains):
+    if self.output_grad_constraints:
+      for i,grad in enumerate(grad_constraints):
         dict_var[f"Gradient d{self.constrains_names[i]}_dp"] = \
                                 self.correct_dataset_length(grad, val_at)
     
@@ -126,7 +125,7 @@ class IO:
     else:
       X_new = np.zeros(len(self.vertices), dtype='f8')
     X_new[:] = np.nan
-    X_new[val_at] = X 
+    X_new[val_at] = X
     return X_new
     
   def initiate_output(self):
@@ -237,6 +236,4 @@ class IO_MESHIO:
     self.elements = elements
     self.indexes = indexes
     self.var_loc = var_loc
-    self.writer = meshio.xdmf.TimeSeriesWriter(self.filename)
-    self.writer.__enter__()
     return

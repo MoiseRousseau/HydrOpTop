@@ -9,7 +9,7 @@ import h5py
 import nlopt
                                   
 from HydrOpTop.Functions import Sum_Flux, Volume_Percentage
-from HydrOpTop.Materials import Permeability
+from HydrOpTop.Materials import Log_SIMP
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Filters import Density_Filter
 from HydrOpTop import PFLOTRAN
@@ -27,7 +27,7 @@ if __name__ == "__main__":
   #get cell ids in the region to optimize (same name than in pflotran input file)
   pit_ids = sim.get_region_ids("Pit") #get the ids corresponding to the excavation
   #create the SIMP parametrization
-  perm = Permeability([5e-12,1e-10], cell_ids_to_parametrize=pit_ids, power=3, log=False) 
+  perm = Log_SIMP(cell_ids_to_parametrize=pit_ids, property_name="PERMEABILITY", bounds=[5e-12,1e-10], power=3)
   
   #define cost function
   barrier_connections = sim.get_connections_ids_integral_flux("barrier")
@@ -41,11 +41,11 @@ if __name__ == "__main__":
   
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
-  crafted_problem = Steady_State_Crafter(cf, sim, [perm], [max_vol], filter)
+  crafted_problem = Steady_State_Crafter(cf, sim, [perm], [max_vol], [filter])
   crafted_problem.IO.output_every_iteration(2)
   crafted_problem.IO.output_gradient(True)
   crafted_problem.IO.define_output_format('vtu')
 
   p = np.zeros(crafted_problem.get_problem_size(), dtype='f8')+0.05 #initial guess
-  crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=25, initial_guess=p)
+  crafted_problem.optimize(optimizer="nlopt-mma", action="maximize", max_it=25, initial_guess=p)
   

@@ -29,9 +29,9 @@ class Test_PFLOTRAN:
     S_adjoint = common.compute_sensitivity_adjoint(sim, cf, "PERMEABILITY", matprop, Sensitivity_Richards)
     cell_ids_to_test = np.arange(10,20)
     S_fd = common.compute_sensitivity_finite_difference(sim, cf, "PERMEABILITY", matprop, cell_ids_to_test=cell_ids_to_test, pertub=1e-3)
-    print(S_adjoint, S_fd)
+    print(S_adjoint[cell_ids_to_test-1], S_fd)
     for i,cell_id in enumerate(cell_ids_to_test-1):
-      assert np.abs(S_adjoint[cell_id]-S_fd[i]) < 1e-6
+      assert np.abs(S_adjoint[cell_id]/S_fd[i]-1) < 1e-3
      
     
    

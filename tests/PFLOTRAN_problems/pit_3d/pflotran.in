@@ -40,8 +40,8 @@ END
 
 
 #=========================== material properties ==============================
-DATASET permeability
-  FILENAME permeability.h5
+DATASET PERMEABILITY
+  FILENAME PERMEABILITY.h5
 END
 
 MATERIAL_PROPERTY mater
@@ -49,7 +49,7 @@ MATERIAL_PROPERTY mater
   SATURATION_FUNCTION default
   POROSITY 0.3
   PERMEABILITY
-    DATASET permeability
+    DATASET PERMEABILITY
   /
 END
 
