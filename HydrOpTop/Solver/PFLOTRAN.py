@@ -60,9 +60,9 @@ class PFLOTRAN:
                          "LIQUID_PRESSURE" : "Liquid Pressure",
                          "PERMEABILITY" : "Permeability",
                          "VOLUME" : "Volume", 
-                         "X_COORDINATE" : "X Coordinate",
-                         "Y_COORDINATE" : "Y Coordinate",
-                         "Z_COORDINATE" : "Z Coordinate"}
+                         "ELEMENT_CENTER_X" : "X Coordinate",
+                         "ELEMENT_CENTER_Y" : "Y Coordinate",
+                         "ELEMENT_CENTER_Z" : "Z Coordinate"}
     self.dict_var_sensitivity_matlab = \
          {"PERMEABILITY":"permeability","LIQUID_PRESSURE":"pressure"}
     self.dict_var_sensitivity_hdf5 = \
@@ -340,7 +340,7 @@ class PFLOTRAN:
     if var == "CONNECTION_IDS":
       return self.get_internal_connections()
     #treat coordinate separately as they are in Domain/XC unless for uge grid
-    if var in ["X_COORDINATE", "Y_COORDINATE", "Z_COORDINATE"] and \
+    if var in ["ELEMENT_CENTER_X", "ELEMENT_CENTER_Y", "ELEMENT_CENTER_Z"] and \
                                             self.mesh_type not in ["uge","h5e"]:
       var = var[0]+"C"
       src = h5py.File(self.mesh_info, 'r')

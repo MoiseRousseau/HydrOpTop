@@ -1,13 +1,15 @@
 import numpy as np
-from scipy.io import mmread
+from scipy.sparse import coo_matrix
 import h5py
 import subprocess
-import os
 import time
+import struct
+import pathlib
+
 
 
 class Linear_Elasticity_2D:
-  def __init__(self, prefix):
+  def __init__(self, prefix, poisson_ratio=0.3):
     self.prefix = prefix
     self.meshfile = prefix + ".mesh"
     self.matpropfile = prefix + ".matprops"
@@ -21,12 +23,11 @@ class Linear_Elasticity_2D:
     src.close()
     
     #get poisson ratio
-    src = open(self.matpropfile, 'r')
-    self.poisson_ratio = float(src.readline())
-    src.close()
+    self.poisson_ratio = poisson_ratio
     
     self.areas = None #areas of elements
-    self.solver_command = "./MinimalFEM"
+    self.element_center = None
+    self.solver_command = str(pathlib.Path(__file__).parent.absolute()) + "/MinimalFEM"
     self.no_run = False
     return
     
@@ -69,12 +70,12 @@ class Linear_Elasticity_2D:
     """
     Return the mesh in meshio format
     """
-    vert = np.zeros((self.n_points, 2), dtype='f8')
+    vert = np.zeros((self.n_points, 3), dtype='f8')
     elems = np.zeros((self.n_cells, 3), dtype='i8')
     src = open(self.meshfile, 'r')
     src.readline()
     for i in range(self.n_points):
-      vert[i] = [float(x) for x in src.readline().split()]
+      vert[i,0:2] = [float(x) for x in src.readline().split()]
     src.readline()
     for i in range(self.n_cells):
       elems[i] = [int(x) for x in src.readline().split()]
@@ -87,6 +88,9 @@ class Linear_Elasticity_2D:
         u = vert[nodes[1]] - vert[nodes[0]]
         v = vert[nodes[2]] - vert[nodes[0]]
         self.areas[i] = np.dot(u,v)/2
+    if self.element_center is None:
+      self.element_center = np.zeros((self.n_cells,3), dtype='f8')
+      self.element_center = (vert[elems[:,0]] + vert[elems[:,1]] + vert[elems[:,2]]) / 3
     return vert, cells, indexes
 
   
@@ -144,6 +148,12 @@ class Linear_Elasticity_2D:
         temp[2*node] = xload
         temp[2*node+1] = yload
       src.close()
+    elif var == "ELEMENT_CENTER_X":
+      temp = self.element_center[:,0]
+    elif var == "ELEMENT_CENTER_Y":
+      temp = self.element_center[:,1]
+    elif var == "ELEMENT_CENTER_Z":
+      temp = self.element_center[:,2]
     else:
       print(f"No variable {var} with solver Linear_Elasticity_2D")
       exit(1)
@@ -163,17 +173,42 @@ class Linear_Elasticity_2D:
     - coo_mat: a scipy COO matrix for in place assignment
     """
     if var == "DISPLACEMENTS":
-      f = self.prefix + "_jacobian.mtx"
+      filename = self.prefix + "_jacobian.bin"
     elif var == "YOUNG_MODULUS":
-      f = self.prefix + "_sensitivity.mtx"
+      filename = self.prefix + "_sensitivity.bin"
     else:
       print(f"Unknown variable {var} sensibility")
       exit(1)
+      
+    f = open(filename, 'rb')
+    rows = struct.unpack('q', f.read(8))[0]
+    cols = struct.unpack('q', f.read(8))[0]
+    nnzs = struct.unpack('q', f.read(8))[0]
+    outS = struct.unpack('q', f.read(8))[0]
+    innS = struct.unpack('q', f.read(8))[0]
+      
+    val = np.zeros(nnzs, 'f8')
+    for count in range(nnzs):
+      val[count] = struct.unpack('d', f.read(8))[0]
+    
     if coo_mat is None:
-      new_mat = mmread(f)
-      return new_mat
+      i = np.zeros(outS, 'i8')
+      j = np.zeros(nnzs, 'i8')
+      for count in range(outS):
+        i[count] = struct.unpack('I', f.read(4))[0]
+      for count in range(nnzs):
+        j[count] = struct.unpack('I', f.read(4))[0]
+      ii = np.zeros(nnzs, 'i8')
+      count = 0
+      for k in range(outS-1):
+        ii[i[count]:i[count+1]] = count
+        count += 1
+      ii[i[count]:] = count
+      coo_mat = coo_matrix((val, (j, ii)), shape=(rows,cols))
+      return coo_mat
     else:
-      coo_mat.data[:] = mmread(f).data
+      coo_mat.data[:] = val
     return
+    return data
     
     

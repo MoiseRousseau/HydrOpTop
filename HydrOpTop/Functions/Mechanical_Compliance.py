@@ -15,8 +15,8 @@ class Mechanical_Compliance(Base_Function):
     self.input_variables_needed = ["MECHANICAL_LOAD"]
     self.initialized = False
     
-    self.u = None
-    self.f = None
+    self.u = None #displacement
+    self.f = None #load
     return
   
   def set_inputs(self, inputs):
@@ -52,13 +52,13 @@ class Mechanical_Compliance(Base_Function):
     """
     Derivative according to solved variable (displacement)
     """
-    return [self.f]
+    return [self.f] #load
   
   
   def d_objective_dX(self,p):
     """
     Derivative according to input variable (load)
     """
-    return [self.u]
+    return [self.u] #displacement
   
                       

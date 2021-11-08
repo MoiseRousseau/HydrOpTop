@@ -29,8 +29,8 @@ class Density_Filter(Base_Filter):
     self.neighbors = None
     self.initialized = False
     
-    self.output_variable_needed = ["X_COORDINATE", "Y_COORDINATE",
-                                   "Z_COORDINATE", "VOLUME"]
+    self.input_variables_needed = ["ELEMENT_CENTER_X", "ELEMENT_CENTER_Y",
+                                   "ELEMENT_CENTER_Z", "VOLUME"]
     return
   
   def set_inputs(self, inputs):

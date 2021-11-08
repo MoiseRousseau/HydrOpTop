@@ -116,7 +116,6 @@ class Steady_State_Crafter:
     grad = func.adjoint.compute_sensitivity(p_, dobj_dY, 
                 dobj_dX, func.__get_input_variables_needed__()) + \
                 dobj_dp_partial
-    print("grad", grad)
     if self.filters:
       for i,filter_ in enumerate(self.filters):
         if not i:
@@ -124,7 +123,6 @@ class Steady_State_Crafter:
         else:
           grad_filter = filter_.get_filter_derivative(p).dot(grad_filter)
       grad[:] = grad_filter.transpose().dot(grad)
-    print("grad_apres", grad)
     return grad
   
   
@@ -203,7 +201,6 @@ class Steady_State_Crafter:
       #optimize
       try:
         p_opt = opt.optimize(initial_guess)
-        print(initial_guess)
       except(KeyboardInterrupt):
         p_opt = self.last_p
     

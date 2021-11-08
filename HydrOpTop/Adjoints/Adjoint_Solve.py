@@ -33,7 +33,7 @@ class Adjoint_Solve:
   def solve(self, A, b):
     #default parameter
     if self.algo == "":
-      if len(b) > 60000: 
+      if len(b) > 10000: 
         self.algo = "bicgstab"
       else: 
         self.algo = "lu"

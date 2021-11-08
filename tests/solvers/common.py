@@ -1,11 +1,12 @@
 import numpy as np
 
-def compute_sensitivity_adjoint(solver, objective, propname, parametrization, adjoint, rgn=None):
+def compute_sensitivity_adjoint(solver, objective, propname, parametrization, adjoint, p=None, rgn=None):
   #generate random with a given seed
-  if rgn is None:
-    rgn = np.random.default_rng(0)
   n = solver.get_grid_size()
-  p = rgn.random(n)
+  if p is None:
+    if rgn is None:
+      rgn = np.random.default_rng(0)
+    p = rgn.random(n)
   prop = parametrization.convert_p_to_mat_properties(p)
   solver.create_cell_indexed_dataset(prop, propname, propname+'.h5')
   #run model
@@ -26,13 +27,13 @@ def compute_sensitivity_adjoint(solver, objective, propname, parametrization, ad
   return S_adjoint
 
 
-def compute_sensitivity_finite_difference(solver, objective, propname, parametrization, cell_ids_to_test=None, rgn=None, pertub=1e-3):
-  #if parametrization is identity, give the dsolver/dmat_prop
-  #initiate data for calculating finite difference
-  if rgn is None:
-    rgn = np.random.default_rng(0)
+def compute_sensitivity_finite_difference(solver, objective, propname, parametrization, cell_ids_to_test=None, p=None, rgn=None, pertub=1e-3):
+  #generate random with a given seed
   n = solver.get_grid_size()
-  p = rgn.random(n)
+  if p is None:
+    if rgn is None:
+      rgn = np.random.default_rng(0)
+    p = rgn.random(n)
   prop = parametrization.convert_p_to_mat_properties(p)
   solver.create_cell_indexed_dataset(prop, propname, propname+'.h5')
   #run model for current objective

@@ -10,5 +10,10 @@ __pycache__/
 *-int.dat
 */_build/
 article/
-examples/2D_Linear_Elasticity/
 *.hdf
+
+*.displacements
+*.matprops
+*.stress
+*.bin
+MinimalFEM

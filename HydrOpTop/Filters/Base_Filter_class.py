@@ -1,7 +1,6 @@
 
 class Base_Filter:
   p_ids = None
-  input_variables_needed = []
   name = ""
   adjoint = None
   
