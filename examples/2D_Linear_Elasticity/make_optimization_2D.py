@@ -9,7 +9,7 @@ from HydrOpTop.Functions import Mechanical_Compliance, Volume_Percentage
 from HydrOpTop.Materials import SIMP
 from HydrOpTop.Filters import Density_Filter
 from HydrOpTop.Crafter import Steady_State_Crafter
-from HydrOpTop.Solver import Linear_Elasticity_2D
+from HydrOpTop.Solvers import Linear_Elasticity_2D
 
 
 if __name__ == "__main__":

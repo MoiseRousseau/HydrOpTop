@@ -48,7 +48,7 @@ class Head_Gradient(Base_Function):
     self.solved_variables_needed = ["LIQUID_PRESSURE"]
     self.input_variables_needed = ["CONNECTION_IDS", 
                                    "FACE_AREA", "FACE_UPWIND_FRACTION", 
-                                   "VOLUME", "Z_COORDINATE", 
+                                   "VOLUME", "ELEMENT_CENTER_Z", 
                                    "FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"] 
     self.name = "Head Gradient"
     return

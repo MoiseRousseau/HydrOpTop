@@ -3,6 +3,7 @@ class Base_Filter:
   p_ids = None
   name = ""
   adjoint = None
+  input_variables_needed = []
   
   def set_p_to_cell_ids(self, p_ids):
     self.p_ids = p_ids

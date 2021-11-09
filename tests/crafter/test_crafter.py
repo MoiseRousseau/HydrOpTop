@@ -4,8 +4,8 @@ path = os.getcwd() + '/../../'
 sys.path.append(path)
 
 import numpy as np
-from HydrOpTop.Solver import Dummy_Simulator
-from HydrOpTop.Adjoints import Sensitivity_Richards
+from HydrOpTop.Solvers import Dummy_Simulator
+from HydrOpTop.Adjoints import Sensitivity_Steady_Simple
 from HydrOpTop.Functions import Sum_Variable
 from HydrOpTop.Materials import Identity
 from HydrOpTop.Crafter import Steady_State_Crafter
@@ -30,7 +30,7 @@ class Test_Crafter:
     parametrization = Identity("all", "a")
     solver.run()
     obj.set_inputs([solver.get_output_variable("x")])
-    sens = Sensitivity_Richards("x",
+    sens = Sensitivity_Steady_Simple("x",
                    [parametrization], solver, np.arange(1,self.n+1)) 
     #compute
     S_adjoint = sens.compute_sensitivity(self.b, 
@@ -73,7 +73,7 @@ class Test_Crafter:
     parametrization = Identity("all", "b")
     solver.run()
     obj.set_inputs([solver.get_output_variable("x")])
-    sens = Sensitivity_Richards("x",
+    sens = Sensitivity_Steady_Simple("x",
                    [parametrization], solver, np.arange(1,self.n+1)) 
     #compute
     S_adjoint = sens.compute_sensitivity(self.b, 
@@ -116,10 +116,10 @@ class Test_Crafter:
     parametrizationb = Identity("all", "b")
     solver.run()
     obj.set_inputs([solver.get_output_variable("x")])
-    craft = Steady_State_Crafter(obj, solver, [parametrizationA,parametrizationb], [])
+    craft = Steady_State_Crafter(obj, solver, [parametrizationA, parametrizationb], [])
     S_adjoint = craft.evaluate_total_gradient(obj, self.b)
     #analytic deriv
-    S_ana = solver.analytical_deriv_dy_dx('b')
+    S_ana = solver.analytical_deriv_dy_dx('a') + solver.analytical_deriv_dy_dx('b')
     print(S_ana, S_adjoint)
     assert np.allclose(S_adjoint, S_ana, atol=1e-6, rtol=1e-6) 
   

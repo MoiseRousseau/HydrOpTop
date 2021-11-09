@@ -12,7 +12,7 @@ from HydrOpTop.Functions import Sum_Flux, Volume_Percentage
 from HydrOpTop.Materials import Log_SIMP
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Filters import Density_Filter
-from HydrOpTop import PFLOTRAN
+from HydrOpTop.Solvers import PFLOTRAN
 
 
 

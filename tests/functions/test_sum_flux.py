@@ -6,12 +6,12 @@ import numpy as np
 
 class Test_Sum_Flux:
   #create PFLOTRAN simulation object
-  from HydrOpTop import PFLOTRAN
+  from HydrOpTop.Solvers import PFLOTRAN
   from HydrOpTop.Functions import Sum_Flux
   from common import __add_inputs__
   
-  pft_problem = "pit_3d"
-  pflotranin = f"../PFLOTRAN_problems/{pft_problem}/pflotran.in"
+  pft_problem = "PFLOTRAN_pit_3d"
+  pflotranin = f"test_examples/{pft_problem}/pflotran.in"
   sim = PFLOTRAN(pflotranin)
   sim.run()
   #create sum flux object
@@ -22,7 +22,7 @@ class Test_Sum_Flux:
   def test_sum_flux_signed_vs_PFLOTRAN_integral_flux(self):
     self.obj.option = "signed"
     #get results from integral flux
-    src = open(f"../PFLOTRAN_problems/{self.pft_problem}/pflotran-int.dat", 'r')
+    src = open(f"test_examples/{self.pft_problem}/pflotran-int.dat", 'r')
     line = src.readlines()[-1]
     flux_pft = float(line.split()[3]) / (3600*24*365) / 997.16
     src.close()
@@ -38,7 +38,7 @@ class Test_Sum_Flux:
   def test_sum_flux_signed_vs_PFLOTRAN_integral_flux_absolute(self):
     self.obj.option = "absolute"
     #run PFLOTRAN and get results from integral flux
-    src = open(f"../PFLOTRAN_problems/{self.pft_problem}/pflotran-int.dat", 'r')
+    src = open(f"test_examples/{self.pft_problem}/pflotran-int.dat", 'r')
     line = src.readlines()[-1]
     flux_pft = float(line.split()[5]) / (3600*24*365) / 997.16
     src.close()
@@ -88,13 +88,7 @@ class Test_Sum_Flux:
     #get finite difference derivative
     d_obj_fd = self.FD_dP(ids_to_test)
     #perform comparison
-    distance = np.sqrt(np.sum((d_obj_fd-d_obj[ids_to_test-1])**2)) / np.sqrt(np.sum(d_obj_fd**2))
-    print(f"Relative distance in the {len(d_obj_fd)}-dimensional space: {distance}")
-    print("Cell, derivative FD, derivative analytic")
-    for i in range(len(d_obj_fd)):
-      print(f"{i+1}, {d_obj_fd[i]:.6e}, {d_obj[ids_to_test[i]-1]:.6e}")
-    assert distance < 5e-5
-    return
+    assert np.allclose(d_obj_fd, d_obj[ids_to_test-1])
   
   
   def FD_dK(self, ids_to_test):

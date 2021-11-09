@@ -1,8 +1,3 @@
-import sys
-import os
-path = os.getcwd() + '/../../'
-sys.path.append(path)
-
 import numpy as np
 from HydrOpTop import PFLOTRAN
 from HydrOpTop.Functions import p_Weighted_Head_Gradient
@@ -10,20 +5,20 @@ from common import __add_inputs__
 
 class Test_Head_Gradient:
   #run PFLOTRAN simulation to set up the tests
-  pft_problem = "9x9x1"
-  pflotranin = f"../PFLOTRAN_problems/{pft_problem}/source_sink_center.in"
+  pft_problem = "PFLOTRAN_9x9x1"
+  pflotranin = f"test_examples/{pft_problem}/source_sink_center.in"
   sim_ss = PFLOTRAN(pflotranin)
   sim_ss.run()
   
-  pft_problem = "9x9x1"
-  pflotranin = f"../PFLOTRAN_problems/{pft_problem}/uniform_flow.in"
+  pft_problem = "PFLOTRAN_9x9x1"
+  pflotranin = f"test_examples/{pft_problem}/uniform_flow.in"
   sim_uniform = PFLOTRAN(pflotranin)
   sim_uniform.run()
   
-  pft_problem = "pit_3d"
-  pflotranin = f"../PFLOTRAN_problems/{pft_problem}/pflotran.in"
+  pft_problem = "PFLOTRAN_pit_3d"
+  pflotranin = f"test_examples/{pft_problem}/pflotran.in"
   sim_exp_grid = PFLOTRAN(pflotranin)
-  perm_data = np.genfromtxt(f"../PFLOTRAN_problems/{pft_problem}/permeability_field.csv",
+  perm_data = np.genfromtxt(f"test_examples/{pft_problem}/permeability_field.csv",
                              comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   sim_exp_grid.create_cell_indexed_dataset(perm_field, "permeability", "permeability.h5", cell_ids)

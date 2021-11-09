@@ -342,7 +342,7 @@ class PFLOTRAN:
     #treat coordinate separately as they are in Domain/XC unless for uge grid
     if var in ["ELEMENT_CENTER_X", "ELEMENT_CENTER_Y", "ELEMENT_CENTER_Z"] and \
                                             self.mesh_type not in ["uge","h5e"]:
-      var = var[0]+"C"
+      var = var[-1]+"C"
       src = h5py.File(self.mesh_info, 'r')
       if out is None:
         out = np.array(src["Domain/"+var])

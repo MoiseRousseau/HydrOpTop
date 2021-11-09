@@ -13,7 +13,7 @@ from HydrOpTop.Functions import Volume_Percentage #constrain
 from HydrOpTop.Materials import SIMP
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Filters import Density_Filter
-from HydrOpTop import PFLOTRAN
+from HydrOpTop.Solvers import PFLOTRAN
 
 
 if __name__ == "__main__":

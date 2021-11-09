@@ -4,10 +4,11 @@ from .Adjoint_Solve import Adjoint_Solve
 import numpy as np
 
 
-class Sensitivity_Richards:
+class Sensitivity_Steady_Simple:
   """
   Compute the derivative of the cost function according to the material
-  distribution parameter p in Richards mode.
+  distribution parameter p considering a steady-state simulation with
+  only one equality constraint (g(x,p) = 0)
   Arguments:
   Note: vector derivative should be numpy array, and matrix in (I,J,data) 
   format as output by solver.get_sensitivity() method.
@@ -67,22 +68,17 @@ class Sensitivity_Richards:
       self.update_mat_derivative(p)
       self.update_residual_derivatives()
     
-    #compute adjoint #TODO: multi variable adjoint
+    #compute adjoint
     l = self.adjoint.solve(self.dR_dYi[0], dc_dYi[0]) #solver ordering
     
-    #compute dc/dp
     #note: dR_dXi in solver ordering, so we convert it to p ordering with assign_at_ids
     # and dXi_dP in p ordering
     #thus: dR_dXi_dXi_dp in p ordering
-    temp = coo_matrix( ( self.dXi_dp[0], 
-                  (np.arange(len(self.dXi_dp[0])),np.arange(len(self.dXi_dp[0])) ) ) 
-                     )
-    dR_dXi_dXi_dp =  ((self.dR_dXi[0]).tocsr())[:,self.assign_at_ids-1] * temp.tocsr()
+    n = len(self.dXi_dp[0])
+    dR_dXi_dXi_dp = ( (self.dR_dXi[0]).tocsr() )[:,self.assign_at_ids-1].dot( dia_matrix((self.dXi_dp[0], [0]),shape=(n,n)) )
     if self.n_parametrized_props > 1:
       for i in range(1,self.n_parametrized_props):
-        temp.data = self.dXi_dp[i]
-        dR_dXi_dXi_dp += \
-            ((self.dR_dXi[i]).tocsr())[:,self.assign_at_ids-1] * temp
+        dR_dXi_dXi_dp += ( (self.dR_dXi[i]).tocsr() )[:,self.assign_at_ids-1].dot( dia_matrix((self.dXi_dp[i], [0]),shape=(n,n)) )
     
     dc_dXi_dXi_dp = 0.
     for i,mat_prop in enumerate(self.parametrized_mat_props):

@@ -3,7 +3,7 @@
 import numpy as np
 import h5py
 
-from ..Solver.PFLOTRAN import default_water_density, default_gravity, default_viscosity
+from ..Solvers.PFLOTRAN import default_water_density, default_gravity, default_viscosity
 from .common import __cumsum_from_connection_to_array__, \
                     smooth_abs_function, d_smooth_abs_function
 from .Base_Function_class import Base_Function
@@ -68,7 +68,7 @@ class Sum_Flux(Base_Function):
     self.input_variables_needed = ["FACE_AREA",
                                    "PERMEABILITY", "FACE_UPWIND_FRACTION", 
                                    "FACE_DISTANCE_BETWEEN_CENTER",
-                                   "Z_COORDINATE", "CONNECTION_IDS"] 
+                                   "ELEMENT_CENTER_Z", "CONNECTION_IDS"] 
     self.name = "Flux Sum"
     return
     

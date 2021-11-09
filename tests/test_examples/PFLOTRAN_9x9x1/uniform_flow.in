@@ -103,13 +103,6 @@ FLOW_CONDITION initial
   /
 END
 
-FLOW_CONDITION flux
-  TYPE
-    RATE MASS_RATE 
-  /
-  RATE -1.
-END
-
 
 
 #=========================== condition couplers ===============================

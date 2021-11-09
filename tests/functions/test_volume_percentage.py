@@ -5,14 +5,14 @@ sys.path.append(path)
 
 import numpy as np
 from HydrOpTop.Functions import Volume_Percentage
-from HydrOpTop import PFLOTRAN
+from HydrOpTop.Solvers import PFLOTRAN
 
 class Test_Common_Function:
   
-  pft_problem = "pit_3d"
-  pflotranin = f"../PFLOTRAN_problems/{pft_problem}/pflotran.in"
+  pft_problem = "PFLOTRAN_pit_3d"
+  pflotranin = f"test_examples/{pft_problem}/pflotran.in"
   sim_exp_grid = PFLOTRAN(pflotranin)
-  perm_data = np.genfromtxt(f"../PFLOTRAN_problems/{pft_problem}/permeability_field.csv",
+  perm_data = np.genfromtxt(f"test_examples/{pft_problem}/permeability_field.csv",
                              comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   sim_exp_grid.create_cell_indexed_dataset(perm_field, "permeability", "permeability.h5", cell_ids)

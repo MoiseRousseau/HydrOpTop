@@ -11,7 +11,7 @@ import nlopt
 from HydrOpTop.Functions import Head_Gradient, Volume_Percentage
 from HydrOpTop.Materials import Log_SIMP
 from HydrOpTop.Crafter import Steady_State_Crafter
-from HydrOpTop import PFLOTRAN
+from HydrOpTop.Solvers import PFLOTRAN
 
 
 if __name__ == "__main__":

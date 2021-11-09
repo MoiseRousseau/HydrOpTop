@@ -4,26 +4,26 @@ path = os.getcwd() + '/../../'
 sys.path.append(path)
 
 import numpy as np
-from HydrOpTop import PFLOTRAN
+from HydrOpTop.Solvers import PFLOTRAN
 from HydrOpTop.Functions import Head_Gradient
 from common import __add_inputs__
 
 class Test_Head_Gradient:
   #run PFLOTRAN simulation to set up the tests
-  pft_problem = "9x9x1"
-  pflotranin = f"../PFLOTRAN_problems/{pft_problem}/source_sink_center.in"
+  pft_problem = "PFLOTRAN_9x9x1"
+  pflotranin = f"test_examples/{pft_problem}/source_sink_center.in"
   sim_ss = PFLOTRAN(pflotranin)
   sim_ss.run()
   
-  pft_problem = "9x9x1"
-  pflotranin = f"../PFLOTRAN_problems/{pft_problem}/uniform_flow.in"
+  pft_problem = "PFLOTRAN_9x9x1"
+  pflotranin = f"test_examples/{pft_problem}/uniform_flow.in"
   sim_uniform = PFLOTRAN(pflotranin)
   sim_uniform.run()
   
-  pft_problem = "pit_3d"
-  pflotranin = f"../PFLOTRAN_problems/{pft_problem}/pflotran.in"
+  pft_problem = "PFLOTRAN_pit_3d"
+  pflotranin = f"test_examples/{pft_problem}/pflotran.in"
   sim_exp_grid = PFLOTRAN(pflotranin)
-  perm_data = np.genfromtxt(f"../PFLOTRAN_problems/{pft_problem}/permeability_field.csv",
+  perm_data = np.genfromtxt(f"test_examples/{pft_problem}/permeability_field.csv",
                              comments='#')
   cell_ids, perm_field = perm_data[:,0], perm_data[:,1]
   sim_exp_grid.create_cell_indexed_dataset(perm_field, "permeability", "permeability.h5", cell_ids)
@@ -50,9 +50,10 @@ class Test_Head_Gradient:
     Does not consider the boundary cell as the corrected gradient is halfed
     """
     #initiate objective
-    obj = Head_Gradient(power=1) 
+    ids = np.arange(10,73)
+    obj = Head_Gradient(ids_to_consider=ids, power=1) 
     __add_inputs__(obj, self.sim_uniform)
-    obj.set_p_to_cell_ids(np.arange(10,73))
+    obj.set_p_to_cell_ids(ids)
     cf = obj.evaluate(None)
     print(f"Head Gradient: {cf} (should be very close to 0.01)")
     print(obj.get_head_gradient())
@@ -154,7 +155,7 @@ class Test_Head_Gradient:
     #get finite difference derivative
     pressure = obj.pressure
     d_obj_fd = np.zeros(len(pit_ids),dtype='f8')
-    pertub = 1e-9
+    pertub = 1e-8
     for i,cell_id in enumerate(pit_ids):
       old_pressure = pressure[cell_id-1]
       d_pressure = old_pressure * pertub

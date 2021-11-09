@@ -46,7 +46,7 @@ class Mean_Liquid_Piezometric_Head(Base_Function):
     
     #required for problem crafting
     self.solved_variables_needed = ["LIQUID_PRESSURE"]
-    self.input_variables_needed = ["Z_COORDINATE", "VOLUME"]
+    self.input_variables_needed = ["ELEMENT_CENTER_Z", "VOLUME"]
     self.name = "Mean PZ Head"
     self.initialized = None
     return

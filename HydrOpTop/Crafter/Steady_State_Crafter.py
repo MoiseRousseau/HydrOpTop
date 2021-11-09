@@ -323,7 +323,7 @@ class Steady_State_Crafter:
     #initialize adjoint for objective function
     if self.obj.__get_solved_variables_needed__() and (self.obj.adjoint is None):
       if len(self.obj.__get_solved_variables_needed__()) == 1: #one variable
-        adjoint = Sensitivity_Richards(self.obj.__get_solved_variables_needed__(),
+        adjoint = Sensitivity_Steady_Simple(self.obj.__get_solved_variables_needed__(),
                                        self.mat_props, self.solver, self.p_ids)
         self.obj.set_adjoint_problem(adjoint)
     self.obj.set_p_to_cell_ids(self.p_ids)
@@ -337,7 +337,7 @@ class Steady_State_Crafter:
         if len(constraint.__get_solved_variables_needed__()) == 0:
           adjoint = No_Adjoint(self.mat_props, self.p_ids)
         if len(constraint.__get_solved_variables_needed__()) == 1:
-          adjoint = Sensitivity_Richards(constraint.__get_solved_variables_needed__(),
+          adjoint = Sensitivity_Steady_Simple(constraint.__get_solved_variables_needed__(),
                                              self.mat_props, self.solver, self.p_ids)
         constraint.set_adjoint_problem(adjoint)
         
