@@ -1,17 +1,39 @@
 .. _performing_opt:
 
-Basic optimization
-==================
+Performing Optimization
+=======================
 
-See the Getting started.
+Problem Setup
+-------------
+
+A HydrOpTop optimization problem must contains:
+A cost function to minimize
+A PFLOTRAN simulation that will return the cost function inputs
+A optimization domain parametrization (via the material)
+Constrains
+
+Then, all these classes are passed to the problem crafter so that the
+internal machinery of HydrOpTop is set.
 
 
-Imposing length constrain
-=========================
+The Crafter Class
+-----------------
 
-Topology optimization using SIMP method could be create small structure 
-impossible to manufacture or to build on the field.
+Describe crafter, IO
 
-A mix a the standard density filter and of the Heavyside function could be
-use as a length constrain control.
+
+Performing Optimization
+-----------------------
+
+Optimizer, parameter
+
+Saving file, and run Python
+
+
+Results
+-------
+
+What does HydrOpTop return ?
+
+
 

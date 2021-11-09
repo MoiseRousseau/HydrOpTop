@@ -1,30 +1,21 @@
 .. _classes_description:
 
-User guide
-==========
+Classes Description
+===================
 
-Problem setup
--------------
+Below is the description of the classes Solver, Material parametrization, Function and Filter to specify your topology optimization problem in HydrOpTop.
+ 
 
-A HydrOpTop optimization problem must contains:
-A cost function to minimize
-A PFLOTRAN simulation that will return the cost function inputs
-A optimization domain parametrization (via the material)
-Constrains
 
-Then, all these classes are passed to the problem crafter so that the
-internal machinery of HydrOpTop is set.
-
-Classes description
--------------------
+List of classes and functions
+-----------------------------
 
 .. toctree::
    :maxdepth: 2
    
-   performing_opt.rst
-   functions.rst
-   materials.rst
-   crafter.rst
    filters.rst
-   PFLOTRAN.rst
-   debug.rst
+   functions.rst
+   solvers.rst
+   materials.rst
+   io.rst
+   crafter.rst

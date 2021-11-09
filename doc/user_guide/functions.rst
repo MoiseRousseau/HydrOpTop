@@ -53,10 +53,10 @@ p_Weighted_Head_Gradient
 
 Calculate the mean head gradient in the prescribed domain weighted by the density
 parameter `p`. In practice, can be used to just consider the mean head gradient in
-the material defined by `p`=1:
+the material defined by ``p=1``:
 
 .. math::
-   :label: head_gradient
+   :label: p_head_gradient
    
    f = \frac{1}{V_D} \sum_{i \in D} p_i V_i ||\nabla {h_i} ||^n
 
@@ -66,9 +66,9 @@ Constructor is:
 
 ``Head_Gradient(ids_to_consider="everywhere", power=1., gravity=9.8068, density=997.16, ref_pressure=101325, invert_weighting=False)``
 
-Constructor's argument are the same than `Head_Gradient` objective function. A additional
+Constructor's argument are the same than `Head_Gradient` objective function. A additional 
 argument ``invert_weighting`` can be set to ``True`` to rather consider the mean head
-gradient in the material designed by `p`=0.
+gradient in the material designed by ``p=0``.
 
 Require the same PFLOTRAN input variable as `Head_Gradient` objective function.
 

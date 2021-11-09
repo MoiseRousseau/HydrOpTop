@@ -1,19 +1,21 @@
-.. _theory:
+.. _sensitivity_calculation:
 
-Theory guide
-============
-
-SIMP material parametrization
------------------------------
-
-
-Steady state flow adjoint sensitivity
--------------------------------------
+Sensitivity calculation in HydrOpTop
+====================================
 
 
 
-Steady state transport adjoint sensitivity
-------------------------------------------
+Steady state, one PDE sensitivity
+---------------------------------
+
+
+Transient, one PDE sensitivity
+------------------------------
+
+
+
+Steady state, two coupled PDE sensitivity
+-----------------------------------------
 
 Considering a cost function 
 

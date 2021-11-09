@@ -1,13 +1,12 @@
 .. _pflotran:
 
-Simulator class
-===============
+Solver class
+============
 
-A Input/Output shield class to interact with a variety of subsurface flow
-simulator. 
+A Input/Output shield class to interact with a variety of solver.
 Used to specify the input dataset, launching the simulation and
 reading the output variables.
-Currently, only PFLOTRAN is supported.
+Currently, only two solver are supported.
 
 PFLOTRAN
 --------
@@ -39,5 +38,15 @@ the data given in the numpy array ``X_dataset`` and writed in the group
 ``dataset_name``. If the dataset length does not match the grid size, 
 the dataset can be extended to the grid size with the ``X_dataset`` assigned
 to the cell ids ``X_ids`` and -999 elsewhere.
+
+
+
+Two-Dimensional Linear Elasticity
+---------------------------------
+
+Located in source. Must be compiled before use.
+Call by the command ``MinimalFEM``.
+Input need a 2D mesh (``.mesh`` file), material property file (``.matprops``) and a boundary condition (``.bcs``).
+
 
 

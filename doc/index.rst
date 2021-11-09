@@ -54,11 +54,9 @@ Index
 .. toctree::
    :maxdepth: 1
    
-   getting_started/topology_optimization.rst
-   getting_started/your_first_optimization.rst
-   user_guide/classes_description.rst
-   theory_guide/theory.rst
+   getting_started/index_started.rst
+   user_guide/index_user.rst
+   machinery/index_machinery.rst
    examples/examples.rst
-   personalization/how_it_work.rst
-   personalization/dev_notes.rst
+   personalization/index_personalization.rst
    troubleshoot/troubleshoot.rst
