@@ -1,58 +1,76 @@
 import numpy as np
 from scipy.sparse import dia_matrix
+from .Base_Filter_class import Base_Filter
+from ..Functions.Volume_Percentage import Volume_Percentage
+from scipy.optimize import root_scalar
 
-class Volume_Preserving_Heavyside_Filter:
+class Volume_Preserving_Heavyside_Filter(Base_Filter):
   """
   Filter the density paramater using a three field method according to
   https://link.springer.com/article/10.1007/s00158-009-0452-7
   """
-  def __init__(self, base_density_filter=None, cutoff=0.5, steepness = 5):
-    self.base_density_filter = base_density_filter
+  def __init__(self, cutoff=0.5, steepness = 5, vol_constraint=None):
     self.cutoff = cutoff
     self.stepness = steepness
-    self.initialized = False
-    
-    self.output_variable_needed = \
-            self.base_density_filter.__get_PFLOTRAN_output_variable_needed__()
-    return
-    
-  def set_p_to_cell_ids(self, p_ids):
-    #if None, this mean all the cell are parametrized
-    self.base_density_filter.set_p_to_cell_ids(p_ids) 
-    return
-  
-  def set_inputs(self, inputs):
-    self.base_density_filter.set_inputs(inputs)
+    self.vol_constraint = vol_constraint
+    self.last_p = None
     return
   
   def get_filtered_density(self, p, p_filtered=None):
-    if not self.initialized: self.initialize()
+    if self.last_p is None:
+      self.last_p = p.copy()
+    else:
+      self.last_p[:] = p
     if p_filtered is None:
       p_filtered = np.zeros(len(p), dtype='f8')
     else:
       p_filtered[:] = 0.
-    if self.base_density_filter is not None:
-      p_bar = self.base_density_filter.get_filtered_density(p)
-    else: p_bar = p
-    cpb = 1 - p_bar / self.cutoff
-    pbr = (p_bar-self.cutoff) / (1-self.cutoff)
-    p_filtered[:] = np.where(p_bar<=self.cutoff,
+    cpb = 1 - p / self.cutoff
+    pbr = (p-self.cutoff) / (1-self.cutoff)
+    p_filtered[:] = np.where(p<=self.cutoff,
         self.cutoff*(np.exp(-self.stepness*cpb) - cpb*np.exp(-self.stepness)),
         (1-self.cutoff)*(1-np.exp(-self.stepness*pbr)+np.exp(-self.stepness)*pbr)+self.cutoff)
+    
     return p_filtered
   
   def get_filter_derivative(self, p):
-    if not self.initialized: self.initialize()
-    p_bar = self.base_density_filter.get_filtered_density(p)
-    d_p_bar = self.base_density_filter.get_filter_derivative(p) #matrix
-    d_p_filtered = np.where(p_bar<=self.cutoff,
-                     np.exp(-self.stepness * (1-p_bar/self.cutoff) ),
-                     np.exp(-self.stepness * (p_bar-self.cutoff) / (1-self.cutoff) ) )
+    self.last_p[:] = p
+    d_p_filtered = np.where(p<=self.cutoff,
+                     np.exp(-self.stepness * (1-p/self.cutoff) ),
+                     np.exp(-self.stepness * (p-self.cutoff) / (1-self.cutoff) ) )
     d_p_filtered *= self.stepness
     d_p_filtered += np.exp(-self.stepness)
-    d_p = d_p_bar.dot( dia_matrix((d_p_filtered[np.newaxis,:],0),
-                                                   shape=d_p_bar.shape) )
+    d_p = dia_matrix((d_p_filtered[np.newaxis,:],0),
+                                                   shape=(len(p),len(p)) )
     return d_p
+  
+  def update_stepness(self, stepness, ref_vol=None, autocorrect=True):
+    print('\nUpdate Volume Preserving Heavyside Filter')
+    print(f"Update from {self.stepness} to {stepness}")
+    if not isinstance(self.vol_constraint, Volume_Percentage):
+      print("Error, constraint must be of type Volume_Percentage")
+      raise TypeError
+    if ref_vol is None: 
+      ref_vol = self.vol_constraint.evaluate(self.get_filtered_density(self.last_p))
+      if ref_vol > 0.:
+        print("Warning! Constraint not respected, solver may fail")
+        print("Autocorrect this. To disable this feature, set the boolean autocorrect to False")
+        ref_vol=-0.
+      
+    old_cutoff = self.cutoff
+    self.stepness = stepness
+    
+    def func(n):
+      self.cutoff = n
+      p_filtered = self.get_filtered_density(self.last_p)
+      diff = ref_vol - self.vol_constraint.evaluate(p_filtered)
+      return diff 
+    
+    root_scalar(func, bracket=[0.01,0.99], x0 = self.cutoff)
+    print(f"Old cutoff: {old_cutoff}")
+    print(f"New cutoff: {self.cutoff}")
+    return
+    
   
   def plot_filtered_density(self):
     try:
@@ -61,8 +79,6 @@ class Volume_Preserving_Heavyside_Filter:
       print("Matplotlib is not available on your installation")
       print("Please try 'pip3 install matplotlib' and restart the optimization")
     x = np.linspace(0,1,1000)
-    save = self.base_density_filter
-    self.base_density_filter = None
     y = self.get_filtered_density(x)
     fig,ax = plt.subplots()
     ax.plot(x,y,'b',label="Filtered parameter")
@@ -70,17 +86,6 @@ class Volume_Preserving_Heavyside_Filter:
     ax.set_ylabel("Filtered Parameter")
     ax.grid()
     plt.show()
-    self.base_density_filter = save
     return
-    
-  def initialize(self):
-    if self.initialized: return
-    if self.base_density_filter is not None:
-      self.base_density_filter.initialize()
-    self.initialized = True
-    return
-  
-  def __get_PFLOTRAN_output_variable_needed__(self):
-    return self.output_variable_needed 
   
 

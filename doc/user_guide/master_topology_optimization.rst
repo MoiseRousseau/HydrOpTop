@@ -7,6 +7,7 @@ Current challenge associated with topology optimization
 -------------------------------------------------------
 
 https://link.springer.com/article/10.1007/s00158-018-1994-3
+https://link.springer.com/article/10.1007/s11831-019-09331-1
 
 
 Imposing length constraint

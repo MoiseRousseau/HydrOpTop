@@ -46,6 +46,7 @@ class Steady_State_Crafter:
     self.first_call_gradient = True
     self.func_eval = 0
     self.last_p = None
+    self.last_p_bar = None
     self.first_cf = None
     self.first_p = None
     
@@ -117,14 +118,28 @@ class Steady_State_Crafter:
                 dobj_dX, func.__get_input_variables_needed__()) + \
                 dobj_dp_partial
     if self.filters:
+      p_ = p
       for i,filter_ in enumerate(self.filters):
         if not i:
-          grad_filter = filter_.get_filter_derivative(p)
+          grad_filter = filter_.get_filter_derivative(p_)
         else:
-          grad_filter = filter_.get_filter_derivative(p).dot(grad_filter)
+          grad_filter = filter_.get_filter_derivative(p_).dot(grad_filter)
+        p_ = filter_.get_filtered_density(p_)
       grad[:] = grad_filter.transpose().dot(grad)
     return grad
   
+  
+  def output(self):
+    self.IO.output(self.func_eval, 
+                   self.last_cf, 
+                   self.last_constraints, 
+                   self.last_p, 
+                   self.last_grad, 
+                   self.last_grad_constraints, 
+                   self.last_p_bar,
+                   val_at=self.p_ids-1)
+    return
+    
   
   ### PRE-EVALUATION ###
   def pre_evaluation_objective(self, p):
@@ -169,6 +184,7 @@ class Steady_State_Crafter:
                      tolerance_constraints=0.005,
                      max_it=50,
                      ftol=None):
+    self.first_cf = None
     ### DEFAULT INPUTS
     if initial_guess is None:
       initial_guess = np.zeros(self.get_problem_size(), dtype='f8') + \
@@ -209,15 +225,13 @@ class Steady_State_Crafter:
       return None
       
     #print output
-    self.IO.output(self.func_eval, 
-                   self.last_cf, 
-                   self.last_constraints, 
-                   self.last_p, 
-                   self.last_grad, 
-                   self.last_grad_constraints, 
-                   val_at=self.p_ids-1)
+    self.output()
+    
     print("END!")
-    return p_opt
+    #constraint_out = {}
+    #for i in range(len(self.constraint)):
+    #  constraint_out[self.constraint.name] = self.last_constraints[i]
+    return p_opt#, self.last_constraints
     
   
   
@@ -228,24 +242,7 @@ class Steady_State_Crafter:
     """
     #save last iteration
     if self.func_eval != 0:
-      if self.filters is None: 
-        self.IO.output(self.func_eval, 
-                       self.last_cf, 
-                       self.last_constraints, 
-                       self.last_p, 
-                       self.last_grad, 
-                       self.last_grad_constraints, 
-                       val_at=self.p_ids-1)
-        #self.IO.output(self.func_eval, cf, constraints_val, p, grad_cf, grad_constraints, p_bar)
-      else:
-        self.IO.output(self.func_eval, 
-                       self.last_cf, 
-                       self.last_constraints, 
-                       self.last_p, 
-                       self.last_grad, 
-                       self.last_grad_constraints, 
-                       self.last_p_bar, 
-                       val_at=self.p_ids-1)
+      self.output()
     #start new it
     self.func_eval += 1
     print(f"\nFonction evaluation {self.func_eval}")
@@ -261,7 +258,8 @@ class Steady_State_Crafter:
     self.last_cf = cf
     self.last_grad = grad.copy()
     self.last_p[:] = p
-    self.last_p_bar = p_bar
+    if self.filters:
+      self.last_p_bar = p_bar
     #normalize cf to 1
     cf /= self.first_cf
     grad /= self.first_cf
