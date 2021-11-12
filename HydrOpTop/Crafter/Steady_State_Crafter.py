@@ -129,7 +129,7 @@ class Steady_State_Crafter:
     return grad
   
   
-  def output(self):
+  def output_to_user(self):
     self.IO.output(self.func_eval, 
                    self.last_cf, 
                    self.last_constraints, 
@@ -225,13 +225,15 @@ class Steady_State_Crafter:
       return None
       
     #print output
-    self.output()
-    
+    self.output_to_user()
     print("END!")
-    #constraint_out = {}
-    #for i in range(len(self.constraint)):
-    #  constraint_out[self.constraint.name] = self.last_constraints[i]
-    return p_opt#, self.last_constraints
+    
+    out = Output_Struct(p_opt)
+    if self.filters: 
+      out.p_opt_filtered = self.filter_density(p_opt)
+    out.fx = self.last_cf
+    out.cx = self.last_constraints
+    return out
     
   
   
@@ -242,7 +244,7 @@ class Steady_State_Crafter:
     """
     #save last iteration
     if self.func_eval != 0:
-      self.output()
+      self.output_to_user()
     #start new it
     self.func_eval += 1
     print(f"\nFonction evaluation {self.func_eval}")
@@ -388,5 +390,23 @@ class Steady_State_Crafter:
 \t
 \t===================================
     """)
+
+
+class Output_Struct:
+  def __init__(self, p_opt):
+    self.p_opt = p_opt
+    self.p_opt_filtered = None
+    self.fx = None
+    self.cx = None
+    return
+  
+  def __repr__(self):
+    out = "<HydrOpTop results:\n"
+    out += f"p_opt: {self.p_opt}\n"
+    if self.p_opt_filtered is not None:
+      out += f"p_opt_filtered: {self.p_opt_filtered}\n"
+    out += f"fx: {self.fx}\ncx: {self.cx}>"
+    return out
+    
     
 

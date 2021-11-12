@@ -148,4 +148,32 @@ class Test_Crafter:
     
     print(S_ana, S_adjoint)
     assert np.allclose(S_adjoint, S_ana, atol=1e-6, rtol=1e-6)
+  
+  def test_crafter_adjoint_with_2_filters_1_param_A(self):
+    """
+    Test adjoint derivative compared to analytical value with two filters
+    """
+    from HydrOpTop.Filters import Heavyside_Filter
+    p = self.A
+    solver = Dummy_Simulator(problem_size=len(p))
+    obj = Sum_Variable("x", solved=True)
+    parametrizationA = Identity("all", "a")
+    solver.create_cell_indexed_dataset(self.b,"b")
+    filters = [Heavyside_Filter(), Heavyside_Filter()]
+    craft = Steady_State_Crafter(obj, solver, [parametrizationA], filters=filters)
+    craft.pre_evaluation_objective(p)
+    #crafter adjoint
+    S_adjoint = craft.evaluate_total_gradient(obj, p)
+    #analytic deriv
+    A_filtered = filters[1].get_filtered_density(filters[0].get_filtered_density(p))
+    solver.create_cell_indexed_dataset(A_filtered,"a")
+    solver.run()
+    obj.set_inputs([solver.get_output_variable("x")])
+    grad = filters[0].get_filter_derivative(p)
+    grad *= filters[1].get_filter_derivative(filters[0].get_filtered_density(p))
+    S_ana = solver.analytical_deriv_dy_dx('a')*grad
+    
+    print(S_ana, S_adjoint)
+    assert np.allclose(S_adjoint, S_ana, atol=1e-6, rtol=1e-6)
+    
 

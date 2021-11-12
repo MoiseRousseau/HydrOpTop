@@ -158,6 +158,29 @@ class IO:
     self.indexes = indexes
     self.var_loc = var_loc
     return
+    
+  def write_field_to_file(self, X, Xname, filename, format_=None, at_ids=None):
+    if not isinstance(X, list):
+      X = [X]
+    if not isinstance(Xname, list):
+      Xname = [Xname]
+    for x in X:
+      if at_ids is not None:
+        X_ = self.correct_dataset_length(X, val_at)
+      else:
+        X_ = X
+    dict_var = {}
+    for i,x in enumerate(X):
+      data = []
+      for (elem_type, index) in self.indexes:
+        data.append(x[index])
+      dict_var[Xname[i]] = data
+    if self.var_loc == "cell":
+      mesh = meshio.Mesh(self.vertices, self.elements, cell_data=dict_var)
+    elif self.var_loc == "point":
+      mesh = meshio.Mesh(self.vertices, self.elements, point_data=dict_var)
+    mesh.write(filename)
+    return
   
     
 
@@ -183,7 +206,6 @@ class IO_XDMF_MESHIO:
     if not self.mesh_writed:
       self.mesh_writed = True
       self.writer.write_points_cells(self.vertices, self.elements)
-      print('ici')
     if self.var_loc == "cell":
       self.writer.write_data(n_output, cell_data=dict_var)
     elif self.var_loc == "point":

@@ -40,13 +40,19 @@ if __name__ == "__main__":
   p = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.2
   
   #optimize in several pass to reach discrete distribution
-  p_opt = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=50, ftol=0.0001, initial_guess=p)
+  out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=50, ftol=0.0001, initial_guess=p)
+  
   hfilter.update_stepness(2)
-  p_opt[:] = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=20, initial_guess=p_opt)
+  out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=20, initial_guess=out.p_opt)
+  
   hfilter.update_stepness(4)
-  p_opt[:] = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=10, initial_guess=p_opt)
+  out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=5, initial_guess=out.p_opt)
+  
   hfilter.update_stepness(8)
-  p_opt[:] = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=10, initial_guess=p_opt)
+  out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=3, initial_guess=out.p_opt)
+  
   hfilter.update_stepness(20)
-  crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=5, initial_guess=p_opt)
+  out.crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=3, initial_guess=out.p_opt)
+  
+  crafted_problem.IO.write_field_to_file(out.p_filtered_opt, "Filtered_density", "./out.mesh")
   
