@@ -5,6 +5,7 @@ import subprocess
 import time
 import struct
 import pathlib
+import os
 
 
 
@@ -27,7 +28,7 @@ class Linear_Elasticity_2D:
     
     self.areas = None #areas of elements
     self.element_center = None
-    self.solver_command = str(pathlib.Path(__file__).parent.absolute()) + "/MinimalFEM"
+    self.solver_command = str(pathlib.Path(__file__).parent.absolute()) + "/MinimalFEM/MinimalFEM"
     self.no_run = False
     return
     
@@ -210,5 +211,18 @@ class Linear_Elasticity_2D:
       coo_mat.data[:] = val
     return
     return data
+  
+  def __get_and_compile_solver__():
+    """
+    An automated method to download and compile the solver
+    """
+    install_folder = str(pathlib.Path(__file__).parent.absolute()) + "/MinimalFEM/"
+    #download solver
+    cmd = ["git", "clone", "https://github.com/MoiseRousseau/MinimalFem-For-Topology-Optimization", install_folder]
+    subprocess.run(cmd)
+    #compile it
+    cmd = ["make"]
+    subprocess.run(cmd, cwd=install_folder)
+    return
     
     
