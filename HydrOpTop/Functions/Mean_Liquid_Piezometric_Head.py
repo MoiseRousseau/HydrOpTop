@@ -4,16 +4,29 @@ import numpy as np
 from .Base_Function_class import Base_Function
 
 class Mean_Liquid_Piezometric_Head(Base_Function):
-  """
-  Function which return the sum of the liquid piezometric head
-  with a penalizing power in a given region.
-  Assumed a constant water density (personalizable)
-  Take as input:
-  - the cell ids where to compute the piezometric head sum (default all)
-  - the penalizing power (default 1.)
-  - gravity: the gravity (constant) (default=9.80665)
-  - density: water liquid density (constant) (default=997.16)
-  - reference_pressure: reference pressure for h_pz=0 (default=101325.)
+  r"""
+  Description:
+    The `Mean_Liquid_Piezometric_Head` function compute the mean of the piezometric
+    head in the given cell ids:
+
+    .. math::
+       
+       f = \frac{1}{V_D} \sum_{i \in D} V_i \left(\frac{P-P_{ref}}{\rho g} + z_i \right)
+  
+  Parameters:
+    ``ids_to_sum`` (iterable): cell ids to compute the mean piezometric head
+    
+    ``power`` (float): the penalizing power `n` above
+    
+    ``gravity`` (float): norm of the gravity vector `g`
+    
+    ``density`` (float): fluid density `\rho`
+    
+    ``ref_pressure`` (float): reference pressure in PFLOTRAN simulation
+  
+  Required PFLOTRAN outputs:
+    ``LIQUID_PRESSURE`` and ``VOLUME``.
+  
   """
   def __init__(self, ids_to_sum = "everywhere", penalizing_power = 1,
                      gravity=9.8068, density=997.16, reference_pressure=101325.):

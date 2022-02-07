@@ -5,9 +5,34 @@ from ..Functions.Volume_Percentage import Volume_Percentage
 from scipy.optimize import root_scalar
 
 class Volume_Preserving_Heavyside_Filter(Base_Filter):
-  """
-  Filter the density paramater using a three field method according to
-  https://link.springer.com/article/10.1007/s00158-009-0452-7
+  r"""
+  Description:
+    A variation of the previous filter.
+    Apply the smooth Heavyside function to the density parameter with a given
+    steepness and cutoff according to Xu et al. (2009):
+
+    .. math::
+      
+      \tilde{p}_i = \left\{ 
+         \begin{array}{ll}
+         \eta \left[ e^{-\beta(1-\bar{p}_i/\eta)} - 
+         (1-\frac{\bar{p}_i}{\eta}) e^{-\beta}\right] \quad \mbox{if} \quad \bar{p}_i<\eta \\
+         (1-\eta) \left[ 1-e^{-\beta(\bar{p}_i-\eta)/(1-\eta)} + 
+         \frac{\bar{p}_i-\eta}{1-\eta}e^{-\beta} \right] + \eta \quad \mbox{else}
+         \end{array} \\ \right.
+
+  Parameters:
+    ``cutoff`` (float): the cutoff parameter :math:`\eta` (i.e. the value of :math:`p_i` where the step is located)
+    
+    ``steepness`` (float): the steepness of the smooth Heavyside function :math:`\beta`. 
+  
+  
+  Required solver outputs:
+    ``None``
+  
+  This filter was proposed by Xu et al. (2009). See the original publication
+  for more detail (https://link.springer.com/article/10.1007/s00158-009-0452-7)
+  
   """
   def __init__(self, cutoff=0.5, steepness = 5, vol_constraint=None):
     self.cutoff = cutoff

@@ -1,13 +1,23 @@
-from .Mesh_NNR import Mesh_NNR
 import numpy as np
-from scipy.sparse import dia_matrix
+from .Base_Filter_class import Base_Filter
 
 
-class Helmholtz_Density_Filter:
-  """
-  Filter the density parameter according a Helmholtz type PDE
-  from Lazarov and Sigmund (2010):
-  https://onlinelibrary.wiley.com/doi/abs/10.1002/nme.3072
+class Helmholtz_Density_Filter(Base_Filter):
+  r"""
+  Description:
+    Smooth the density filter using the Helmholtz partial differential equation:
+
+    .. math::
+      
+      \nabla^T \boldsymbol{K} \: \nabla \bar p + \bar p = 0
+
+    This filter is doing approximately the same than the standard density filter above but
+    requires much less memory by not storing the distance matrix. Also more
+    robust when the optimization mesh had sharp concave boundary. 
+    More detail available in Lazarov and Sigmund (2011).
+
+  Not yet implementated, but planned...
+  
   """
   #TODO
   def __init__(self):

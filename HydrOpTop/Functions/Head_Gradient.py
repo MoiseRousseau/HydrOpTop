@@ -1,12 +1,51 @@
-# This file is a part of the topology optimization program by Moise Rousseau
-
 import numpy as np
 from .Base_Function_class import Base_Function
 from .common import __cumsum_from_connection_to_array__
 
+
 class Head_Gradient(Base_Function):
-  """
-  Description
+  r"""
+  Description:
+    Calculate the mean head gradient in the prescribed domain:
+
+    .. math::
+       
+       f = \frac{1}{V_D} \sum_{i \in D} V_i ||\nabla {h_i} ||^n
+       
+    Head is defined as:
+
+    .. math::
+       
+       h_i = \frac{P_i-P_{ref}}{\rho g}
+
+    and gradient is estimated using the Green-Gauss cell-centered scheme:
+
+    .. math::
+       
+       \nabla h_i = \frac{1}{V_i} 
+            \sum_{j \in \partial i} A_{ij} \boldsymbol{n_{ij}} \left[d_i h_i + (1-d_i) h_j \right]
+
+  Parameters: 
+    ``ids_to_consider`` (iterable): the cell ids on which to compute the mean gradient
+    
+    ``power`` (float): the penalizing power `n` above
+    
+    ``correction_iteration`` (int): number of iteration for the deferred correction to better estimate the gradient (not yet implemented)
+    
+    ``gravity`` (float): norm of the gravity vector `g`
+    
+    ``density`` (float): fluid density `\rho`
+    
+    ``ref_pressure`` (float): reference pressure in PFLOTRAN simulation
+    
+    ``restrict_domain`` (bool): an option to calculate the gradient considering 
+    only the considered cells instead considering the whole simulation. Might
+    change the gradient calculated at the boundary of the considered cells.
+  
+  Required PFLOTRAN output:
+    ``LIQUID_PRESSURE``, ``CONNECTION_IDS``, 
+    ``FACE_AREA``, ``FACE_UPWIND_FRACTION``, ``VOLUME``, ``Z_COORDINATE``, 
+    ``FACE_NORMAL_X``, ``FACE_NORMAL_Y`` and ``FACE_NORMAL_Z``
   """
   def __init__(self, ids_to_consider="everywhere", power=1., correction_iteration=2,
                gravity=9.8068, density=997.16, ref_pressure=101325, restrict_domain=False):

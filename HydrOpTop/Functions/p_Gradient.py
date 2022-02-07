@@ -8,10 +8,52 @@ from .common import __cumsum_from_connection_to_array__, \
 
 
 class p_Gradient:
+  r"""
+  Description:
+    `p_Gradient` function return a index characterizing whether the material 
+    `p=1` is placed above material `p=0`:
+
+    .. math::
+       
+       f = \frac{1}{V_D} \sum_{i \in D} V_i \max\left(0,\nabla p_i\right)^n
+	      - \epsilon
+
+    Designed to be used as a constructibility constrain if material 1 could not
+    be build above material 0 for example.
+    The :math:`\max()` function is represented through a smooth Heavyside function.
+    The gradient :math:`\nabla p` is  evaluated using the Gauss gradient scheme
+    for cell-centered finite volume solver:
+
+    .. math::
+       
+       \nabla p_i = \frac{1}{V_i} 
+	    \sum_{j \in \partial i} A_{ij} \boldsymbol{n_{ij}} 
+	      \left\{ 
+	        \begin{array}{ll}
+	          p_j \mbox{ if } z_i > z_j \\
+	          p_i \mbox{ else}
+	        \end{array} \\
+	      \right.
+	      
+    Note this method leads rigorously to a second order accurate gradient if and
+    only if the mesh is non skewed (i.e. the cell center vector intercept the face
+    exactly at its center), which could not be the case for general unstructured mesh.
+
+	  For finite element solver, ... (not implemented).
+
+
+  Parameters:
+    ``direction`` (``X``, ``Y`` or ``Z``): control the direction on which 
+    calculate the index
+  
+    ``power`` (float) the penalizing power `n`
+
+  Require PFLOTRAN outputs:
+     ``FACE_AREA``, ``VOLUME``,  ``FACE_CELL_CENTER_VECTOR_{direction}``
+     and ``PRINT_CONNECTION_IDS``.
+     
   """
-  Description
-  """
-  def __init__(self, direction="Z", tolerance=0., power=1):
+  def __init__(self, direction="Z", power=1):
     #TODO
     #the correction could be more powerfull considering the iterative scheme 
     #decribed in moukalled 2016.
@@ -24,7 +66,7 @@ class p_Gradient:
     elif direction == "Y": self.direction = 1
     else: self.direction = 2
     self.power = power
-    self.tol = tolerance
+    self.tol = 0
     
     #quantities derived from the input calculated one time
     self.initialized = False #a flag indicating calculated (True) or not (False)

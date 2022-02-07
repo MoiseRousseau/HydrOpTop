@@ -10,10 +10,30 @@ from .Base_Function_class import Base_Function
 
 
 class Sum_Flux(Base_Function):
-  """
-  Calculate the total flux through a surface (defined by its faces) considering 
-  the viscosity and density constant (for simplicity).
-  Note: calculation valid only for internal face
+  r"""
+  Description:
+    Compute the flux through a given surface defined by a list of faces. Faces are
+    specified by a the two cell ids sharing the face. Fluid is considered incompressible
+    and with a constant viscosity (i.e. :math:`\rho` and :math:`\mu` are constant). 
+    Not tested for variably saturated flow.
+
+    .. math::
+       :label: sum_flux
+       
+       f = \sum_{(i,j) \in S} \left[A_{ij} \frac{k_{ij}}{\mu} \frac{P_i - P_j + \rho g (z_i - z_j)} {d_{ij}}\right]^n
+
+  Parameters:
+    ``connections`` (iterable): a two dimension array of size (N,2) storing the 
+    cell ids shared the faces on which to sum the flux. 
+    
+    ``option`` (str): either one of ``"absolute"`` (each face flux are summed in absolute value),
+      ``"signed"`` (each face flux are summed from cell `i` to cell `j`), or
+      ``"signed_reverse"`` (each face flux are summed from cell `j` to cell `i`).
+
+  Require PFLOTRAN outputs:
+    ``LIQUID_PRESSURE``, ``FACE_AREA``, ``PERMEABILITY``, ``FACE_UPWIND_FRACTION``,
+    ``FACE_DISTANCE_BETWEEN_CENTER``, ``Z_COORDINATE`` and ``CONNECTION_IDS``.
+    
   """
   def __init__(self, connections=None, option="signed"):#, square = False):
     """

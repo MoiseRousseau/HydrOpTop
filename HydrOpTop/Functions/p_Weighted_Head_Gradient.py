@@ -6,12 +6,47 @@ from .common import __cumsum_from_connection_to_array__
 from .Base_Function_class import Base_Function
 
 class p_Weighted_Head_Gradient(Base_Function):
-  """
-  Description
+  r"""
+  Description:
+    Calculate the mean head gradient in the prescribed domain weighted by the density
+    parameter `p`. In practice, can be used to just consider the mean head gradient in
+    the material defined by ``p=1``:
+
+    .. math::
+       
+       f = \frac{1}{V_D} \sum_{i \in D} p_i V_i ||\nabla {h_i} ||^n
+
+    For more detail, see description of the objective function ``Head_Gradient``.
+  
+  Parameters: 
+    ``ids_to_consider`` (iterable): the cell ids on which to compute the mean gradient
+    
+    ``power`` (float): the penalizing power `n` above
+    
+    ``correction_iteration`` (int): number of iteration for the deferred correction to better estimate the gradient (not yet implemented)
+    
+    ``gravity`` (float): norm of the gravity vector `g`
+    
+    ``density`` (float): fluid density `\rho`
+    
+    ``ref_pressure`` (float): reference pressure in PFLOTRAN simulation
+    
+    ``restrict_domain`` (bool): an option to calculate the gradient considering 
+    only the considered cells instead considering the whole simulation. Might
+    change the gradient calculated at the boundary of the considered cells.
+    
+    ``invert_weighting`` (bool): can be set to ``True`` to rather consider the mean head
+    gradient in the material designed by ``p=0``.
+  
+  Required PFLOTRAN outputs:
+    ``LIQUID_PRESSURE``, ``CONNECTION_IDS``, 
+    ``FACE_AREA``, ``FACE_UPWIND_FRACTION``, ``VOLUME``, ``Z_COORDINATE``, 
+    ``FACE_NORMAL_X``, ``FACE_NORMAL_Y`` and ``FACE_NORMAL_Z``
+
   """
   def __init__(self, ids_to_consider="everywhere", power=1., correction_iteration=2,
                gravity=9.8068, density=997.16, ref_pressure=101325, invert_weighting=False,
-               restrict_domain=False, tol = 0):
+               restrict_domain=False):
     #the correction could be more powerfull considering the iterative scheme 
     #decribed in moukalled 2016.
     #inputs for function evaluation
@@ -33,7 +68,7 @@ class p_Weighted_Head_Gradient(Base_Function):
     self.ref_pressure = ref_pressure
     self.invert_weighting = invert_weighting
     self.restrict_domain = restrict_domain
-    self.tol = tol #in case used as a constrain
+    self.tol = 0 #in case used as a constrain
     
     #quantities derived from the input calculated one time
     self.initialized = False #a flag indicating calculated (True) or not (False)

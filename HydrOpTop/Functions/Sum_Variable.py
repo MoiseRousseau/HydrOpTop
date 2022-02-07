@@ -12,7 +12,7 @@ class Sum_Variable(Base_Function):
   - solved: is this variable solved by the solver ?
   - ids_to_consider: the ids to sum
   """
-  def __init__(self, variable, solved=True, ids_to_consider="everywhere"):
+  def __init__(self, variable, solved=True, ids_to_consider=None):
     super(Sum_Variable, self).__init__()
     self.name = "Sum " + variable
     self.solved = solved
@@ -22,6 +22,10 @@ class Sum_Variable(Base_Function):
     else:
       self.solved_variables_needed = []
       self.input_variables_needed = [variable]
+    if ids_to_consider is None:
+      self.ids_to_sum = None
+    else:
+      self.ids_to_sum = np.array(ids_to_consider)-1
       
     self.initialized = False
     
@@ -52,7 +56,11 @@ class Sum_Variable(Base_Function):
     """
     Evaluate the mechanical compliance f^T * u
     """
-    return np.sum(self.var)
+    if self.ids_to_sum is None:
+      s = np.sum(self.var)
+    else:
+      s = np.sum(self.var[self.ids_to_sum])
+    return s
   
   
   ### PARTIAL DERIVATIVES ###
@@ -61,7 +69,12 @@ class Sum_Variable(Base_Function):
     Derivative according to solved variable
     """
     if self.solved:
-      return [np.ones(len(self.var),dtype='f8')]
+      if self.ids_to_sum is not None: 
+        deriv = np.zeros(len(self.var),dtype='f8')
+        deriv[self.ids_to_sum] = 1.
+      else:
+        deriv = np.ones(len(self.var),dtype='f8')
+      return [deriv]
     else:
       return [0.]
   
@@ -73,6 +86,11 @@ class Sum_Variable(Base_Function):
     if self.solved:
       return [0.]
     else:
-      return [np.ones(len(self.var),dtype='f8')]
+      if self.ids_to_sum is not None: 
+        deriv = np.zeros(len(self.var),dtype='f8')
+        deriv[self.ids_to_sum] = 1.
+      else:
+        deriv = np.ones(len(self.var),dtype='f8')
+      return [deriv]
   
                       

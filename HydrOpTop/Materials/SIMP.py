@@ -1,16 +1,29 @@
 import numpy as np
 
 class SIMP:
-  """
-  !SIMP parametrization of material properties:
-  !X(p) = X0 + (X1-X0)*p^n
-  !When p=0 -> X=X0
-  !When p=1 -> X=X1
-  Input:
-  @param cell_ids_to_parametrize: cell to parametrize with the given law
-  @param bound: material properties bound [min, max]
-  @param power: the penalizing power (integer)
-  @param reverse: invert parametrization (p=0 -> X=X1, p=1 -> X=X0)
+  r"""
+  Description:
+    SIMP stands for Standard Isotropic Material Parametrization. It applies the 
+    following relation between the material properties :math:`X` and the density parameter :math:`p`:
+
+    .. math::
+       
+       X(p) = X_0 + (X_1 - X_0) p^n
+
+    Where :math:`X_0` and :math:`X_1` is the material property values when :math:`p=0`
+    and :math:`p=1`. :math:`n` the penalization power (see X).
+
+  Parameters:
+    ``cell_ids_to_parametrize`` (iterable): the cell ids on which to apply the parametrization
+    
+    ``property_name`` (str): the name of the material parameter (same as defined in the solver IO shield)
+    
+    ``bounds`` (list): the `X_0` and `X_1` values in a list
+    
+    ``power`` (float): the penalization power `n`
+    
+    ``reverse`` (bool): set to ``True``, reverse the bounds.
+  
   """
   def __init__(self, cell_ids_to_parametrize,
                      property_name, bounds, power=3, reverse=False):

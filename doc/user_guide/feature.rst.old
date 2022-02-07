@@ -1,10 +1,17 @@
 .. _feature:
 
-Feature description
-===================
+Features description
+====================
 
 Overview
 --------
+
+
+Topology optimization  
+One may think of what would be the shape of a mechanical part such as its mechanical compliance is being minimized while a volume constraint is applied. 
+Or, another wants to maximize the draining capacity of a soil by smarter drain placement.
+Another again would like to dissipate as efficiently as possible heat by an optimized heat exchanger.
+HydrOpTop permits to solve all of these problems and in these various disciplines by using a unified software.
 
 Topology optimization with density based approach.
 

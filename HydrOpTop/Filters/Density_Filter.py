@@ -4,18 +4,29 @@ from scipy.sparse import dia_matrix
 from .Base_Filter_class import Base_Filter
 
 class Density_Filter(Base_Filter):
-  """
-  Filter the density parameter according to Bruns and Tortorelli (2001) and 
-  Bourdin (2001):
-  https://doi.org/10.1016%2FS0045-7825%2800%2900278-4
-  https://doi.org/10.1002%2Fnme.116
-  Summarized in:
-  https://link.springer.com/article/10.1007/s00158-009-0452-7
+  r"""
+  Description:
+    Smooth the density parameter `p` at a given cell `i` according to its value
+    at the neighboring cells `j` weighted by the distance of their respective 
+    centers:
+
+    .. math::
+      
+      \bar{p}_i = \frac{R^n V_i p_i + \sum_{j \in \partial i} (R-d_{ij})^n V_j p_j}
+                        {R^n V_i + \sum_{j \in \partial i} (R-d_{ij})^n V_j}
+      
+    This filter was proposed by Bruns and Tortorelli (2001) and Bourdin (2001). 
+
+  Parameters:
+    ``filter_radius`` (float or list): the ball radius (float value) on which
+    to search for neighboring cell center for averaging the density parameter.
+    If a list is provided (i.e. ``[dx,dy,dz]``), the cell centers are searched
+    into a ellipsoid of half axis dx, dy and dz.
+    
+    ``distance_weighting_power`` the exponent for distance weighting :math:`n` 
   
-  Argument:
-  - filter_radius: scalar or list of scalar specifying the filter radius in X,Y,Z direction
-  - distance_weighting_power: distance weighting function power
-                              positive mean higher weigth (p value more correlated)
+  Required solver outputs:
+  
   """
   def __init__(self, filter_radius=1., distance_weighting_power=1):
     self.filter_radius = filter_radius

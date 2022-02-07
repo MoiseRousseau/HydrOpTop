@@ -2,14 +2,26 @@ import numpy as np
 from .Base_Function_class import Base_Function
 
 class Volume_Percentage(Base_Function):
-  """
-  Function that compute the percentage of the volume occupied the material represented by
-  p=1 (default) or by p=0 by setting the option volume_of_p0 to True.
-  Return a negative value if the actual percentage is lower than the max percentage, and 
-  positive instead
-  Inputs:
-  - ids_to_sum_volume: the cell ids where to calculate the percentage (default: everywhere)
-  - max_volume_percentage: the maximum volume percentage (default: 0.2)
+  r"""
+  Description:
+    ``Volume_Percentage`` function compute the ratio of the volume of material
+    designed by `p=1` on a prescribed domain :math:`D`:
+
+    .. math::
+       
+       f = \frac{1}{V_D} \sum_{i \in D} p_i V_i
+
+  Parameters:
+    ``ids_to_sum_volume`` (iterable): a list of cell ids on which to compute
+    the volume percentage 
+
+    ``volume_of_p0`` (bool): set to ``True``, switch the material and rather
+    calculate the volume fraction of the material designed by `p=0`. In this 
+    case :math:`p_i` is remplaced by :math:`p'_i = 1-p_i`.
+
+  Require PFLOTRAN output:
+    ``VOLUME``.
+    
   """
   def __init__(self, ids_to_sum_volume="parametrized_cell", max_volume_percentage=0.2,
                      volume_of_p0=False):

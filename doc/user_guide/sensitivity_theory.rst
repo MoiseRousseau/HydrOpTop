@@ -1,7 +1,7 @@
-.. _sensitivity_calculation:
+.. sensitivity_theory:
 
-Sensitivity calculation in HydrOpTop
-====================================
+Sensitivity calculation theory
+==============================
 
 
 
@@ -14,22 +14,20 @@ Transient, one PDE sensitivity
 
 
 
-Steady state, two coupled PDE sensitivity
------------------------------------------
+Steady state, two low-coupled PDEs
+----------------------------------
 
 Considering a cost function 
 
 .. math::
-   :label: cost_function_steady_transport
-   
-   f(C(P,X),X)
+
+   f(V(U(X)),U(X),X)
 
 which depends explicitely of the concentration :math:`C(P,X)`
 solved by the discretized transport equation 
 
 .. math::
-   :label: transport_equation
-   
+
    h(C,P(X),X)
    
 which itself depends on the pressure :math:`P` and the material property
@@ -37,7 +35,6 @@ which itself depends on the pressure :math:`P` and the material property
 is given by
 
 .. math::
-   :label: opt_problem_steady_transport
    
      &\min_X f(C(P,X),X) \\
      &s.t. 
@@ -50,14 +47,12 @@ The derivative of the cost function relative to the material property
 :math:`X` could be obtained considering the Lagrangian
 
 .. math::
-   :label: lagrangian_steady_transport
    
    \mathcal{L} = f(C(P,X),P(X),X) + \lambda^T g(P,X) + \mu^T h(C,P(X),X)
 
 Taking the derivative of the lagrangian leads
 
 .. math::
-   :label: d_lagrangian_steady_transport
    
    \frac{d \mathcal{L}}{dX} = \frac{df}{dX} = 
    \frac{\partial f}{\partial C} \frac{\partial C}{\partial X} + \frac{\partial f}{\partial X} +
@@ -67,7 +62,6 @@ Taking the derivative of the lagrangian leads
 Further development leads
 
 .. math::
-   :label: d_lagrangian_steady_transport_2
    
    \frac{df}{dX} = 
    (\frac{\partial f}{\partial C} + \mu^T \frac{\partial h}{\partial C}) \frac{\partial C}{\partial X} +
@@ -78,7 +72,6 @@ Further development leads
 The unknown terms :math:`\frac{\partial P}{\partial X}` and :math:`\frac{\partial C}{\partial X}` could be withdraw by considering the adjoint equations
 
 .. math::
-   :label: adjoint_equations_steady_transport
    
    (\frac{\partial h}{\partial C})^T \mu = - (\frac{\partial f}{\partial C})^T \\
    (\frac{\partial g}{\partial P})^T \lambda = - (\frac{\partial h}{\partial P})^T \mu
@@ -87,7 +80,6 @@ And finally, the total derivative of the cost function relative to the material
 property :math:`X` is
 
 .. math::
-   :label: total_derivative_steady_transport
    
    \frac{\partial f}{\partial X} = \lambda^T \frac{\partial g}{\partial X} + 
    \mu^T \frac{\partial h}{\partial X} + \frac{\partial f}{\partial X}

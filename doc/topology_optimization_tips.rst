@@ -1,7 +1,7 @@
-.. _master_topology_optimization:
+.. _topology_optimization_tips:
 
-Master Topology Optimization with HydrOpTop
-===========================================
+Some Topology Optimization Tips
+===============================
 
 Current challenge associated with topology optimization
 -------------------------------------------------------

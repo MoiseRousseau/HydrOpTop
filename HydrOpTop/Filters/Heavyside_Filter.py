@@ -3,9 +3,26 @@ from scipy.sparse import dia_matrix
 from .Base_Filter_class import Base_Filter
 
 class Heavyside_Filter(Base_Filter):
-  """
-  Filter the density paramater using a three field method according to
-  a Heavyside function
+  r"""
+  Decription:
+    Apply the smooth Heavyside function to the density parameter with a given
+    steepness and cutoff. Heavyside filters are usually applied on already filtered
+    field using the previous density filter to help impose a minimum length constrain
+    and to avoid blurry contour. The smooth Heavyside function is defined as:
+
+    .. math::
+      
+       \tilde{p}_i = \frac{\tanh(\beta \eta) + \tanh(\beta (\bar p - \eta))}
+                          {\tanh(\beta \eta) + \tanh(\beta (1- \eta))}
+
+  Parameters: 
+    ``cutoff`` (float): the cutoff parameter :math:`\eta` (i.e. the value of 
+    :math:`p_i` where the step is located)
+    
+    ``steepness`` (float): the steepness of the smooth Heavyside function :math:`\beta`
+  
+  Required solver output:
+
   """
   def __init__(self, cutoff=0.5, steepness = 5):
     self.cutoff = cutoff
@@ -27,6 +44,10 @@ class Heavyside_Filter(Base_Filter):
     return dia_matrix((d_p_filtered,[0]), shape=(len(p),len(p)))
   
   def plot_filtered_density(self):
+    r"""
+    Visualize the transformation applied
+    
+    """
     try:
       import matplotlib.pyplot as plt
     except:

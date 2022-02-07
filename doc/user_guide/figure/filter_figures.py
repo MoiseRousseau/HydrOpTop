@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import sys
 
 sys.path.append('../../../')
-sys.path.append('../../../verification/test_filter/')
+sys.path.append('../../../tests/filters/')
 
 def density_filter_fig():
   from HydrOpTop.Filters import Density_Filter
@@ -47,7 +47,7 @@ def density_filter_fig():
   ax.set_ylim([0,1])
   
   ax = axarr[1,1] #anisotrope filter with weigthing
-  filter.distance_weighting_power = 4
+  filter.distance_weighting_power = 10
   filter.initialize()
   p_bar = filter.get_filtered_density(p_ref)
   mesh.plot(p_bar,ax,show=False)

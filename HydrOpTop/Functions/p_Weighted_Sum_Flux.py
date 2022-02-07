@@ -8,12 +8,30 @@ from .Base_Function_class import Base_Function
 
 
 class p_Weighted_Sum_Flux(Base_Function):
-  """
-Compute the sum of the squared flux through the connection of the cell given and
-weighted by the material parameter.
-In practice, minimise the squared mean flux in material designed by p=1.
-Can inverse weighting using invert_weighting=True. Therefore, minimise the squared
-flux in material designed by p=0
+  r"""
+  NEED TO BE UPDATE AS SUM FLUX
+  
+  Description:
+    `p_Weighted_Sum_Flux` return a number characterizing the total flowrate in
+    material designed by `p=1` in the considered cells. In practice, it could 
+    be used to minimize the mean flux in material designed  by `p=1`.
+
+    .. math::
+       
+       f = \sum_{i \in D} p_i \sum_{j \in \partial i} A_{ij} \frac{k_{ij}}{\mu} \frac{\left[P_i - P_j + \rho g (z_i - z_j)\right]} {d_{ij}}
+
+  Parameters:
+    ``cell_ids_to_consider`` (list): cell ids to sum the flowrate on 
+    
+    ``invert_weighting`` (bool): set to ``True``, to invert the weighting and 
+    rather consider the flux in the material given by `p=0` (i.e. 
+    :math:`p'=1-p`).
+
+  Require PFLOTRAN outputs:
+    ``LIQUID_PRESSURE``, ``FACE_AREA``, 
+    ``PERMEABILITY``, ``FACE_UPWIND_FRACTION``, ``FACE_DISTANCE_BETWEEN_CENTER``, 
+    ``Z_COORDINATE`` and ``CONNECTION_IDS``.
+    
   """
   def __init__(self, cell_ids_to_consider=None, invert_weighting=False):
     """
