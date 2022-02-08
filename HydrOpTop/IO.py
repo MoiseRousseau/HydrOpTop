@@ -159,14 +159,29 @@ class IO:
     self.var_loc = var_loc
     return
     
-  def write_field_to_file(self, X, Xname, filename, format_=None, at_ids=None):
-    if not isinstance(X, list):
-      X = [X]
+  def write_fields_to_file(self, X, filename, Xname=None, at_ids=None):
+    r"""
+    Description:
+      Output the field datas given in the list X using ``MeshIO`` python library.
+      For a simple dataset ``x`` to write, use ``X=[x]``.
+    
+    Parameters:
+      ``X`` (list of numpy array): The list of field datas to output
+      
+      ``filename`` (str): The name of the output file. Note, the format is deduced from the file extension.
+      
+      ``Xname`` (list of str): The dataset names. Must be ordered the same as X.
+      
+      ``at_ids`` (numpy array): If the X datasets does not span the whole simulation domain, the ``at_ids`` array give the point/cell ids corresponding to the given data.
+      
+    """
+    if Xname is None:
+      Xname = [f"Field{i}" for i in range(X)]
     if not isinstance(Xname, list):
       Xname = [Xname]
     for x in X:
       if at_ids is not None:
-        X_ = self.correct_dataset_length(X, val_at)
+        X_ = self.correct_dataset_length(X, at_ids)
       else:
         X_ = X
     dict_var = {}

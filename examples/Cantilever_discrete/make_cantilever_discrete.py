@@ -4,6 +4,7 @@ path = os.getcwd() + '/../../'
 sys.path.append(path)
 
 import numpy as np
+import time
                                   
 from HydrOpTop.Functions import Mechanical_Compliance, Volume_Percentage
 from HydrOpTop.Materials import SIMP
@@ -13,6 +14,7 @@ from HydrOpTop.Solvers import Linear_Elasticity_2D
 
 
 if __name__ == "__main__":
+  t = time.time()
   #create PFLOTRAN simulation object
   sim = Linear_Elasticity_2D("cantilever")
   
@@ -40,19 +42,21 @@ if __name__ == "__main__":
   p = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.2
   
   #optimize in several pass to reach discrete distribution
-  out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=50, ftol=0.0001, initial_guess=p)
-  
+  p_opt = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", 
+                                   max_it=50, ftol=0.0001, initial_guess=p)
   hfilter.update_stepness(2)
-  out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=20, initial_guess=out.p_opt)
-  
+  p_opt = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", 
+                                   max_it=20, initial_guess=p_opt.p_opt)
   hfilter.update_stepness(4)
-  out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=5, initial_guess=out.p_opt)
-  
+  p_opt = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", 
+                                   max_it=10, initial_guess=p_opt.p_opt)
   hfilter.update_stepness(8)
-  out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=3, initial_guess=out.p_opt)
-  
+  p_opt = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", 
+                                   max_it=10, initial_guess=p_opt.p_opt)
   hfilter.update_stepness(20)
-  out.crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=3, initial_guess=out.p_opt)
+  p_opt = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", 
+                                   max_it=5, initial_guess=p_opt.p_opt)
   
-  crafted_problem.IO.write_field_to_file(out.p_filtered_opt, "Filtered_density", "./out.mesh")
+  crafted_problem.IO.write_fields_to_file([p_opt.p_opt_filtered], "./out.vtu", ["Filtered_density"])
   
+  print(f"Elapsed time: {time.time()-t} seconds")
