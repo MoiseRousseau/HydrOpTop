@@ -1,6 +1,12 @@
 import numpy as np
 
 class Identity:
+  r"""
+  Description:
+    Create a 1 for 1 correspondance between the density parameter and the material property.
+    Designed for debugging purpose.
+    
+  """
   def __init__(self, cell_ids_to_parametrize, property_name):
     if isinstance(cell_ids_to_parametrize, str) and \
              cell_ids_to_parametrize.lower() == "all":
