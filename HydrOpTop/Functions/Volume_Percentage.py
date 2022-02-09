@@ -23,8 +23,11 @@ class Volume_Percentage(Base_Function):
     ``VOLUME``.
     
   """
-  def __init__(self, ids_to_sum_volume="parametrized_cell", max_volume_percentage=0.2,
+  def __init__(self, ids_to_sum_volume="parametrized_cell",
                      volume_of_p0=False):
+                     
+    super(Volume_Percentage, self).__init__()
+    
     if isinstance(ids_to_sum_volume, str):
       if ids_to_sum_volume.lower() == "parametrized_cell":
         self.ids_to_consider = None
@@ -33,7 +36,7 @@ class Volume_Percentage(Base_Function):
         exit(1)
     else:
       self.ids_to_consider = ids_to_sum_volume
-    self.max_v_frac = max_volume_percentage
+      
     self.vp0 = volume_of_p0 #boolean to compute the volume of the mat p=1 (False) p=0 (True)
     
     #function inputs
@@ -42,12 +45,6 @@ class Volume_Percentage(Base_Function):
     #quantities derived from the input calculated one time
     self.initialized = False
     self.V_tot = None
-    
-    #function derivative for adjoint
-    self.dobj_dP = 0.
-    self.dobj_dmat_props = [0.]
-    self.dobj_dp_partial = None
-    self.adjoint = None
     
     self.solved_variables_needed = []
     self.input_variables_needed = ["VOLUME"] 
@@ -78,23 +75,26 @@ class Volume_Percentage(Base_Function):
     else: p_ = p
     if self.ids_to_consider is None:
       #sum on all parametrized cell
-      cf = np.sum(self.V[self.p_ids-1]*p_)/self.V_tot - self.max_v_frac
+      cf = np.sum(self.V[self.p_ids-1]*p_)/self.V_tot
     else:
-      cf = np.sum((self.V[self.ids_to_consider-1]*p_))/self.V_tot - self.max_v_frac
+      cf = np.sum((self.V[self.ids_to_consider-1]*p_))/self.V_tot
     return cf
 
   
   def d_objective_dp_partial(self,p): 
-    if self.dobj_dp_partial is None:
-      self.dobj_dp_partial = np.zeros(len(p),dtype='f8')
-    if self.vp0: factor = -1.
-    else: factor = 1.
-    if not self.initialized: self.__initialize__()
-    if self.ids_to_consider is None:
-      self.dobj_dp_partial[:] = factor * self.V[self.p_ids-1]/self.V_tot
+    res = np.zeros(len(p),dtype='f8')
+    if self.vp0: 
+      factor = -1.
     else:
-      self.dobj_dp_partial[:] = factor * self.V[self.ids_to_consider-1]/self.V_tot
-    return self.dobj_dp_partial
+      factor = 1.
+    if not self.initialized: 
+      self.__initialize__()
+    if self.ids_to_consider is None:
+      res[:] = factor * self.V[self.p_ids-1]/self.V_tot
+    else:
+      res[:] = factor * self.V[self.ids_to_consider-1]/self.V_tot
+    return res
+  
   
   ### INITIALIZER FUNCTION ###
   def __initialize__(self):
@@ -108,8 +108,4 @@ class Volume_Percentage(Base_Function):
     else:
       self.V_tot = np.sum(self.V[self.ids_to_consider-1])
     return
-  
-  
-  ### REQUIRED FOR CRAFTING ###
-  def __get_constraint_tol__(self): return self.max_v_frac
 

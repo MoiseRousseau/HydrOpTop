@@ -26,7 +26,8 @@ if __name__ == "__main__":
   cf = Mechanical_Compliance(ids_to_consider="everywhere")
   
   #define maximum volume constrains
-  max_vol = Volume_Percentage("parametrized_cell", 0.5)
+  max_vol = Volume_Percentage("parametrized_cell")
+  max_vol.constraint_tol = 0.5
   
   #define filter
   dfilter = Density_Filter(0.3)

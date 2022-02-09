@@ -266,7 +266,7 @@ class Steady_State_Crafter:
     cf /= self.first_cf
     grad /= self.first_cf
     #print to user
-    print(f"Current {self.obj.name}: {cf*self.first_cf:.6e}")
+    print(f"Current {self.obj.name} (cost function): {cf*self.first_cf:.6e}")
     print(f"Min gradient: {np.min(grad*self.first_cf):.6e} at cell id {np.argmin(grad)+1}")
     print(f"Max gradient: {np.max(grad*self.first_cf):.6e} at cell id {np.argmax(grad)+1}")
     return cf
@@ -286,11 +286,10 @@ class Steady_State_Crafter:
     if grad.size > 0:
       grad[:] = self.evaluate_total_gradient(the_constraint, p, p_bar)
     
-    tol = the_constraint.__get_constraint_tol__()
-    print(f"Current {self.constraints[iconstraint].name} constraint: {constraint+tol:.6e}")
-    self.last_constraints[iconstraint] = constraint+tol
+    print(f"Current {self.constraints[iconstraint].name} (constraint): {constraint:.6e}")
+    self.last_constraints[iconstraint] = constraint
     self.last_grad_constraints[iconstraint] = grad.copy()
-    return constraint
+    return constraint - the_constraint.__get_constraint_tol__()
     
   
   
@@ -321,11 +320,15 @@ class Steady_State_Crafter:
     #in case of face output
     
     #initialize adjoint for objective function
-    if self.obj.__get_solved_variables_needed__() and (self.obj.adjoint is None):
-      if len(self.obj.__get_solved_variables_needed__()) == 1: #one variable
+    #TODO: what happen for 2 variables butlowly or highly coupled ??
+    if self.obj.adjoint is None: #could have been set by user
+      if len(self.obj.__get_solved_variables_needed__()) == 0: #no adjoint required
+        adjoint = No_Adjoint(self.mat_props, self.p_ids)
+      elif len(self.obj.__get_solved_variables_needed__()) == 1: #one variable
         adjoint = Sensitivity_Steady_Simple(self.obj.__get_solved_variables_needed__(),
                                        self.mat_props, self.solver, self.p_ids)
-        self.obj.set_adjoint_problem(adjoint)
+      self.obj.set_adjoint_problem(adjoint)
+      
     self.obj.set_p_to_cell_ids(self.p_ids)
     
     #initialize adjoint for constraints
@@ -336,7 +339,7 @@ class Steady_State_Crafter:
       if constraint.adjoint is None:
         if len(constraint.__get_solved_variables_needed__()) == 0:
           adjoint = No_Adjoint(self.mat_props, self.p_ids)
-        if len(constraint.__get_solved_variables_needed__()) == 1:
+        elif len(constraint.__get_solved_variables_needed__()) == 1:
           adjoint = Sensitivity_Steady_Simple(constraint.__get_solved_variables_needed__(),
                                              self.mat_props, self.solver, self.p_ids)
         constraint.set_adjoint_problem(adjoint)

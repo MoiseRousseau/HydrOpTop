@@ -16,6 +16,7 @@ class Density_Filter(Base_Filter):
                         {R^n V_i + \sum_{j \in \partial i} (R-d_{ij})^n V_j}
       
     This filter was proposed by Bruns and Tortorelli (2001) and Bourdin (2001). 
+    Usefull to remove numerical instability and deals with the checkboard effect.
 
   Parameters:
     ``filter_radius`` (float or list): the ball radius (float value) on which

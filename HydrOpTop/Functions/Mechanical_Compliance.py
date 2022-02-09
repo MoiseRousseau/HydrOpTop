@@ -5,8 +5,22 @@ from .Base_Function_class import Base_Function
 
 
 class Mechanical_Compliance(Base_Function):
-  """
-  Base function class which implement
+  r"""
+  Description:
+    Calculate the mechanical compliance defined as:
+    
+    .. math::
+       
+       f = F^T \cdot u
+    
+    Where :math:`F^T` is the transport of the load vector :math:`F` and :math:`u` the displacement vector
+    
+  Parameters:
+    No parameters. Compliance is calculation considering the whole computational domain
+  
+  Output variable needed:
+    ``DISPLACEMENTS`` and ``MECHANICAL_LOAD``.
+  
   """
   def __init__(self, ids_to_consider="everywhere"):
     super(Mechanical_Compliance, self).__init__()
