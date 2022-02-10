@@ -3,12 +3,15 @@ import numpy as np
 import meshio
 
 class IO:
-  """
-  !Main class for input output
-  Input:
-  @param filename: output file for density parameter
-  @param fileformat: output file format (xdmf, vtk)
-  @param logfile: log filename (for cost function value, constrain, ...)
+  r"""
+  Default initializer of the Input/Output class.
+    
+  By default, output optimization results (i.e. density parameter `p`) in file ``HydrOpTop.vtu`` and keep a trace of the history of the cost function and constraints in ``HydrOpTop.txt``.
+  
+  Methods available:
+  
+  |
+  
   """
   def __init__(self, filename="HydrOpTop", logfile="out.txt", fileformat="vtu"):
     self.output_filename = filename
@@ -17,7 +20,7 @@ class IO:
     self.output_file = None
     
     self.cf_name = "cf"
-    self.constrains_names = ["constrain"]
+    self.constrains_names = ["constraint"]
     
     self.output_every = 0
     self.output_number = 0
@@ -29,57 +32,149 @@ class IO:
     self.vertices = None
     self.elements = None
     self.var_loc = None
-    
     return
   
-  def define_output_file(self,f):
-    self.output_filename = f
+  
+  def define_output_file(self, filename):
+    r"""
+    Description:
+      Define the output file name (without its extension) where to save the optimization results.
+      Extension are automatically added based on output file format chosen (see method ``define_output_format``)
+    
+    Parameters:
+      ``filename`` (str): the output file name (default=``"HydrOpTop"`` )
+    
+    |
+    """
+    self.output_filename = filename
     return
+  
   
   def define_output_format(self, f):
+    r"""
+    Description:
+      Set the output format.
+        
+    Parameters:
+      ``f`` (str): the format. Must be one of ``["med", "vtu", "xdmf"]``
+    
+    |
+    
+    """
     self.output_format = f
     return
   
-  def define_output_log(self, f):
-    self.output_log_name = f
+  
+  def define_output_log(self, filename):
+    r"""
+    Decription:
+      Define the output file name (without extension) where the history of the cost function value and constraints are stored.
+      Extension ``.txt`` will be automatically added to the file name provided.
+    
+    Parameters:
+      ``filename`` (str): the filename (default: ``"out.txt"``)
+    
+    |
+    
+    """
+    self.output_log_name = filename
     return
   
+  
   def no_output_initial(self):
+    r"""
+    Description: 
+      By default, HydrOpTop output the initial density parameters and other programmed variables. This command cancel this behavior.
+    
+    Parameters:
+      No parameters.
+    
+    |
+    
+    """
     self.output_initial = False
     return
   
-  def output_every_iteration(self, every_it):
-    """
-    Define the periodic iteration at which to output the material parameter p, the gradient, and the material properties (default 0, no output).
-    """
-    self.output_every = every_it
-    return
+  
+  def output_every_iteration(self, n):
+    r"""
+    Decription:
+      Specify to output the density parameter :math:`p` every :math:`n` iteration in file and format specified in ``define_output_file()`` and ``define_output_format()`` methods.
     
-  def output_gradient(self,x=True):
-    """
-    Enable output the gradient of the cost function wrt p (default False)
-    """
-    self.output_gradient_obj = x
-    return
+    Parameters:
+      ``n`` (int): the iteration interval, ex. ``n=2`` for every two iteration.
+      
+    |
     
-  def output_gradient_constraints(self,x=True):
     """
-    Enable output the constrain and their gradient wrt p (default False)
-    """
-    self.output_grad_constraints = x
+    self.output_every = n
     return
+  
+  
+  def output_gradient(self):
+    r"""
+    Description:
+      Enable writing the gradient of the objective function relative to the density parameter :math:`p` in the output file.
+      
+    Parameters:
+      No parameters
     
+    |
+    
+    """
+    self.output_gradient_obj = True
+    return
+  
+  
+  def output_gradient_constraints(self):
+    r"""
+    Description:
+      Enable writing the gradient of the constraints relative to the density parameter :math:`p`.
+    
+    Parameters:
+      No Parameters
+    
+    |
+    
+    """
+    self.output_grad_constraints = True
+    return
+  
+  
+  def output_material_properties(self):
+    r"""
+    Description:
+      Enable writing the material properties at parametrized cells.
+    
+    Parameters:
+      No parameters
+    
+    |
+    
+    """
+    self.output_mat_props = True
+    return
+  
+  
   def communicate_functions_names(self, cf, constrains):
     self.cf_name = cf
     self.constrains_names = constrains
   
-  def output(self, it, cf, constrains_val, p_raw, grad_cf, grad_constraints, p_filtered=None, val_at=None):
+  def output(self, it, #iteration number
+             cf, #cost function value
+             constraints_val, #constraints value
+             p_raw, #raw density parameter (not filtered)
+             grad_cf, # d(cost function) / d p
+             grad_constraints, # d(constraints) / d p
+             mat_props, # parametrized mat props (dict)
+             p_filtered, #filtered density parameters
+             val_at=None): # cell/node ids corresponding to dataset
     if not self.initialized: self.initiate_output() 
     
     #output to log
     out = open(self.output_log_name, 'a')
     out.write(f"{it}\t{cf:.6e}")
-    for c in constrains_val:
+    for c in constraints_val:
       out.write(f"\t{c:.6e}")
     out.write("\n")
     out.close()
@@ -105,11 +200,15 @@ class IO:
     #add gradient
     if self.output_gradient_obj:
       dict_var[f"Gradient d{self.cf_name}_dp"] = self.correct_dataset_length(grad_cf, val_at)
-    #add gradient constrain
+    #add gradient constraint
     if self.output_grad_constraints:
       for i,grad in enumerate(grad_constraints):
         dict_var[f"Gradient d{self.constrains_names[i]}_dp"] = \
                                 self.correct_dataset_length(grad, val_at)
+    #add mat props
+    if self.output_mat_props:
+      for mat_name, X in mat_props.items():
+        dict_var[mat_name] = self.correct_dataset_length(X, val_at)
     
     self.outputter.write(dict_var, self.output_number)
     self.output_number += 1
@@ -173,7 +272,9 @@ class IO:
       ``Xname`` (list of str): The dataset names. Must be ordered the same as X.
       
       ``at_ids`` (numpy array): If the X datasets does not span the whole simulation domain, the ``at_ids`` array give the point/cell ids corresponding to the given data.
-      
+    
+    |
+    
     """
     if Xname is None:
       Xname = [f"Field{i}" for i in range(X)]

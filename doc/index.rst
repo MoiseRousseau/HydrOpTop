@@ -4,11 +4,20 @@
    contain the root `toctree` directive.
 
 Welcome to HydrOpTop's documentation!
-=====================================
-
+-------------------------------------
 
 Overview
 ========
+
+HydrOpTop is a Python library which aims to provide a modular, flexible and solver-independant approach for topology optimization (TO) using the densoty-based approach.
+Solver are interfaced using a I/O shield, which thus allow to define cost function, constraints and filters in a reusable manner for different softwares and codes.
+Also, objective functions and constraints are implemented under the same class and without distinction, which means they can be interchanged effortlessly.
+Base classes for cost functions/constraints, material parametrizations and filters are also provided so user may define they own TO features with a minimal amount of code.
+Therefore, HydrOpTop aims to be the Swiss army knife and a standard exchange place for state-of-the-art tools in TO.
+
+
+Purpose
+=======
 
 ..
   One may think of what would be the shape of a mechanical part such as its mechanical compliance is being minimized while a volume constraint is applied. 

@@ -136,6 +136,7 @@ class Steady_State_Crafter:
                    self.last_p, 
                    self.last_grad, 
                    self.last_grad_constraints, 
+                   {x.get_name():x.convert_p_to_mat_properties(self.last_p_bar) for x in self.mat_props},
                    self.last_p_bar,
                    val_at=self.p_ids-1)
     return
