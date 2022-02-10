@@ -8,7 +8,7 @@ import numpy as np
                                   
 from HydrOpTop.Functions import Mechanical_Compliance, Volume_Percentage
 from HydrOpTop.Materials import SIMP
-from HydrOpTop.Filters import Density_Filter
+from HydrOpTop.Filters import Density_Filter, Heavyside_Filter
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Solvers import Linear_Elasticity_2D
 
@@ -31,10 +31,11 @@ if __name__ == "__main__":
   
   #define filter
   dfilter = Density_Filter(0.3)
+  hfilter = Heavyside_Filter(0.5, 1)
   
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
-  crafted_problem = Steady_State_Crafter(max_vol, sim, [young_modulus], [MC], filters=[dfilter])
+  crafted_problem = Steady_State_Crafter(max_vol, sim, [young_modulus], [MC], filters=[dfilter, hfilter])
   crafted_problem.IO.output_every_iteration(2)
   crafted_problem.IO.define_output_format("vtu")
   
@@ -43,6 +44,19 @@ if __name__ == "__main__":
   
   #optimize in several pass to reach discrete distribution
   out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=50, ftol=1e-10, initial_guess=p_ini)
+  
+  hfilter.stepness = 2
+  out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", 
+                                   max_it=20, initial_guess=out.p_opt)
+  hfilter.stepness = 4
+  out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", 
+                                   max_it=20, initial_guess=out.p_opt)
+  hfilter.stepness = 8
+  out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", 
+                                   max_it=20, initial_guess=out.p_opt)
+  hfilter.stepness = 20
+  out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", 
+                                   max_it=30, initial_guess=out.p_opt)
   
   crafted_problem.IO.write_fields_to_file([out.p_opt_filtered], "./out.vtu", ["Filtered_density"])
   

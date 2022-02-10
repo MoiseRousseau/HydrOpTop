@@ -45,7 +45,9 @@ class Steady_State_Crafter:
     self.first_call_evaluation = True
     self.first_call_gradient = True
     self.func_eval = 0
+    self.iteration = 0
     self.last_p = None
+    self.last_grad = None
     self.last_p_bar = None
     self.first_cf = None
     self.first_p = None
@@ -184,7 +186,8 @@ class Steady_State_Crafter:
                      density_parameter_bounds=[0.001, 1],
                      tolerance_constraints=0.005,
                      max_it=50,
-                     ftol=None):
+                     ftol=None,
+                     options={}):
     self.first_cf = None
     ### DEFAULT INPUTS
     if initial_guess is None:
@@ -221,12 +224,75 @@ class Steady_State_Crafter:
       except(KeyboardInterrupt):
         p_opt = self.last_p
     
+    
+    elif optimizer in ["scipy-SLSQP", "scipy-trust-constr"]:
+      from scipy.optimize import minimize, NonlinearConstraint
+      algo = optimizer[6:]
+      options["maxiter"] = max_it
+      consts = []
+      for constraint in self.constraints:
+        const = NonlinearConstraint(lambda p: self.scipy_constraint_val(constraint,p),
+                                    -np.inf, 0,
+                                    jac=lambda p: self.scipy_constraint_jac(constraint,p))
+        consts.append(const)
+      p_opt = minimize(self.scipy_function_to_optimize, 
+                       method=algo,
+                       jac=self.scipy_jac, 
+                       x0=initial_guess, 
+                       bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0),
+                       constraints=consts, 
+                       tol=ftol,
+                       options=options,
+                       callback=self.scipy_callback)
+      
+    
+    elif optimizer == "cyipopt":
+      import cyipopt
+      #define problem class
+      class Pb:
+        def __init__(self,this):
+          self.this = this
+        def objective(self, p):
+          return self.this.scipy_function_to_optimize(p)
+        def gradient(self, p):
+          return self.this.scipy_jac(p)
+        def constraints(self, p):
+          vals = [self.this.scipy_constraint_val(x,p) for x in self.this.constraints]
+          return np.array(vals)
+        def jacobian(self, p):
+          grads = [self.this.scipy_constraint_jac(x,p) for x in self.this.constraints]
+          return np.concatenate(grads)
+        def intermediate(self, alg_mod, iter_count, obj_value, inf_pr, inf_du, mu,
+                         d_norm, regularization_size, alpha_du, alpha_pr,
+                         ls_trials):
+          print(f"Current {self.this.obj.name} (cost function): {obj_value:.6e}")
+          for name,val in self.this.last_constraints.items():
+            print(f"Current {name} (constraint): {val:.6e}")
+          print(f"End of iteration {iter_count}")
+          self.this.output_to_user()
+          print("-------------------------------------\n")
+          return
+      
+      nlp = cyipopt.Problem(n=len(initial_guess),
+                    m=len(self.constraints),
+                    problem_obj=Pb(self),
+                    lb=[density_parameter_bounds[0] for x in initial_guess],
+                    ub=[density_parameter_bounds[1] for x in initial_guess],
+                    cl=[0 for x in self.constraints],
+                    cu=[1e40 for x in self.constraints])
+      nlp.add_option("tol", ftol)
+      nlp.add_option("max_iter", max_it)
+      nlp.add_option("print_level", 0)
+      for key,val in options.items():
+        nlp.add_option(key, val)
+      p_opt, info = nlp.solve(initial_guess)
+    
     else:
-      print(f"Error: Unknown optimizer \"{optimizer}\"")
+      print(f"Error: Unknown optimizer or unadapted \"{optimizer}\"")
       return None
       
     #print output
-    self.output_to_user()
+    #self.output_to_user()
     print("END!")
     
     out = Output_Struct(p_opt)
@@ -237,12 +303,10 @@ class Steady_State_Crafter:
     return out
     
   
-  
-  ### READY MADE WRAPPER FOR POPULAR LIBRARY ###
+  ######################
+  ### NLOPT FUNCTION ###
+  ######################
   def nlopt_function_to_optimize(self, p, grad):
-    """
-    Cost function to pass to NLopt method "set_min/max_objective()"
-    """
     #save last iteration
     if self.func_eval != 0:
       self.output_to_user()
@@ -259,7 +323,7 @@ class Steady_State_Crafter:
       grad[:] = self.evaluate_total_gradient(self.obj, p, p_bar)
     #save for output at next iteration
     self.last_cf = cf
-    self.last_grad = grad.copy()
+    self.last_grad[:] = grad
     self.last_p[:] = p
     if self.filters:
       self.last_p_bar = p_bar
@@ -272,7 +336,6 @@ class Steady_State_Crafter:
     print(f"Max gradient: {np.max(grad*self.first_cf):.6e} at cell id {np.argmax(grad)+1}")
     return cf
     
-  
   def nlopt_constraint(self, i):
     """
     Function defining the ith constraints to pass to nlopt "set_(in)equality_constraint()"
@@ -287,12 +350,57 @@ class Steady_State_Crafter:
     if grad.size > 0:
       grad[:] = self.evaluate_total_gradient(the_constraint, p, p_bar)
     
-    print(f"Current {self.constraints[iconstraint].name} (constraint): {constraint:.6e}")
-    self.last_constraints[iconstraint] = constraint
-    self.last_grad_constraints[iconstraint] = grad.copy()
+    c_name = self.constraints[iconstraint].name
+    print(f"Current {c_name} (constraint): {constraint:.6e}")
+    self.last_constraints[c_name] = constraint
+    self.last_grad_constraints[c_name] = grad.copy()
     return constraint - the_constraint.__get_constraint_tol__()
     
+    
+  ########################
+  ###  SCIPY FUNCTIONS ###
+  ########################
+  def scipy_run_sim(self, p):
+    if not np.allclose(p, self.last_p):
+      self.func_eval += 1
+      self.last_p_bar[:] = self.pre_evaluation_objective(p)
+      self.last_p[:] = p
+    return
   
+  def scipy_function_to_optimize(self,p):
+    self.scipy_run_sim(p)
+    cf = self.obj.evaluate(self.last_p_bar)
+    self.last_cf = cf  
+    return cf
+  
+  def scipy_jac(self,p):
+    self.scipy_run_sim(p)
+    grad = self.evaluate_total_gradient(self.obj, self.last_p, self.last_p_bar)
+    self.last_grad[:] = grad
+    return grad
+  
+  def scipy_constraint_val(self, constraint, p):
+    self.scipy_run_sim(p)
+    val = constraint.evaluate(self.last_p_bar)
+    self.last_constraints[constraint.name] = val
+    return -val + constraint.__get_constraint_tol__()
+  
+  def scipy_constraint_jac(self, constraint, p):
+    self.scipy_run_sim(p)
+    grad = -self.evaluate_total_gradient(constraint, p, self.last_p_bar) #don't forget the minus
+    self.last_grad_constraints[constraint.name] = grad.copy()
+    return grad
+  
+  def scipy_callback(self):
+    #self.output_to_user()
+    self.iteration += 1
+    print(f"\nIteration {self.iteration}")
+    print(f"Solver call: {self.func_eval}")
+    print(f"Current {self.obj.name} (cost function): {cf:.6e}")
+    for name,val in self.last_constraints.items():
+      print(f"Current {name} (constraint): {val:.6e}")
+    return
+    
   
   
   ### INITIALIZATION ###
@@ -315,6 +423,9 @@ class Steady_State_Crafter:
       self.problem_size = len(X)
       self.p_ids = X #from 0 based indexing to solver indexing
     self.last_p = np.zeros(len(self.p_ids),dtype='f8')
+    self.last_grad = np.zeros(len(self.p_ids),dtype='f8')
+    if self.constraints:
+      self.last_p_bar = np.zeros(len(self.p_ids),dtype='f8')
     
     #initialize solver output for objective function
     #do not set inputs array because we don't know the size of the connection_ids
@@ -333,8 +444,8 @@ class Steady_State_Crafter:
     self.obj.set_p_to_cell_ids(self.p_ids)
     
     #initialize adjoint for constraints
-    self.last_constraints = [0. for x in self.constraints]
-    self.last_grad_constraints = [None for x in self.constraints]
+    self.last_constraints = {x.name:0. for x in self.constraints}
+    self.last_grad_constraints = {x.name:None for x in self.constraints}
     for constraint in self.constraints:
       constraint.set_p_to_cell_ids(self.p_ids)
       if constraint.adjoint is None:

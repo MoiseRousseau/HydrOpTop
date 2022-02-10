@@ -20,7 +20,6 @@ class IO:
     self.output_file = None
     
     self.cf_name = "cf"
-    self.constrains_names = ["constraint"]
     
     self.output_every = 0
     self.output_number = 0
@@ -69,8 +68,7 @@ class IO:
   def define_output_log(self, filename):
     r"""
     Decription:
-      Define the output file name (without extension) where the history of the cost function value and constraints are stored.
-      Extension ``.txt`` will be automatically added to the file name provided.
+      Define the output file name (with extension) where the history of the cost function value and constraints are stored.
     
     Parameters:
       ``filename`` (str): the filename (default: ``"out.txt"``)
@@ -159,7 +157,6 @@ class IO:
   
   def communicate_functions_names(self, cf, constrains):
     self.cf_name = cf
-    self.constrains_names = constrains
   
   def output(self, it, #iteration number
              cf, #cost function value
@@ -170,12 +167,12 @@ class IO:
              mat_props, # parametrized mat props (dict)
              p_filtered, #filtered density parameters
              val_at=None): # cell/node ids corresponding to dataset
-    if not self.initialized: self.initiate_output() 
+    if not self.initialized: self.initiate_output(constraints_val) 
     
     #output to log
     out = open(self.output_log_name, 'a')
     out.write(f"{it}\t{cf:.6e}")
-    for c in constraints_val:
+    for c in constraints_val.values():
       out.write(f"\t{c:.6e}")
     out.write("\n")
     out.close()
@@ -203,8 +200,8 @@ class IO:
       dict_var[f"Gradient d{self.cf_name}_dp"] = self.correct_dataset_length(grad_cf, val_at)
     #add gradient constraint
     if self.output_grad_constraints:
-      for i,grad in enumerate(grad_constraints):
-        dict_var[f"Gradient d{self.constrains_names[i]}_dp"] = \
+      for name,grad in grad_constraints.items():
+        dict_var[f"Gradient d{name}_dp"] = \
                                 self.correct_dataset_length(grad, val_at)
     #add mat props
     if self.output_mat_props:
@@ -228,12 +225,12 @@ class IO:
     X_new[val_at] = X
     return X_new
     
-  def initiate_output(self):
+  def initiate_output(self, constraints_val):
     self.initialized = True
     #initiate log
     out = open(self.output_log_name, 'w')
     out.write(f"Iteration\t{self.cf_name}")
-    for name in self.constrains_names:
+    for name in constraints_val.keys():
       out.write(f"\t{name}")
     out.write('\n')
     out.close()
