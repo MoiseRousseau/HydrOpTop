@@ -27,6 +27,7 @@ class IO:
     self.output_gradient_obj = False
     self.output_grad_constraints = False
     self.output_initial = True
+    self.output_mat_props = False
     self.initialized = False
     
     self.vertices = None
