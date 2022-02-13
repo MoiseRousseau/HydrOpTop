@@ -17,3 +17,6 @@ article/
 *.stress
 *.bin
 MinimalFEM
+build/*
+dist/*
+*.egg-info

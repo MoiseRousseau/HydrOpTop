@@ -8,6 +8,21 @@ Also, objective functions and constraints are implemented under the same class a
 Base classes for cost functions/constraints, material parametrizations and filters are also provided so user may define they own TO features with a minimal amount of code.
 
 
+## Features
+
+* Distribute two materials (one could be void) in a domain such as an objective function is minimize/maximize.
+
+* Handle any solvers through dedicaced input/output shield.
+
+* Couple any solvers with any objective functions, filters or constraints once written for one and for all.
+
+* Allow users to define well written topology optimization problem in few lines.
+
+* Write results in common and open format to create great graphics and visualization.
+
+* Solve topology optimization problem constrained by one PDE (for instance) as well as various coupled PDE and time dependent problems (in the futur). By extension, any large scale inverse problem can be solved (geophysics, calibration, ...).
+
+
 ## Getting started
 
 ### Documentation

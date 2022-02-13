@@ -41,11 +41,11 @@ Main features
 
 * Distribute two materials (one could be void) in a domain such as an objective function is minimize/maximize.
 
-* Handle any solvers through dedicaced input/output shell solver specific (but which need to be written).
+* Handle any solvers through dedicaced input/output shield.
 
 * Couple any solvers with any objective functions, filters or constraints once written for one and for all.
 
-* Allow users to define well written tpology optimization problem in few lines.
+* Allow users to define well written topology optimization problem in few lines.
 
 * Write results in common and open format to create great graphics and visualization.
 
