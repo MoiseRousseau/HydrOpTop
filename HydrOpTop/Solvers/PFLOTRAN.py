@@ -10,9 +10,22 @@ default_viscosity = 8.904156e-4
 default_water_density = 997.16
 
 class PFLOTRAN:
-  """
-  This class make the interface between PFLOTRAN and the calculation
-  of sensitivity derivative and the input
+  r"""
+  Description:
+    IO shield to PFLOTRAN solver
+  
+  Parameters:
+    ``pflotranin`` (str): path to the PFLOTRAN input file
+    
+    ``mesh_info`` (str): path to a PFLOTRAN output file containing simulation independant PFLOTRAN output variable such as the mesh informations (face area or cell volume for example).
+    Providing mesh information can help reduce the size of PFLOTRAN output file at every iteration, therefore saving time and increase the life of your SSD!
+  
+  Differentiated design variables: 
+    ``PERMEABILITY``
+  
+  Differentiated output variables:
+    ``PRESSURE``
+  
   """
   def __init__(self, pft_in, mesh_info=None):
     #input related
@@ -74,12 +87,14 @@ class PFLOTRAN:
     return
     
   def set_parallel_calling_command(self, processes, command):
-    """
-    Specify the command line argument for running PFLOTRAN related to 
-    parallelization.
-    Arguments:
-    - processes: the number of core to run PFLOTRAN (the -n argument for mpirun)
-    - command: the MPI command (example: mpiexec.mpich)
+    r"""
+    Description:
+      Set the number of process :math:`n` to run and the command to call (default is `mpiexec.mpich`)
+    
+    Parameters:
+      ``processes`` (int): the number of core to run PFLOTRAN (the -n argument for mpirun)
+      ``command`` (str): the MPI command (example: ``mpiexec.mpich``)
+    
     """
     self.mpicommand = command
     self.nproc = processes
@@ -98,9 +113,16 @@ class PFLOTRAN:
   
   # interacting with data #
   def get_region_ids(self, reg_name):
-    """
-    Return the cell ids associated to the given region:
-    - reg_name: the name of the region to get the ids.
+    r"""
+    Description:
+      Interact with the REGION card defined in the PFLOTRAN input file
+    
+    Parameters:
+      ``reg_name`` (str): Name of the region in PFLOTRAN input file
+      
+    Return:
+      A numpy 1D array containing the cell ID belonging to the region ``reg_name`` as in the PFLOTRAN input file.
+    
     """
     #look for region in pflotran input
     filename = ""
@@ -135,10 +157,16 @@ class PFLOTRAN:
     return cell_ids 
   
   def get_connections_ids_integral_flux(self, integral_flux_name):
-    """
-    Return the cell ids associated to the given integral flux
-    Argument:
-    - integral_flux_name: the name of the integral flux to get the ids.
+    r"""
+    Description:
+      Read the INTEGRAL_FLUX card and return the faces considered
+    
+    Parameters:
+      ``integral_flux_name`` (str): The name of the integral flux
+    
+    Return:
+      A ``numpy`` array of size (n,2) of the n faces defined by the two cell ids sharing each face.
+    
     """
     found = False
     #find the integral flux in input deck
@@ -174,18 +202,23 @@ class PFLOTRAN:
   
   def create_cell_indexed_dataset(self, X_dataset, dataset_name, h5_file_name="",
                                   X_ids=None, resize_to=True):
-    """
-    Create a PFLOTRAN cell indexed dataset.
-    Arguments:
-    - X_dataset: the dataset
-    - dataset_name: its name (need to be the same as in PFLOTRAN input deck)
-    - h5_file_name: the name of the h5 output file (same as in PFLOTRAN input deck)
-    - X_ids: the cell ids matching the dataset value in X
-             (i.e. if X_ids = [5, 3] and X_dataset = [1e7, 1e8],
-             therefore, cell id 5 will have a X of 1e7 and 3 with 1e8).
-             By default, assumed in natural order
-    - resize_to: boolean for resizing the given dataset to number of cell
-                 (default = True)
+    r"""
+    Description:
+      Create a PFLOTRAN cell indexed dataset.
+      
+    Parameters:
+      ``X_dataset`` (numpy array): The dataset to write
+      
+      ``dataset_name`` (str): he dataset name (need to be the same as in PFLOTRAN input deck)
+      
+      ``h5_file_name`` (str): the name of the h5 output file (same as in PFLOTRAN input deck)
+      
+      ``X_ids`` (numpy array): the cell ids matching the dataset value in X
+      (i.e. if X_ids = [5, 3] and X_dataset = [1e7, 1e8], therefore, cell id 5
+      will have a X of 1e7 and 3 with 1e8). By default, assumed in natural order
+      
+      ``resize_to`` (bool): boolean for resizing the given dataset to number of cell (default = True)
+    
     """
     #first cell is at i = 0
     if not h5_file_name: h5_file_name=dataset_name.lower()+'.h5'
@@ -287,9 +320,6 @@ class PFLOTRAN:
   
   # running
   def run(self):
-    """
-    Run PFLOTRAN. No argument method
-    """
     if self.no_run: return 0
     print("Running PFLOTRAN: ",end='')
     if self.mpicommand:
@@ -329,13 +359,17 @@ class PFLOTRAN:
   
   
   def get_output_variable(self, var, out=None, i_timestep=-1):
-    """
-    Return output variable after simulation
-    If out array is provided, copy variable to array, else, create a new one
-    Arguments:
-    - var: the variable name as in PFLOTRAN input file under VARIABLES block
-    - out: the numpy output array (default=None)
-    - timestep: the i-th timestep to extract
+    r"""
+    Description:
+      Return output variable after simulation.
+      
+    Parameters:
+      ``var`` (str): the variable name as in PFLOTRAN input file under VARIABLES block
+      
+      ``out`` (numpy array): the numpy output array. If no array if provided, a new one is created
+      
+      ``timestep`` (int): the i-th timestep to extract (not working yet)
+    
     """
     if var == "CONNECTION_IDS":
       return self.get_internal_connections()
@@ -402,15 +436,6 @@ class PFLOTRAN:
     return out
   
   def get_sensitivity(self, var, timestep=None, coo_mat=None):
-    # TODO: change the name of the dict_var_sensitivity to match the new output
-    """
-    Return a (3,n) shaped numpy array (I, J, data) representing the derivative
-    of the residual according to the inputed variable. Input variable must be 
-    consistent with a material property in the input deck.
-    Sensitivity outputed by PFLOTRAN is supposed to be in matlab format
-    Arguments:
-    - var: the input variable (ex: PERMEABILITY)
-    """
     if self.output_sensitivity_format == "HDF5":
        f = self.pft_out_sensitivity + '.h5'
        src = h5py.File(f, 'r')

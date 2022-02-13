@@ -10,35 +10,13 @@ These shield allow HydrOpTop to communicate parametrized cell properties to the 
 PFLOTRAN
 --------
 
-PFLOTRAN is a XXX
+PFLOTRAN is a subsurface reactive transport code.
 
-Solver installation and preparation for HydrOpTop
-'''''''''''''''''''''''''''''''''''''''''''''''''
-
-
-Interact with the solver
-''''''''''''''''''''''''
-
-Constructor is:
-
-``sim = PFLOTRAN(pflotranin, mesh_info=None)``
-
-with ``pflotranin`` the name of the PFLOTRAN input file (mandatory), and
-``mesh_info`` the path to a PFLOTRAN output file containing simulation
-independant PFLOTRAN output variable such as the mesh informations (face area or
-cell volume for example).
-Providing mesh information can help reduce the size of PFLOTRAN output file
-at every iteration, therefore saving time and increase the life of your SSD!
-
-The below PFLOTRAN specific methods are available:
-
-``sim.set_parallel_calling_command(n,command)``: Set the number of process 
-:math:`n` to run and the command to call (default is `mpiexec.mpich`)
-
-``sim.get_region_ids(name)``: Return a numpy 1D array containing the ID of the cell
-belonging to the region `name` as in the PFLOTRAN input file.
+For instance only steady state processes in Richards mode are supported.
 
 
+.. autoclass:: HydrOpTop.Solvers.PFLOTRAN
+  :members:
 
 
 Two-Dimensional Linear Elasticity

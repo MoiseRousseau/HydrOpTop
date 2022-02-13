@@ -3,6 +3,8 @@
 HydrOpTop basics
 =================
 
+NOT UP TO DATE, can be unreliable.
+
 Problem Setup
 -------------
 
