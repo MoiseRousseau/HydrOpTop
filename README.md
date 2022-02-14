@@ -28,7 +28,7 @@ Base classes for cost functions/constraints, material parametrizations and filte
 ### Documentation
 
 The present README file contains some basic information about what HydrOpTop is, how to install it and to run some examples to see what HydrOpTop is capable of (see below).
-For a deeper description of all its capacities, a larger documentation is located [here]() which the reader/user is refered.
+For a deeper description of all its capacities, a larger documentation is located [here](https://hydroptop.readthedocs.io/en/latest/) which the reader/user is refered.
 
 Note this project is young, so documentation are still in development.
 
@@ -41,9 +41,9 @@ HydrOpTop library can be easily installed using Python ``pip`` command as:
 pip install HydrOpTop
 ```
 
-Installation includes all the different HydrOpTop modules (material parametrization, functions, filters) including the solver I/O shields (see [here](https://TODO) for the list of interfaced solvers).
+Installation includes all the different HydrOpTop modules (material parametrization, functions, filters) including the solver I/O shields (see [here](https://hydroptop.readthedocs.io/en/latest/user_guide/solvers.html) for the list of interfaced solvers).
 However, solvers are in general be included, this means users need to install it manually.
-Solver installation instructions for HydrOpTop can be found in the documentation [here]().
+Solver installation instructions for HydrOpTop can be found in the documentation [here](https://hydroptop.readthedocs.io/en/latest/getting_started/installation.html).
 
 [Paraview](https://www.paraview.org/) software is also recommanded to visualize HydrOpTop results.
 
