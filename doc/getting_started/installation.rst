@@ -22,23 +22,16 @@ Shields with the supported solvers are already included, but solvers must be ins
 2D Linear Elasticity Solver
 '''''''''''''''''''''''''''
 
-0. Install ``HydrOpTop`` if not already done (see above).
-
-1. Install the required Eigen library header (On Ubuntu):
+A two-dimensional linear elasticity solver is included with HydrOpTop. 
+Source can be find at the following `GitHub repository <https://github.com/MoiseRousseau/MinimalFem-For-Topology-Optimization>`_.
+However, the solver relies on the Eigen library, so it must be installed on your system. 
+This can be done with  (On Ubuntu):
 
 .. code-block:: bash
   
-  sudo apt install libeigen3-dev
+  sudo apt install libeigen3 libeigen3-dev
 
-2. Open a Python interpretor and run:
-
-.. code-block:: python
-  
-  import HydrOpTop.Solvers.Linear_Elasticity_2D as solver
-  solver.__get_and_compile_solver__()
-
-This will automatically reach the `GitHub repository <https://github.com/MoiseRousseau/MinimalFem-For-Topology-Optimization>`_ where solver is located, and launch the compilation.
-Solver executable will be located in HydrOpTop installation directory (Python cache).
+There is no other dependencies.
 
 
 PFLOTRAN

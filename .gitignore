@@ -12,11 +12,14 @@ __pycache__/
 article/
 *.hdf
 
+#MinimalFEM simulation
 *.displacements
 *.matprops
 *.stress
 *.bin
-MinimalFEM
+
+#build module
+_skbuild/*
 build/*
 dist/*
 *.egg-info
