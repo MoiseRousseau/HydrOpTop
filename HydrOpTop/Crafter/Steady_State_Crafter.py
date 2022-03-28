@@ -495,10 +495,11 @@ class Steady_State_Crafter:
     print("""\n
 \t===================================
 \t
-\t            HydrOpTop
+\t             HydrOpTop
 \t
-\t   Topology optimization tool for
-\t      hydrogeological problem
+\t   Topology optimization using a 
+\t       modular, flexible and 
+\t    solver-independent approach
 \t
 \t               by
 \t       Moise Rousseau (2022)

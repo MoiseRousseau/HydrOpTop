@@ -1,5 +1,6 @@
 import h5py
 import numpy as np
+import matplotlib.pyplot as plt
 import meshio
 
 class IO:
@@ -294,6 +295,41 @@ class IO:
     elif self.var_loc == "point":
       mesh = meshio.Mesh(self.vertices, self.elements, point_data=dict_var)
     mesh.write(filename)
+    return
+  
+  
+  def plot_convergence_history(self, include_constraints=False):
+    r"""
+    Description:
+      Plot the convergence history of the optimization (cost function and constraints)
+    
+    Parameters:
+      ``include_constraints`` (bool): Visualize evolution of constraints values (default: ``False``)
+    
+    |
+    
+    """
+    data = np.genfromtxt(self.output_log_name, delimiter='\t', skip_header=1)
+    src = open(self.output_log_name, 'r')
+    header = src.readline()[:-1].split('\t')
+    src.close()
+    it = data[:,0]
+    fig,ax = plt.subplots()
+    ax.plot(it, data[:,1], label=header[1], color='r')
+    ax.set_xlabel("# iterations")
+    ax.set_ylabel(f"{header[1]}")
+    ax.legend()
+    
+    if include_constraints and len(header) > 2:
+      ax2 = ax.twinx()
+      for i in range(len(header)-2):
+        ax2.plot(it, data[:,i+2], label=header[i+2])
+      ax2.set_ylabel("Constraints")
+      ax2.legend()
+      
+    
+    plt.tight_layout()
+    plt.show()
     return
   
     
