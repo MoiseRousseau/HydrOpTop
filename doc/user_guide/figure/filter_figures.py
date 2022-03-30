@@ -60,7 +60,7 @@ def density_filter_fig():
 
 
 def heavyside_filter_fig():
-  from HydrOpTop.Filters import Density_Filter, Heavyside_Filter
+  from HydrOpTop.Filters import Density_Filter, Heaviside_Filter
   import utils
   seeds = np.genfromtxt("seeds.txt")
   group1 = np.genfromtxt("group1.txt",dtype='i8')
@@ -92,7 +92,7 @@ def heavyside_filter_fig():
   ax.set_ylim([0,1])
   
   ax = axarr[1,0] 
-  H1 = Heavyside_Filter(filter,0.1,5)
+  H1 = Heaviside_Filter(filter,0.1,5)
   p_til = H1.get_filtered_density(p_bar)
   mesh.plot(p_til,ax,show=False)
   ax.set_xlabel("\n(c) Projected field (Cutoff=0.1, Stepness=5)")
@@ -100,7 +100,7 @@ def heavyside_filter_fig():
   ax.set_ylim([0,1])
   
   ax = axarr[1,1] 
-  H1 = Heavyside_Filter(filter,0.1,50)
+  H1 = Heaviside_Filter(filter,0.1,50)
   p_til = H1.get_filtered_density(p_bar)
   mesh.plot(p_til,ax,show=False)
   ax.set_xlabel("\n(d) Projected field (Cutoff=0.1, Stepness=50)")
@@ -111,5 +111,5 @@ def heavyside_filter_fig():
 
 if __name__ == "__main__":
   density_filter_fig()
-  #heavyside_filter_fig()
+  #heaviside_filter_fig()
   plt.show()

@@ -22,7 +22,9 @@ constraint on the optimisation for example.
 
 .. autoclass:: HydrOpTop.Filters.Helmholtz_Density_Filter
 
-.. autoclass:: HydrOpTop.Filters.Heavyside_Filter
+|
+
+.. autoclass:: HydrOpTop.Filters.Heaviside_Filter
 
 .. figure:: figure/heavyside_filter.png
 
@@ -30,5 +32,7 @@ constraint on the optimisation for example.
    (b) the filtered density parameter with a anisotropic density filter (2nd field), 
    and (c) and (d) the projected density parameter using two heavyside density filter
    with different stepness parameter (3rd field).
+   
+|
 
-.. autoclass:: HydrOpTop.Filters.Volume_Preserving_Heavyside_Filter
+.. autoclass:: HydrOpTop.Filters.Volume_Preserving_Heaviside_Filter

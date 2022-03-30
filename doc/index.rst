@@ -9,31 +9,21 @@ Welcome to HydrOpTop's documentation!
 Overview
 ========
 
-HydrOpTop is a Python library which aims to provide a modular, flexible and solver-independant approach for topology optimization (TO) using the densoty-based approach.
-Solver are interfaced through a I/O shield, which allow to define cost function, constraints and filters in a reusable manner for different softwares and codes.
-Also, objective functions and constraints are implemented under the same class and without distinction, which means they can be interchanged effortlessly.
-Base classes for cost functions/constraints, material parametrizations and filters are also provided so user may define they own TO features with a minimal amount of code.
-Therefore, HydrOpTop aims to be the Swiss army knife and a standard exchange place for state-of-the-art tools in TO.
-
-Note, this library is in its first versions, so syntax may change fast and without notice. Once a certain stability will be reach, a first stable version will be released.
-
-
-Purpose
-=======
-
 HydrOpTop adresses the general problem of finding the optimal design of a system to maximize its performances and submitted to some constrains by the means of topology optimization techniques with the density-based approach in various engineering disciplines.
 One may think of what would be the shape of a mechanical part such as its mechanical compliance is being minimized while a volume constraint is applied. 
 Or, another wants to maximize the draining capacity of a soil by smarter drain placement.
 Another again would like to dissipate as efficiently as possible heat by an optimized heat exchanger.
 HydrOpTop permits to solve all of these problems and in these various disciplines by using a unified software. 
 The idea behind this library was that topology optimization software generally rely on on-purpose developped solver and on specific syntax, on which user may be reluctant to switch or to learn. 
-Using HydrOpTop and with few modification of their solver codes (if not already carried by a third-person), user could thus used their favorite software to perform topology optimization problems.
+Using HydrOpTop and with few modifications of their solver codes (if not already carried by a third-person), user could thus used their favorite software to solve topology optimization problems.
 
-HydrOpTop consists of several Python classes, ready-made functions to optimize
-or to use as constrains, preprogrammed material parametrizations and optimization algortihms that 
-allow the user to perform topology optimization effortlessly. 
-It can also operate with many different solvers through solver-specific shields.
-For instance, a finite element 2-dimensional linear elasticity solver is integrated, along with the subsurface reactive transport finite volume code PFLOTRAN (see :doc:`user_guide/solvers` section in user guide).
+HydrOpTop is a Python library which aims to provide a modular, flexible and solver-independant approach for topology optimization (TO) using the density-based approach.
+Solver are interfaced through a I/O shield, which allow to define cost function, constraints and filters in a reusable manner for different softwares and codes.
+Also, objective functions and constraints are implemented under the same class and without distinction, which means they can be interchanged effortlessly.
+Base classes for cost functions/constraints, material parametrizations and filters are also provided so user may define they own TO features with a minimal amount of code.
+Therefore, HydrOpTop aims to be the Swiss army knife and a standard exchange place for state-of-the-art tools in TO.
+
+Note, this library is in its first versions, so syntax may change fast and without notice. Once a certain stability will be reach, a first stable version will be released.
 
 
 Main features
@@ -85,7 +75,7 @@ Other examples, less detailled however, are also available in :doc:`examples/exa
 From this, every new HydrOpTop problem can be build using the same structure and by modifying few commands.
 Detail of all the available solvers (including their installation), objective functions, filters, materials parametrization and adjoints solving method are described in the :doc:`user_guide/index_user`.
 
-Finally, for those interesting in the HydrOpTop machinery including the implementation of the different adjoints equations and the development of new functions, solvers shields, filters, and so on, the section :doc:`machinery/index_machinery` is for them.
+Finally, for those interesting in the HydrOpTop machinery including the implementation of the different adjoints equations and the development of new functions, solvers shields, filters, and so on, the section :doc:`getting_started/how_it_works` is for them.
 
 
 Index
