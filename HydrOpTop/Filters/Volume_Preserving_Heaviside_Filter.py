@@ -4,11 +4,11 @@ from .Base_Filter_class import Base_Filter
 from ..Functions.Volume_Percentage import Volume_Percentage
 from scipy.optimize import root_scalar
 
-class Volume_Preserving_Heavyside_Filter(Base_Filter):
+class Volume_Preserving_Heaviside_Filter(Base_Filter):
   r"""
   Description:
     A variation of the previous filter.
-    Apply the smooth Heavyside function to the density parameter with a given
+    Apply the smooth Heaviside function to the density parameter with a given
     steepness and cutoff according to Xu et al. (2009):
 
     .. math::
@@ -24,7 +24,7 @@ class Volume_Preserving_Heavyside_Filter(Base_Filter):
   Parameters:
     ``cutoff`` (float): the cutoff parameter :math:`\eta` (i.e. the value of :math:`p_i` where the step is located)
     
-    ``steepness`` (float): the steepness of the smooth Heavyside function :math:`\beta`. 
+    ``steepness`` (float): the steepness of the smooth Heaviside function :math:`\beta`. 
   
   
   Required solver outputs:
@@ -70,7 +70,7 @@ class Volume_Preserving_Heavyside_Filter(Base_Filter):
     return d_p
   
   def update_stepness(self, stepness, ref_vol=None, autocorrect=True):
-    print('\nUpdate Volume Preserving Heavyside Filter')
+    print('\nUpdate Volume Preserving Heaviside Filter')
     print(f"Update from {self.stepness} to {stepness}")
     if not isinstance(self.vol_constraint, Volume_Percentage):
       print("Error, constraint must be of type Volume_Percentage")

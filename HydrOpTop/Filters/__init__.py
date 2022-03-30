@@ -4,9 +4,9 @@
 #more more https://link.springer.com/article/10.1007/s00158-019-02194-x
 
 from .Density_Filter import Density_Filter
-from .Volume_Preserving_Heavyside_Filter import \
-                                Volume_Preserving_Heavyside_Filter
+from .Volume_Preserving_Heaviside_Filter import \
+                                Volume_Preserving_Heaviside_Filter
 from .No_Filter import No_Filter
-from .Heavyside_Filter import Heavyside_Filter
+from .Heaviside_Filter import Heaviside_Filter
 from .Helmholtz_Density_Filter import Helmholtz_Density_Filter
 from .Base_Filter_class import Base_Filter

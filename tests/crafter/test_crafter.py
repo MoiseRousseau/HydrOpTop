@@ -128,13 +128,13 @@ class Test_Crafter:
     """
     Test adjoint derivative compared to analytical value with filter
     """
-    from HydrOpTop.Filters import Heavyside_Filter
+    from HydrOpTop.Filters import Heaviside_Filter
     p = self.A
     solver = Dummy_Simulator(problem_size=len(p))
     obj = Sum_Variable("x", solved=True)
     parametrizationA = Identity("all", "a")
     solver.create_cell_indexed_dataset(self.b,"b")
-    filter_ = Heavyside_Filter()
+    filter_ = Heaviside_Filter()
     craft = Steady_State_Crafter(obj, solver, [parametrizationA], filters=[filter_])
     craft.pre_evaluation_objective(p)
     #crafter adjoint
@@ -153,13 +153,13 @@ class Test_Crafter:
     """
     Test adjoint derivative compared to analytical value with two filters
     """
-    from HydrOpTop.Filters import Heavyside_Filter
+    from HydrOpTop.Filters import Heaviside_Filter
     p = self.A
     solver = Dummy_Simulator(problem_size=len(p))
     obj = Sum_Variable("x", solved=True)
     parametrizationA = Identity("all", "a")
     solver.create_cell_indexed_dataset(self.b,"b")
-    filters = [Heavyside_Filter(), Heavyside_Filter()]
+    filters = [Heaviside_Filter(), Heaviside_Filter()]
     craft = Steady_State_Crafter(obj, solver, [parametrizationA], filters=filters)
     craft.pre_evaluation_objective(p)
     #crafter adjoint

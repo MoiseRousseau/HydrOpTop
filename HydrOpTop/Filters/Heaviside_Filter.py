@@ -2,13 +2,13 @@ import numpy as np
 from scipy.sparse import dia_matrix
 from .Base_Filter_class import Base_Filter
 
-class Heavyside_Filter(Base_Filter):
+class Heaviside_Filter(Base_Filter):
   r"""
   Decription:
-    Apply the smooth Heavyside function to the density parameter with a given
-    steepness and cutoff. Heavyside filters are usually applied on already filtered
+    Apply the smooth Heaviside function to the density parameter with a given
+    steepness and cutoff. Heaviside filters are usually applied on already filtered
     field using the previous density filter to help impose a minimum length constrain
-    and to avoid blurry contour. The smooth Heavyside function is defined as:
+    and to avoid blurry contour. The smooth Heaviside function is defined as:
 
     .. math::
       
@@ -19,7 +19,7 @@ class Heavyside_Filter(Base_Filter):
     ``cutoff`` (float): the cutoff parameter :math:`\eta` (i.e. the value of 
     :math:`p_i` where the step is located)
     
-    ``steepness`` (float): the steepness of the smooth Heavyside function :math:`\beta`
+    ``steepness`` (float): the steepness of the smooth Heaviside function :math:`\beta`
   
   Required solver output:
 
@@ -28,7 +28,7 @@ class Heavyside_Filter(Base_Filter):
     self.cutoff = cutoff
     self.stepness = steepness
     self.initialized = False
-    self.name = "Heavyside Filter"
+    self.name = "Heaviside Filter"
     return
   
   def get_filtered_density(self, p):

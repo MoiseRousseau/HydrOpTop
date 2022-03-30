@@ -20,7 +20,7 @@ class p_Gradient:
 
     Designed to be used as a constructibility constrain if material 1 could not
     be build above material 0 for example.
-    The :math:`\max()` function is represented through a smooth Heavyside function.
+    The :math:`\max()` function is represented through a smooth Heaviside function.
     The gradient :math:`\nabla p` is  evaluated using the Gauss gradient scheme
     for cell-centered finite volume solver:
 

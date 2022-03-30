@@ -1,14 +1,9 @@
-import sys
-import os
-path = os.getcwd() + '/../../'
-sys.path.append(path)
-
 import numpy as np
 import time
                                   
 from HydrOpTop.Functions import Mechanical_Compliance, Volume_Percentage
 from HydrOpTop.Materials import SIMP
-from HydrOpTop.Filters import Density_Filter, Volume_Preserving_Heavyside_Filter
+from HydrOpTop.Filters import Density_Filter, Volume_Preserving_Heaviside_Filter
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Solvers import Linear_Elasticity_2D
 
@@ -31,11 +26,11 @@ if __name__ == "__main__":
   
   #define filter
   dfilter = Density_Filter(0.3)
-  hfilter = Volume_Preserving_Heavyside_Filter(0.5, 1, max_vol)
+  hfilter = Volume_Preserving_Heaviside_Filter(0.5, 1, max_vol)
   
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
-  crafted_problem = Steady_State_Crafter(cf, sim, [perm], [max_vol], filters=[dfilter, hfilter])
+  crafted_problem = Steady_State_Crafter(cf, sim, [perm], [max_vol], filters=[dfilter, hfilter]) #apply first density filter (dfilter) and then the Heaviside filter (hfilter)
   crafted_problem.IO.output_every_iteration(2)
   crafted_problem.IO.define_output_format("vtu")
   
@@ -59,5 +54,6 @@ if __name__ == "__main__":
                                    max_it=5, initial_guess=p_opt.p_opt)
   
   crafted_problem.IO.write_fields_to_file([p_opt.p_opt_filtered], "./out.vtu", ["Filtered_density"])
+  crafted_problem.IO.plot_convergence_history()
   
   print(f"Elapsed time: {time.time()-t} seconds")

@@ -33,7 +33,7 @@ class p_Weighted_Head_Gradient(Base_Function):
     
     ``restrict_domain`` (bool): an option to calculate the gradient considering 
     only the considered cells instead considering the whole simulation. Might
-    change the gradient calculated at the boundary of the considered cells.
+    change the gradient calculated at the boundary of the optimization domain.
     
     ``invert_weighting`` (bool): can be set to ``True`` to rather consider the mean head
     gradient in the material designed by ``p=0``.

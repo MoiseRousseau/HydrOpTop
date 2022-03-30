@@ -9,15 +9,15 @@ sys.path.append(path)
 
 import numpy as np
 
-from HydrOpTop.Filters import Density_Filter, Heavyside_Filter
+from HydrOpTop.Filters import Density_Filter, Heaviside_Filter
 import utils
 
 
-class Test_Heavyside_Filter:
+class Test_Heaviside_Filter:
 
   def test_derivative(self):
     #create filter instance
-    filter = Heavyside_Filter(0.5, 1)
+    filter = Heaviside_Filter(0.5, 1)
     #sample random point
     n_pts = 500
     #np.random.seed(0)

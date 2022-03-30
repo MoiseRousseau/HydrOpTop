@@ -1,14 +1,9 @@
-import sys
-import os
-path = os.getcwd() + '/../../'
-sys.path.append(path)
 import time
-
 import numpy as np
                                   
 from HydrOpTop.Functions import Mechanical_Compliance, Volume_Percentage
 from HydrOpTop.Materials import SIMP
-from HydrOpTop.Filters import Density_Filter, Heavyside_Filter
+from HydrOpTop.Filters import Density_Filter, Heaviside_Filter
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Solvers import Linear_Elasticity_2D
 
@@ -31,7 +26,7 @@ if __name__ == "__main__":
   
   #define filter
   dfilter = Density_Filter(0.3)
-  hfilter = Heavyside_Filter(0.5, 1)
+  hfilter = Heaviside_Filter(0.5, 1)
   
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
