@@ -71,5 +71,5 @@ property :math:`X` is
 
 .. math::
    
-   \frac{\partial f}{\partial X} = \lambda^T \frac{\partial g}{\partial X} + 
+   \frac{d f}{d X} = \lambda^T \frac{\partial g}{\partial X} +
    \mu^T \frac{\partial h}{\partial X} + \frac{\partial f}{\partial X}
