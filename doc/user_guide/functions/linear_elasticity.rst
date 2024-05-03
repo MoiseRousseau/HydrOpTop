@@ -4,5 +4,5 @@
 Linear elasticity functions
 '''''''''''''''''''''''''''
 
-.. autoclass:: HydrOpTop.Functions.Mechanical_Compliance
+.. autoclass:: HydrOpTop.Functions.verification.Mechanical_Compliance
 

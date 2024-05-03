@@ -1,38 +1,28 @@
-.. sensitivity_theory:
+.. steady_state_2pde:
 
-Sensitivity calculation theory
-==============================
+Steady state, two sequentially-coupled PDEs
+===========================================
 
-
-
-Steady state, one PDE sensitivity
----------------------------------
-
-
-Transient, one PDE sensitivity
-------------------------------
-
-
-
-Steady state, two low-coupled PDEs
-----------------------------------
-
-Considering a cost function 
+Considering the transport of a dissolved species at concentration :math:`C` in groundwater with a  pressure field :math:`P` (i.e. head), a design parameter :math:`X` and a general cost function
 
 .. math::
 
-   f(V(U(X)),U(X),X)
+   f(C(P,X),P(X),X)
 
-which depends explicitely of the concentration :math:`C(P,X)`
-solved by the discretized transport equation 
+:math:`C(P,X)` is solved by the discretized transport equation 
 
 .. math::
 
-   h(C,P(X),X)
-   
-which itself depends on the pressure :math:`P` and the material property
-:math:`X` solved by the discretized Richard's equation REF, the optimization problem
-is given by
+   h(C,P(X),X) = 0
+
+and :math:`P(X)` solved by the Darcy / Richards equation
+
+.. math::
+
+   g(P(X),X) = 0
+
+
+the optimization problem is given by
 
 .. math::
    

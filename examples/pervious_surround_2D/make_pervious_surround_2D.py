@@ -29,7 +29,8 @@ if __name__ == "__main__":
   cf = Head_Gradient(pit_ids, power=1)
   
   #define maximum volume constrains
-  max_vol = Volume_Percentage(pit_ids, 0.2)
+  max_vol = Volume_Percentage(pit_ids)
+  max_vol.constraint_tol = 0.2
   
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...

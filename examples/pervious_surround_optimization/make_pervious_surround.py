@@ -1,13 +1,9 @@
+"""
+3D pervious surround
+====================
+"""
+
 import numpy as np
-import h5py
-import time
-
-#First, import necessary libraries
-import sys
-import os
-path = os.getcwd() + '/../../'
-sys.path.append(path)
-
 
 from HydrOpTop.Functions import p_Weighted_Head_Gradient, Volume_Percentage
 from HydrOpTop.Materials import Log_SIMP

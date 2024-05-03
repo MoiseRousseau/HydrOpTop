@@ -69,13 +69,12 @@ This page is a first overview on what HydrOpTop and on how to install it.
 
 Installation is first described under the section :doc:`getting_started/installation`.
 
-Then, a small, easy and detailled example is provided in the section :doc:`getting_started/your_first_optimization` to introduce users to the HydrOpTop rudimentary.
-Other examples, less detailled however, are also available in :doc:`examples/examples`.
+Other examples, less detailled however, are also available in :doc:`gallery_examples/index`.
 
 From this, every new HydrOpTop problem can be build using the same structure and by modifying few commands.
 Detail of all the available solvers (including their installation), objective functions, filters, materials parametrization and adjoints solving method are described in the :doc:`user_guide/index_user`.
 
-Finally, for those interesting in the HydrOpTop machinery including the implementation of the different adjoints equations and the development of new functions, solvers shields, filters, and so on, the section :doc:`getting_started/how_it_works` is for them.
+Finally, for those interesting in the HydrOpTop machinery including the implementation of the different adjoints equations and the development of new functions, solvers shields, filters, and so on, the section :doc:`machinery/how_it_works` is for them.
 
 
 Index
@@ -85,12 +84,10 @@ Index
   :maxdepth: 1
 
   getting_started/installation.rst
-  getting_started/your_first_optimization.rst
+  gallery_examples/index
   user_guide/index_user.rst
-  examples/examples.rst
   personalization/index_personalization.rst
-  getting_started/how_it_works.rst
-  topology_optimization_tips.rst
+  machinery/how_it_works.rst
    
 
 Citing

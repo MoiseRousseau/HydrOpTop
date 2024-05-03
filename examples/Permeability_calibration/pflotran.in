@@ -15,25 +15,19 @@ END
 
 SUBSURFACE
 
-#=========================== solver ========================================
-NUMERICAL_METHODS FLOW
-  NEWTON_SOLVER
-    NUMERICAL_JACOBIAN
-  /
-END
-
 
 #=========================== discretization ===================================
 GRID
   TYPE UNSTRUCTURED ./mesh.ugi
 END
 
-REGION opening
-  FILE ./opening.ss
-END
 
 REGION top
   FILE ./top.ss
+END
+
+REGION opening
+  FILE ./opening.ss
 END
 
 
@@ -44,13 +38,6 @@ EOS WATER
   VISCOSITY CONSTANT 8.904156d-4 Pa-s
 END
 
-SKIP
-DEBUG
-  PRINT_JACOBIAN
-  PRINT_PERMEABILITY_SENSITIVITY
-  FORMAT MATLAB
-END
-NOSKIP
 
 #=========================== material properties ==============================
 DATASET permeability
@@ -62,6 +49,7 @@ MATERIAL_PROPERTY mater
   SATURATION_FUNCTION default
   POROSITY 0.3
   PERMEABILITY
+    #PERM_ISO 1e-13
     DATASET permeability
   /
 END
@@ -107,31 +95,26 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    LIQUID_PRESSURE hydrostatic
   /
   DATUM 0 0 10
-  GRADIENT 
-    PRESSURE -0.01 0. 0.
+  LIQUID_PRESSURE 101325.
+END
+
+FLOW_CONDITION rain
+  TYPE
+    LIQUID_FLUX NEUMANN
   /
-  PRESSURE 101325.
+  LIQUID_FLUX 1d-8
 END
 
 FLOW_CONDITION constant_head
   TYPE
-    PRESSURE hydrostatic
+    LIQUID_PRESSURE hydrostatic
   /
   DATUM 0 0 10
-  PRESSURE 101325.
+  LIQUID_PRESSURE 101325.
 END
-
-
-FLOW_CONDITION rain
-  TYPE
-    FLUX NEUMANN
-  /
-  FLUX 5d-7
-END
-
 
 
 #=========================== condition couplers ===============================

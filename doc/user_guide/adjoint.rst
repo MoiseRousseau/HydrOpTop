@@ -3,17 +3,21 @@
 Adjoint class
 =============
 
-Dedicated class to solve the adjoint problem
 
-Cost function derivative calculation
-------------------------------------
+Adjoint solve
+-------------
+
+.. autoclass:: HydrOpTop.Adjoints.Adjoint_Solve
+  :members:
 
 
-Sensitivity calculation theory
-------------------------------
+Steady state sensitivity
+------------------------
 
-.. toctree::
-  :maxdepth: 1
-  
-  ./sensitivity_theory.rst
+
+.. autoclass:: HydrOpTop.Adjoints.No_Adjoint
+  :members:
+
+.. autoclass:: HydrOpTop.Adjoints.Sensitivity_Steady_Simple
+  :members:
   

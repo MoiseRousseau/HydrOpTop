@@ -13,3 +13,5 @@ PFLOTRAN specific functions
 
 .. autoclass:: HydrOpTop.Functions.p_Weighted_Sum_Flux
 
+.. autoclass:: HydrOpTop.Functions.Reference_Liquid_Head
+
