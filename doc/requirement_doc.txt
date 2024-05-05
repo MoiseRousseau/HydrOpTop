@@ -1,5 +1,2 @@
-scipy
-h5py
-matplotlib
-nlopt
-meshio
+sphinx_rtd_theme==2.0.0
+sphinx-gallery==0.16.0
