@@ -5,50 +5,46 @@ from .common import __cumsum_from_connection_to_array__
 
 class Head_Gradient(Base_Function):
   r"""
-  Description:
-    Calculate the mean head gradient in the prescribed domain:
+  Calculate the mean head gradient in the prescribed domain:
 
-    .. math::
+  .. math::
+     
+      f = \frac{1}{V_D} \sum_{i \in D} V_i ||\nabla {h_i} ||^n
+
+  Head is defined as:
+
+  .. math::
        
-       f = \frac{1}{V_D} \sum_{i \in D} V_i ||\nabla {h_i} ||^n
-       
-    Head is defined as:
+      h_i = \frac{P_i-P_{ref}}{\rho g}
 
-    .. math::
-       
-       h_i = \frac{P_i-P_{ref}}{\rho g}
+  and gradient is estimated using the Green-Gauss cell-centered scheme:
 
-    and gradient is estimated using the Green-Gauss cell-centered scheme:
-
-    .. math::
-       
-       \nabla h_i = \frac{1}{V_i} 
-            \sum_{j \in \partial i} A_{ij} \boldsymbol{n_{ij}} \left[d_i h_i + (1-d_i) h_j \right]
-
-  Parameters: 
-    ``ids_to_consider`` (iterable): the cell ids on which to compute the mean gradient
-    
-    ``power`` (float): the penalizing power `n` above
-    
-    ``correction_iteration`` (int): number of iteration for the deferred correction to better estimate the gradient (not yet implemented)
-    
-    ``gravity`` (float): norm of the gravity vector `g`
-    
-    ``density`` (float): fluid density `\rho`
-    
-    ``ref_pressure`` (float): reference pressure in PFLOTRAN simulation
-    
-    ``restrict_domain`` (bool): an option to calculate the gradient considering 
-    only the considered cells instead considering the whole simulation. Might
-    change the gradient calculated at the boundary of the considered cells.
+  .. math::
+      
+      \nabla h_i = \frac{1}{V_i} 
+           \sum_{j \in \partial i} A_{ij} \boldsymbol{n_{ij}} \left[d_i h_i + (1-d_i) h_j \right]
   
-  Required PFLOTRAN output:
-    ``LIQUID_PRESSURE``, ``CONNECTION_IDS``, 
-    ``FACE_AREA``, ``FACE_UPWIND_FRACTION``, ``VOLUME``, ``Z_COORDINATE``, 
-    ``FACE_NORMAL_X``, ``FACE_NORMAL_Y`` and ``FACE_NORMAL_Z``
+  Required PFLOTRAN output, ``LIQUID_PRESSURE``, ``CONNECTION_IDS``, 
+  ``FACE_AREA``, ``FACE_UPWIND_FRACTION``, ``VOLUME``, ``Z_COORDINATE``, 
+  ``FACE_NORMAL_X``, ``FACE_NORMAL_Y`` and ``FACE_NORMAL_Z``.
+  
+  
+  :param ids_to_consider: the cell ids on which to compute the mean gradient
+  :type ids_to_consider: iterable
+  :param power: the penalizing power ``n`` above
+  :type power: float
+  :param gravity: norm of the gravity vector ``g``
+  :type gravity: float
+  :param density: fluid density :math:`\rho`.
+  :type density: float
+  :param ref_pressure: reference pressure in PFLOTRAN simulation
+  :type ref_pressure: float
+  :param restrict_domain: an option to calculate the gradient considering only the considered cells instead considering the whole simulation. Might change the gradient calculated at the boundary of the considered cells.
+  :type restrict_domain: bool
   """
-  def __init__(self, ids_to_consider="everywhere", power=1., correction_iteration=2,
-               gravity=9.8068, density=997.16, ref_pressure=101325, restrict_domain=False):
+  def __init__(self, ids_to_consider="everywhere", power=1.,
+               gravity=9.8068, density=997.16, 
+               ref_pressure=101325, restrict_domain=False):
     #the correction could be more powerfull considering the iterative scheme 
     #decribed in moukalled 2016.
     #inputs for function evaluation
@@ -61,8 +57,7 @@ class Head_Gradient(Base_Function):
       try:
         self.ids_to_consider = np.array(ids_to_consider) -1
       except:
-        print("ERROR: The argument 'ids_to_consider' must be a numpy array or a object that can be converted to")
-        exit(1)
+        raise ValueError("Argument 'ids_to_consider' must be a numpy array or a object that can be converted to")
     self.power = power
     self.correction_it = correction_iteration
     self.density = density

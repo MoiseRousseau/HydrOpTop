@@ -16,6 +16,9 @@ except:
 
 
 class Adjoint_Solve:
+  r"""
+  Solve matrix equation Ax=B
+  """
   def __init__(self, algo=None):
     if algo is not None: 
       self.algo = algo.lower()

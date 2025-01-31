@@ -55,11 +55,11 @@ class Sensitivity_Steady_Simple:
     """
     Compute the total cost function derivative according to material density
     parameter p.
-    Argument:
-    - p : the material parameter
-    - dc_dYi : derivative of the function wrt solved variable (Solver ordering)
-    - dc_dXi : derivative of the function wrt input variable (p ordering)
-    - Xi_name : name of the function input variables
+    
+    :param p: the material parameter
+    :param dc_dYi: derivative of the function wrt solved variable (Solver ordering)
+    :param dc_dXi: derivative of the function wrt input variable (p ordering)
+    :param Xi_name: name of the function input variables
     """
     #create or update structures
     if self.initialized == False:

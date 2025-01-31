@@ -31,6 +31,7 @@ class Reference_Liquid_Head(Base_Function):
     density=997.16,
     reference_pressure=101325.
   ):
+    super(Reference_Liquid_Head, self).__init__()
     
     self.set_error_norm(norm)
     self.ref_head = np.array(head)

@@ -1,5 +1,8 @@
 
 class No_Adjoint:
+  """
+  A dummy adjoint class that solve no adjoint...
+  """
   def __init__(self, parametrized_mat_props, p_ids):
     self.parametrized_mat_props = parametrized_mat_props
     self.assign_at_ids = p_ids #in solver format!

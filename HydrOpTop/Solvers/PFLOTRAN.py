@@ -101,11 +101,19 @@ class PFLOTRAN:
     return
     
   def get_grid_size(self):
+    """
+    Return the number of element in the mesh.
+    """
     return self.n_cells
+
   
   def disable_run(self):
+    """
+    Do not run PFLOTRAN (for debug purpose)
+    """
     self.no_run = True
     return
+
   
   def get_var_location(self):
     return "cell"
@@ -243,6 +251,9 @@ class PFLOTRAN:
    
     
   def get_mesh(self):
+    """
+    TODO
+    """
     #should return the mesh ready to be pass to meshio
     if self.mesh_type in ["ugi","h5"]:
       mesh_path = self.input_folder + self.mesh_file

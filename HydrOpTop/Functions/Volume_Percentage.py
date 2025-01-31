@@ -3,25 +3,17 @@ from .Base_Function_class import Base_Function
 
 class Volume_Percentage(Base_Function):
   r"""
-  Description:
-    ``Volume_Percentage`` function compute the ratio of the volume of material
-    designed by `p=1` on a prescribed domain :math:`D`:
+  Integrate the volume ponderated value of the primary optimization variable `p` over the domain :math:`D` (i.e., compute the ratio of volume of material designed by `p=1`):
 
-    .. math::
+  .. math::
        
-       f = \frac{1}{V_D} \sum_{i \in D} p_i V_i
+      f = \frac{1}{V_D} \sum_{i \in D} p_i V_i
+  
+  Require PFLOTRAN output ``VOLUME``.
 
-  Parameters:
-    ``ids_to_sum_volume`` (iterable): a list of cell ids on which to compute
-    the volume percentage 
-
-    ``volume_of_p0`` (bool): set to ``True``, switch the material and rather
-    calculate the volume fraction of the material designed by `p=0`. In this 
-    case :math:`p_i` is remplaced by :math:`p'_i = 1-p_i`.
-
-  Require PFLOTRAN output:
-    ``VOLUME``.
-    
+  :param ids_to_sum_volume: a list of cell ids on which to compute the volume percentage 
+  :type ids_to_sum_volume: iterable
+  :param volume_of_p0: if set to ``True``, switch the material and rather calculate the volume fraction of the material designed by `p=0`. In this case, :math:`p_i` is remplaced by :math:`p'_i = 1-p_i`.
   """
   def __init__(self, ids_to_sum_volume="parametrized_cell",
                      volume_of_p0=False):

@@ -5,28 +5,21 @@ from .Base_Function_class import Base_Function
 
 class Mean_Liquid_Piezometric_Head(Base_Function):
   r"""
-  Description:
-    The `Mean_Liquid_Piezometric_Head` function compute the mean of the piezometric
-    head in the given cell ids:
+  The `Mean_Liquid_Piezometric_Head` function compute the mean of the piezometric
+  head in the given cell ids:
 
-    .. math::
-       
-       f = \frac{1}{V_D} \sum_{i \in D} V_i \left(\frac{P-P_{ref}}{\rho g} + z_i \right)
+  Required PFLOTRAN outputs ``LIQUID_PRESSURE`` and ``VOLUME``.
   
-  Parameters:
-    ``ids_to_sum`` (iterable): cell ids to compute the mean piezometric head
-    
-    ``power`` (float): the penalizing power `n` above
-    
-    ``gravity`` (float): norm of the gravity vector `g`
-    
-    ``density`` (float): fluid density `\rho`
-    
-    ``ref_pressure`` (float): reference pressure in PFLOTRAN simulation
-  
-  Required PFLOTRAN outputs:
-    ``LIQUID_PRESSURE`` and ``VOLUME``.
-  
+  :param ids_to_sum: Cell ids to compute the mean piezometric head
+  :type ids_to_sum: iterable
+  :param power: the penalizing power `n` above
+  :type power: float
+  :param gravity: norm of the gravity vector `g`
+  :type gravity: float
+  :param density: fluid density `\rho`
+  :type density: float
+  :param ref_pressure: reference pressure in PFLOTRAN simulation
+  :type ref_pressure: float   
   """
   def __init__(self, ids_to_sum = "everywhere", penalizing_power = 1,
                      gravity=9.8068, density=997.16, reference_pressure=101325.):
