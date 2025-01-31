@@ -18,16 +18,16 @@ SUBSURFACE
 
 #=========================== discretization ===================================
 GRID
-  TYPE UNSTRUCTURED ./mesh.ugi
+  TYPE UNSTRUCTURED ../pflotran_meshes/disk/mesh.ugi
 END
 
 
 REGION top
-  FILE ./top.ss
+  FILE ../pflotran_meshes/disk/top.ss
 END
 
 REGION opening
-  FILE ./opening.ss
+  FILE ../pflotran_meshes/disk/opening.ss
 END
 
 
