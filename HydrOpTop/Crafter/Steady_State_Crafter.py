@@ -171,11 +171,11 @@ class Steady_State_Crafter:
     if self.constraint_inputs_arrays is None: #need to initialize
       self.constraint_inputs_arrays = []
       for constraint in self.constraints:
-        temp = self.initialize_function_vars(constraint)
+        temp = self.initialize_function_vars(constraint[0])
         self.constraint_inputs_arrays.append(temp)
     else:
       for i,constraint in enumerate(self.constraints):
-        self.update_function_vars(constraint, self.constraint_inputs_arrays[i])
+        self.update_function_vars(constraint[0], self.constraint_inputs_arrays[i])
     return p_bar
   
   
@@ -206,7 +206,7 @@ class Steady_State_Crafter:
         print(f"Error: Unknown action \"{action}\" (should be \"minimize\" or \"maximize\"")
         return None
       #add constraints
-      for i in range(len(self.constraints)):
+      for i,tc in enumerate(self.constraints):
         opt.add_inequality_constraint(self.nlopt_constraint(i),
                                       tolerance_constraints)
       #define minimum and maximum bounds
@@ -345,13 +345,16 @@ class Steady_State_Crafter:
   def __nlopt_generic_constraint_to_optimize__(self, p, grad, iconstraint=0):
     ###FILTERING: convert p to p_bar
     p_bar = self.filter_density(p)
-    the_constraint = self.constraints[iconstraint]
-    constraint = the_constraint.evaluate(p_bar)
+    the_constraint,compare,val = self.constraints[iconstraint]
+    constraint = the_constraint.evaluate(p_bar) - val
+    c_name = self.constraints[iconstraint][0].name
+    print(f"Current {c_name} (constrain): {constraint+val:.6e}")
     if grad.size > 0:
       grad[:] = self.evaluate_total_gradient(the_constraint, p, p_bar)
+    if compare == '>':
+      grad *= -1.
+      constraint = -constraint
     
-    c_name = self.constraints[iconstraint].name
-    print(f"Current {c_name} (constraint): {constraint:.6e}")
     self.last_constraints[c_name] = constraint
     self.last_grad_constraints[c_name] = grad.copy()
     return constraint - the_constraint.__get_constraint_tol__()
@@ -400,6 +403,9 @@ class Steady_State_Crafter:
     for name,val in self.last_constraints.items():
       print(f"Current {name} (constraint): {val:.6e}")
     return
+  
+  def _print_optimization_info_to_user(self):
+    return
     
   
   
@@ -424,8 +430,9 @@ class Steady_State_Crafter:
       self.p_ids = X #from 0 based indexing to solver indexing
     self.last_p = np.zeros(len(self.p_ids),dtype='f8')
     self.last_grad = np.zeros(len(self.p_ids),dtype='f8')
+    self.last_p_bar = np.zeros(len(self.p_ids),dtype='f8')
     if self.constraints:
-      self.last_p_bar = np.zeros(len(self.p_ids),dtype='f8')
+      pass
     
     #initialize solver output for objective function
     #do not set inputs array because we don't know the size of the connection_ids
@@ -444,9 +451,10 @@ class Steady_State_Crafter:
     self.obj.set_p_to_cell_ids(self.p_ids)
     
     #initialize adjoint for constraints
-    self.last_constraints = {x.name:0. for x in self.constraints}
-    self.last_grad_constraints = {x.name:None for x in self.constraints}
+    self.last_constraints = {x[0].name:0. for x in self.constraints}
+    self.last_grad_constraints = {x[0].name:None for x in self.constraints}
     for constraint in self.constraints:
+      constraint = constraint[0]
       constraint.set_p_to_cell_ids(self.p_ids)
       if constraint.adjoint is None:
         if len(constraint.__get_solved_variables_needed__()) == 0:
@@ -458,7 +466,7 @@ class Steady_State_Crafter:
         
     #initialize IO
     self.IO.communicate_functions_names(self.obj.__get_name__(), 
-         [x.__get_name__() for x in self.constraints])
+         [x[0].__get_name__() for x in self.constraints])
     vertices, cells, indexes = self.solver.get_mesh()
     self.IO.set_mesh_info(vertices, cells, indexes,
                           self.solver.get_var_location())
@@ -512,6 +520,7 @@ class Output_Struct:
   def __init__(self, p_opt):
     self.p_opt = p_opt
     self.p_opt_filtered = None
+    self.p_opt_grad = None
     self.fx = None
     self.cx = None
     return

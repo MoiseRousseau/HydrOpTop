@@ -10,9 +10,9 @@ class Base_Function:
   """
   def __init__(self):
     self.name = "Base Function"
-    self.solved_variable_needed = [] #a lilst of variables solved by the solver needed to 
+    self.solved_variables_needed = [] #a lilst of variables solved by the solver needed to 
                                      #calculate the function
-    self.input_variable_needed = [] #a lilst of variables NOT solved by the solver needed to 
+    self.input_variables_needed = [] #a lilst of variables NOT solved by the solver needed to 
                                      #calculate the function (e.g. material properties)
     self.constraint_tol = 0.
     self.initialized = False
