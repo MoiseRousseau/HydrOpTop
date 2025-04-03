@@ -213,9 +213,13 @@ class IO:
     self.output_number += 1
     return
     
-  def correct_dataset_length(self, X, val_at):
-    #correct X_dataset if not of the size of the mesh
-    #val_at 0 based
+  def correct_dataset_length(self, X, val_at=None):
+    """
+    Correct X_dataset if not of the size of the mesh.
+    Usable when parametrized cells is lower than the whole mesh
+    If X not linked to val_at (different size), output NaN
+    val_at 0 based
+    """
     if val_at is None: 
       return X
     if self.var_loc == "cell":
@@ -223,7 +227,8 @@ class IO:
     else:
       X_new = np.zeros(len(self.vertices), dtype='f8')
     X_new[:] = np.nan
-    X_new[val_at] = X
+    if len(val_at) == len(X):
+      X_new[val_at] = X
     return X_new
     
   def initiate_output(self, constraints_val):
@@ -279,18 +284,20 @@ class IO:
       Xname = [f"Field{i}" for i in range(X)]
     if not isinstance(Xname, list):
       Xname = [Xname]
+    X_ = []
     for x in X:
       if at_ids is not None:
-        X_ = self.correct_dataset_length(X, at_ids)
+        x_ = self.correct_dataset_length(x, at_ids)
       else:
-        X_ = X
+        x_ = x
+      X_.append(x_)
     dict_var = {}
-    for i,x in enumerate(X):
+    for i,x in enumerate(X_):
       data = []
       for (elem_type, index) in self.indexes:
         data.append(x[index])
       dict_var[Xname[i]] = data
-    if self.var_loc == "cell":
+    if self.var_loc == "cellSa":
       mesh = meshio.Mesh(self.vertices, self.elements, cell_data=dict_var)
     elif self.var_loc == "point":
       mesh = meshio.Mesh(self.vertices, self.elements, point_data=dict_var)
@@ -298,7 +305,7 @@ class IO:
     return
   
   
-  def plot_convergence_history(self, include_constraints=False):
+  def plot_convergence_history(self, include_constraints=False, save_fig_to=None):
     r"""
     Description:
       Plot the convergence history of the optimization (cost function and constraints)
@@ -306,6 +313,8 @@ class IO:
     Parameters:
       ``include_constraints`` (bool): Visualize evolution of constraints values (default: ``False``)
     
+      ``save_fig_to`` (str): Save figure to the given file (optional, default: not saved but showed)
+      
     |
     
     """
@@ -327,9 +336,12 @@ class IO:
       ax2.set_ylabel("Constraints")
       ax2.legend()
       
-    
     plt.tight_layout()
-    plt.show()
+    if save_fig_to:
+      plt.savefig()
+    else:
+      plt.show()
+    
     return
   
     

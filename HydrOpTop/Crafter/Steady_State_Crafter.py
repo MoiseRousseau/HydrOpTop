@@ -5,6 +5,7 @@ import functools
 
 from HydrOpTop.Adjoints import *
 from HydrOpTop.IO import IO
+from HydrOpTop.Filters import Pilot_Points
 
 
 class Steady_State_Crafter:
@@ -19,7 +20,7 @@ class Steady_State_Crafter:
   - filter: the filter to be used to relate the density to a filtered density
             (a fitler class instance) (None by default).
   """
-  def __init__(self, objective, solver, mat_props, constraints=[], filters=None, io=None):
+  def __init__(self, objective, solver, mat_props, constraints=[], filters=[], io=None):
     self.__print_information__()
     self.mat_props = mat_props
     self.solver = solver
@@ -127,7 +128,7 @@ class Steady_State_Crafter:
         else:
           grad_filter = filter_.get_filter_derivative(p_).dot(grad_filter)
         p_ = filter_.get_filtered_density(p_)
-      grad[:] = grad_filter.transpose().dot(grad)
+      grad = grad_filter.transpose().dot(grad)
     return grad
   
   
@@ -413,23 +414,30 @@ class Steady_State_Crafter:
   def __initialize_IO_array__(self):
     print("Initialization...")
     #verify if each cells to parametrize are the same
-    X = self.mat_props[0].get_cell_ids_to_parametrize()
+    C = self.mat_props[0].get_cell_ids_to_parametrize()
+    input_dim = C
+    for f in self.filters:
+      if isinstance(f,Pilot_Points):
+        input_dim = len(f.control_points)
+        break
+    
     if len(self.mat_props) > 1:
       for x in self.mat_props:
-        if x.get_cell_ids_to_parametrize() != X: 
+        if x.get_cell_ids_to_parametrize() != C: 
           print("Different cell ids to optimize")
           print("HydrOpTop require the different mat properties to parametrize \
                  the same cell ids")
           exit(1)
     #create correspondance and problem size
-    if X is None: #i.e. parametrize all cell in the simulation
+    if input_dim is None: #i.e. parametrize all cell in the simulation
       self.problem_size = self.solver.get_grid_size()
-      self.p_ids = np.arange(1, self.problem_size+1) 
     else: 
-      self.problem_size = len(X)
-      self.p_ids = X #from 0 based indexing to solver indexing
-    self.last_p = np.zeros(len(self.p_ids),dtype='f8')
-    self.last_grad = np.zeros(len(self.p_ids),dtype='f8')
+      self.problem_size = input_dim
+    self.p_ids = C #from 0 based indexing to solver indexing
+    if self.p_ids is None:
+      self.p_ids = np.arange(1, self.solver.get_grid_size()+1) 
+    self.last_p = np.zeros(input_dim,dtype='f8')
+    self.last_grad = np.zeros(input_dim,dtype='f8')
     self.last_p_bar = np.zeros(len(self.p_ids),dtype='f8')
     if self.constraints:
       pass
@@ -474,15 +482,15 @@ class Steady_State_Crafter:
     
   
   def __initialize_filter__(self, p):
-    print("Filter initialization")
     #filter initialization is tricky, because it may need solver output variables
     # that have not been created yet. Thus, for instance, we have to run
     # solver one time to initialize the filter (even if it's costly)...
-    if self.filters is None:
+    if not self.filters:
       return
     
+    print("Filter initialization")
     for mat_prop in self.mat_props:
-      X = mat_prop.convert_p_to_mat_properties(p)
+      X = mat_prop.convert_p_to_mat_properties(np.zeros(self.solver.get_grid_size()))
       self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
                       X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
     #run Solver
