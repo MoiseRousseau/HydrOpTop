@@ -1,6 +1,6 @@
 import time
 from scipy.sparse import coo_matrix, dia_matrix
-from .Adjoint_Solve import Adjoint_Solve
+from .adjoint_solve import Adjoint_Solve
 import numpy as np
 
 

@@ -5,11 +5,13 @@ import subprocess
 import os
 import time
 
-default_gravity = 9.8068
-default_viscosity = 8.904156e-4
-default_water_density = 997.16
+from .Base_Simulator import Base_Simulator
 
-class PFLOTRAN:
+DEFAULT_GRAVITY = 9.8068
+DEFAULT_VISCOSITY = 8.904156e-4
+DEFAULT_DENSITY = 997.16
+
+class PFLOTRAN(Base_Simulator):
   r"""
   Description:
     IO shield to PFLOTRAN solver
@@ -71,6 +73,7 @@ class PFLOTRAN:
                          "FACE_CELL_CENTER_VECTOR_Z": "Face Cell Vector Z Component",
                          "LIQUID_CONDUCTIVITY" : "Liquid Conductivity",
                          "LIQUID_PRESSURE" : "Liquid Pressure",
+                         "LIQUID_HEAD" : "Liquid Pressure",
                          "PERMEABILITY" : "Permeability",
                          "VOLUME" : "Volume", 
                          "ELEMENT_CENTER_X" : "X Coordinate",
@@ -419,34 +422,34 @@ class PFLOTRAN:
       print(f"{var} information not available, switch to FACE_CELL_CENTER_VECTOR instead")
       var = "FACE_CELL_CENTER_VECTOR_" + var[-1]
     #treat separately grid output since they could be in the mesh_info file
-    if var in ["LIQUID_CONDUCTIVITY","LIQUID_PRESSURE","PERMEABILITY"]:
+    if var in ["LIQUID_CONDUCTIVITY","LIQUID_PRESSURE","LIQUID_HEAD","PERMEABILITY"]:
       f_src = self.pft_out
     else:
       f_src = self.mesh_info
+    
     #other variable
     src = h5py.File(f_src, 'r')
-    timesteps = [x for x in src.keys() if "Time" in x]
-    right_time = timesteps[i_timestep]
-    key_to_find = self.dict_var_out[var]
-    found = False
-    for out_var in src[right_time].keys():
-      if key_to_find in out_var: 
-        found = True
-        break
-    if not found:
-      print(f"\nOutput variable \"{self.dict_var_out[var]}\" not found in PFLOTRAN output")
-      print(f"Available variable are:")
-      print(src[right_time].keys())
-      print(f"Do you forgot to add the \"{var}\" output variable under the OUTPUT card?\n")
-      exit(1)
-    if out is None:
-      out = np.array(src[right_time + '/' + out_var])
+    if False:#var in == "LIQUID_HEAD": 
+        right_time, out_var = self.__check_output_variable_present__(
+            src, i_timestep, "LIQUID_PRESSURE"
+        )
+        eg = DEFAULT_GRAVITY * DEFAULT_DENSITY #TODO non constent density
+        out = np.array(src[right_time + '/' + out_var]) - self.reference_pressure / eg
+        right_time, out_var = self.__check_output_variable_present__(
+            src, i_timestep, "ELEMENT_CENTER_Z"
+        )
+        out += np.array(src[right_time + '/' + out_var])
     else:
-      out[:] = np.array(src[right_time + '/' + out_var])
+      right_time, out_var = self.__check_output_variable_present__(src, i_timestep, var)
+      if out is None:
+        out = np.array(src[right_time + '/' + out_var])
+      else:
+        out[:] = np.array(src[right_time + '/' + out_var])
     src.close()
     return out
   
   def get_sensitivity(self, var, timestep=None, coo_mat=None):
+    #TODO case for liquid head which is (p - p0 / eg) + z
     if self.output_sensitivity_format == "HDF5":
        f = self.pft_out_sensitivity + '.h5'
        src = h5py.File(f, 'r')
@@ -604,5 +607,22 @@ class PFLOTRAN:
         filename = line[index+1]
         break
     return filename
+  
+  def __check_output_variable_present__(self, src, i_timestep, var):
+    timesteps = [x for x in src.keys() if "Time" in x]
+    right_time = timesteps[i_timestep]
+    key_to_find = self.dict_var_out[var]
+    found = False
+    for out_var in src[right_time].keys():
+      if key_to_find in out_var: 
+        found = True
+        break
+    if not found:
+      print(f"\nOutput variable \"{self.dict_var_out[var]}\" not found in PFLOTRAN output")
+      print(f"Available variable are:")
+      print(src[right_time].keys())
+      print(f"Do you forgot to add the \"{var}\" output variable under the OUTPUT card?\n")
+      exit(1)
+    return right_time, out_var
     
     

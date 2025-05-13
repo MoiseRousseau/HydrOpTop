@@ -3,7 +3,7 @@
 import numpy as np
 import h5py
 
-from ..Solvers.PFLOTRAN import default_water_density, default_gravity, default_viscosity
+#from ..Solvers.PFLOTRAN import DEFAULT_DENSITY, DEFAULT_GRAVITY, DEFAULT_VISCOSITY
 from .common import __cumsum_from_connection_to_array__, \
                     smooth_abs_function, d_smooth_abs_function
 from .Base_Function_class import Base_Function
@@ -132,8 +132,8 @@ class Sum_Flux(Base_Function):
     k_con = self.interpole_at_face(self.k)[self.mask]
     d_P_con = (self.pressure[self.connection_ids[:,1]-1] - 
                         self.pressure[self.connection_ids[:,0]-1])[self.mask]
-    eg = default_water_density * default_gravity
-    fluxes = - self.sign * self.area_con * k_con / default_viscosity * \
+    eg = DEFAULT_DENSITY * DEFAULT_GRAVITY
+    fluxes = - self.sign * self.area_con * k_con / DEFAULT_VISCOSITY * \
                 (d_P_con + eg * self.d_z_con) / self.distance_con
     return fluxes
   

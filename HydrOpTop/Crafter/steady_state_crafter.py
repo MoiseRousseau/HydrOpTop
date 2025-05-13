@@ -156,7 +156,7 @@ class Steady_State_Crafter:
     ### UPDATE MAT PROPERTIES
     for mat_prop in self.mat_props:
       X = mat_prop.convert_p_to_mat_properties(p_bar)
-      self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
+      self.solver.create_cell_indexed_dataset(X, mat_prop.get_name(),
                     X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
     ### RUN SOLVER
     ret_code = self.solver.run()
@@ -491,7 +491,7 @@ class Steady_State_Crafter:
     print("Filter initialization")
     for mat_prop in self.mat_props:
       X = mat_prop.convert_p_to_mat_properties(np.zeros(self.solver.get_grid_size()))
-      self.solver.create_cell_indexed_dataset(X, mat_prop.get_name().lower(),
+      self.solver.create_cell_indexed_dataset(X, mat_prop.get_name(),
                       X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
     #run Solver
     for filter_ in self.filters:

@@ -2,7 +2,7 @@
 
 import numpy as np
 import h5py
-from ..Solvers.PFLOTRAN import default_water_density, default_gravity, default_viscosity
+#from ..Solvers.PFLOTRAN import DEFAULT_DENSITY, DEFAULT_GRAVITY, DEFAULT_VISCOSITY
 from .common import __cumsum_from_connection_to_array__
 from .Base_Function_class import Base_Function
 
@@ -157,8 +157,8 @@ class p_Weighted_Sum_Flux(Base_Function):
     k_con = self.interpole_at_face(self.k)
     d_P_con = self.pressure[self.connection_ids[:,1]-1] - \
                              self.pressure[self.connection_ids[:,0]-1]
-    eg = default_water_density * default_gravity 
-    flux_con = self.areas * k_con / default_viscosity * \
+    eg = DEFAULT_DENSITY * DEFAULT_GRAVITY 
+    flux_con = self.areas * k_con / DEFAULT_VISCOSITY * \
                            ( (d_P_con + eg * self.d_z_con) / self.distance ) ** 2
     flux_sum = np.sum( (pp[self.connections1_to_p] * flux_con)[self.connection_is_to_sum_1] )
     flux_sum += np.sum( (pp[self.connections2_to_p] * flux_con)[self.connection_is_to_sum_2] )
@@ -183,8 +183,8 @@ class p_Weighted_Sum_Flux(Base_Function):
     k_con = self.interpole_at_face(self.k)
     d_P_con = self.pressure[self.connection_ids[:,1]-1] - \
                              self.pressure[self.connection_ids[:,0]-1]
-    eg = default_water_density * default_gravity
-    d_flux_con =  -2. * self.areas * k_con / default_viscosity * \
+    eg = DEFAULT_DENSITY * DEFAULT_GRAVITY
+    d_flux_con =  -2. * self.areas * k_con / DEFAULT_VISCOSITY * \
                                    (d_P_con + eg * self.d_z_con) / self.distance**2
     p_ = np.where(self.connection_is_to_sum_1, pp[self.connections1_to_p], 0.)
     p_ += np.where(self.connection_is_to_sum_2, pp[self.connections2_to_p], 0.)
@@ -223,8 +223,8 @@ class p_Weighted_Sum_Flux(Base_Function):
     den = (self.d_fraction*K1 + (1-self.d_fraction)*K2)**2
     d_P_con = self.pressure[self.connection_ids[:,1]-1] - \
                              self.pressure[self.connection_ids[:,0]-1]
-    eg = default_water_density * default_gravity
-    prefactor = self.areas / default_viscosity * \
+    eg = DEFAULT_DENSITY * DEFAULT_GRAVITY
+    prefactor = self.areas / DEFAULT_VISCOSITY * \
                              ( (d_P_con + eg * self.d_z_con) / self.distance ) ** 2
     
     dK1 = prefactor * K2**2 * (1-self.d_fraction) / den
@@ -261,8 +261,8 @@ class p_Weighted_Sum_Flux(Base_Function):
     k_con = self.interpole_at_face(self.k)
     d_P_con = self.pressure[self.connection_ids[:,1]-1] - \
                              self.pressure[self.connection_ids[:,0]-1]
-    eg = default_water_density * default_gravity 
-    flux_con = factor * self.areas * k_con / default_viscosity * \
+    eg = DEFAULT_DENSITY * DEFAULT_GRAVITY
+    flux_con = factor * self.areas * k_con / DEFAULT_VISCOSITY * \
                           ( (d_P_con + eg * self.d_z_con) / self.distance ) ** 2
     __cumsum_from_connection_to_array__(self.dobj_dp_partial, 
                                         self.connections1_to_p, flux_con)

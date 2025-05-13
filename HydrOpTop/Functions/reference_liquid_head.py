@@ -7,43 +7,33 @@ class Reference_Liquid_Head(Base_Function):
   r"""
   Compute the difference between the head at the given cells and the head in the simulation.
   
-  Required PFLOTRAN outputs ``LIQUID_PRESSURE``, ``ELEMENT_CENTER_Z``.
+  Required ``LIQUID_HEAD`` output.
   
   :param head: Reference head to compute the difference with
   :type head: iterable
   :param cell_ids: The corresponding cell ids of the head. If None, consider head[0] for cell id 1, head[1] for cell id 2, ...
   :type cell_ids: iterable
+  :param observation_name: If observation points have name in the simulator, provide it here
+  :type observation_name: list of str
   :param norm: Norm to compute the difference (i.e. 1 for sum of head error, 2 for MSE, inf for max difference
   :type norm: int
-  :param gravity: norm of the gravity vector `g`
-  :type gravity: float
-  :param density: fluid density `\rho`
-  :type density: float
-  :param ref_pressure: reference pressure in PFLOTRAN simulation
-  :type ref_pressure: float 
   """
   def __init__(
     self,
     head,
     cell_ids=None,
+    observation_name=None,
     norm = 1,
-    gravity=9.8068,
-    density=997.16,
-    reference_pressure=101325.
   ):
     super(Reference_Liquid_Head, self).__init__()
     
     self.set_error_norm(norm)
     self.ref_head = np.array(head)
-    if cell_ids is not None: self.cell_ids = np.array(cell_ids)
+    self.cell_ids = np.array(cell_ids)
     
     #inputs for function evaluation 
-    self.pressure = None
-    self.z = None
-    #argument from pflotran simulation
-    self.gravity = gravity #m2/s
-    self.density = density #kg/m3
-    self.reference_pressure = reference_pressure #Pa
+    self.head = None
+    self.observation_name = observation_name
     
     #function derivative for adjoint
     self.dobj_dP = None
@@ -52,8 +42,9 @@ class Reference_Liquid_Head(Base_Function):
     self.adjoint = None
     
     #required for problem crafting
-    self.solved_variables_needed = ["LIQUID_PRESSURE"]
-    self.input_variables_needed = ["ELEMENT_CENTER_Z"]
+    self.solved_variables_needed = ["LIQUID_HEAD"]
+    #if self.observation_name is not None:
+    # 	self.solved_variables_needed = ["LIQUID_HEAD_AT_OBSERVATION"]
     self.name = "Reference Head"
     self.initialized = None
     return
@@ -65,12 +56,11 @@ class Reference_Liquid_Head(Base_Function):
     return
     
   def set_inputs(self, inputs):
-    self.pressure = inputs[0]
-    self.z = inputs[1]
+    self.head = inputs[0]
     return
     
   def get_inputs(self):
-    [self.pressure, self.z]
+    return [self.head]
 
   
   ### COST FUNCTION ###
@@ -80,12 +70,15 @@ class Reference_Liquid_Head(Base_Function):
     Return a scalar of dimension [L]
     """
     if not self.initialized: self.__initialize__()
-    pz_head = (self.pressure-self.reference_pressure) / \
-                             (self.gravity * self.density) + self.z
+    if self.observation_name is not None:
+      r = np.array([
+        self.head[x] - h for x,h in zip(self.observation_name, self.ref_head)
+      ])
+      return np.sum(r**self.norm)
     if self.cell_ids is None: 
-      return np.sum((pz_head-self.ref_head)**self.norm)
-    else: 
-      return np.sum((pz_head[self.cell_ids-1]-self.ref_head)**self.norm)
+      return np.sum((self.head-self.ref_head)**self.norm)
+    else:
+      return np.sum((self.head[self.cell_ids-1]-self.ref_head)**self.norm)
   
   
   ### PARTIAL DERIVATIVES ###
@@ -98,18 +91,20 @@ class Reference_Liquid_Head(Base_Function):
     """
     if not self.initialized: self.__initialize__()
     if self.dobj_dP is None:
-      self.dobj_dP = np.zeros(len(self.z), dtype='f8')
+      self.dobj_dP = np.zeros(len(self.head), dtype='f8')
     else:
       self.dobj_dP[:] = 0.
-    pz_head = (self.pressure-self.reference_pressure) / \
-                             (self.gravity * self.density) + self.z 
-    deriv = 1 / (self.gravity * self.density)
-    if self.cell_ids is None: 
-      self.dobj_dP[:] = self.norm * deriv * \
-                         (pz_head-self.ref_head)**(self.norm-1)
+    if self.observation_name is not None:
+      r = np.array([
+        self.head[x] - h for x,h in zip(self.observation_name, self.ref_head)
+      ])
+      self.dobj_dP[:] = self.norm * r**(self.norm-1)
+    elif self.cell_ids is None: 
+      self.dobj_dP[:] = self.norm * \
+                         (self.head-self.ref_head)**(self.norm-1)
     else:
       self.dobj_dP[self.cell_ids-1] = \
-        self.norm * deriv * (pz_head[self.cell_ids-1]-self.ref_head)**(self.norm-1)
+        self.norm * (self.head[self.cell_ids-1]-self.ref_head)**(self.norm-1)
     return [self.dobj_dP]
   
   
