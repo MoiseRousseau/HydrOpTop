@@ -1,0 +1,167 @@
+
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SENSITIVITY_ANALYSIS sensitivity
+      SENSITIVITY_FLOW
+    /
+  /
+END
+
+
+SUBSURFACE
+
+#=========================== solver ========================================
+NUMERICAL_METHODS FLOW
+  NEWTON_SOLVER
+    NUMERICAL_JACOBIAN
+  /
+END
+
+
+#=========================== discretization ===================================
+GRID
+  TYPE UNSTRUCTURED ../pflotran_meshes/disk/mesh.ugi
+END
+
+REGION opening
+  FILE ../pflotran_meshes/disk/opening.ss
+END
+
+REGION top
+  FILE ../pflotran_meshes/disk/top.ss
+END
+
+
+#=========================== EOS ===================================
+EOS WATER
+  #simplified value for hydraulic conductivity computation
+  DENSITY CONSTANT 997.16d0 kg/m^3
+  VISCOSITY CONSTANT 8.904156d-4 Pa-s
+END
+
+
+#=========================== material properties ==============================
+DATASET PERMEABILITY
+  FILENAME permeability.h5
+END
+
+MATERIAL_PROPERTY mater
+  ID 1
+  SATURATION_FUNCTION default
+  POROSITY 0.3
+  PERMEABILITY
+    DATASET PERMEABILITY
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  DEFAULT
+END
+
+
+#=========================== output options ===================================
+OUTPUT
+  FORMAT HDF5
+  VARIABLES
+    PERMEABILITY_X
+    LIQUID_PRESSURE
+    VOLUME
+    Z_COORDINATE
+  /
+  NO_PRINT_INITIAL
+END
+
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 50 y
+  INITIAL_TIMESTEP_SIZE 30 y
+  MAXIMUM_TIMESTEP_SIZE 1e3 y
+END
+
+
+
+#=========================== regions ==========================================
+REGION all
+  COORDINATES
+    -1e6 -1e6 -1e6
+    1e6 1e6  1e6
+  /
+END
+
+
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION initial
+  TYPE
+    LIQUID_PRESSURE hydrostatic
+  /
+  DATUM 0 0 10
+  GRADIENT 
+    LIQUID_PRESSURE -0.01 0. 0.
+  /
+  LIQUID_PRESSURE 101325.
+END
+
+FLOW_CONDITION constant_head
+  TYPE
+    LIQUID_PRESSURE hydrostatic
+  /
+  DATUM 0 0 10
+  LIQUID_PRESSURE 101325.
+END
+
+
+FLOW_CONDITION rain
+  TYPE
+    LIQUID_FLUX NEUMANN
+  /
+  LIQUID_FLUX 5d-7
+END
+
+
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION initial
+  REGION all
+END
+
+BOUNDARY_CONDITION top
+  FLOW_CONDITION rain
+  REGION top
+END
+
+BOUNDARY_CONDITION constant_head
+  FLOW_CONDITION constant_head
+  REGION opening
+END
+
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL mater
+END
+
+END_SUBSURFACE
+
+
+
+SENSITIVITY_FLOW
+  SENSITIVITY_OUTPUT_FORMAT HDF5
+  VARIABLES
+    PRESSURE
+    PERMEABILITY
+  /
+  OUTPUT
+    PERIODIC_TIMESTEP 1
+  /
+END

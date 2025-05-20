@@ -1,0 +1,152 @@
+#Description: Tracer test for determining the fracture and matrix porosity
+
+SIMULATION
+  SIMULATION_TYPE SUBSURFACE
+  PROCESS_MODELS
+    SUBSURFACE_FLOW flow
+      MODE RICHARDS
+    /
+    SENSITIVITY_ANALYSIS sensitivity
+      SENSITIVITY_FLOW
+    /
+  /
+END
+
+SUBSURFACE
+
+#=========================== discretization ===================================
+GRID
+  TYPE UNSTRUCTURED_EXPLICIT ../pflotran_meshes/3D_voronoi_rectangular_domain/mesh.h5
+  UPWIND_FRACTION_METHOD CELL_VOLUME
+  GRAVITY 0. 0. 0.
+  DOMAIN_FILENAME ../pflotran_meshes/3D_voronoi_rectangular_domain/mesh_Domain.h5
+END
+
+REGION inlet_faces
+  FILE ../pflotran_meshes/3D_voronoi_rectangular_domain/inlet_faces.ex
+END
+REGION outlet_faces
+  FILE ../pflotran_meshes/3D_voronoi_rectangular_domain/outlet_faces.ex
+END
+REGION inlet_vol
+  FILE ../pflotran_meshes/3D_voronoi_rectangular_domain/inlet_vol.vs
+END
+REGION outlet_vol
+  FILE ../pflotran_meshes/3D_voronoi_rectangular_domain/outlet_vol.vs
+END
+REGION all
+  COORDINATES
+    -1e6 -1e6 -1e6
+    1e6 1e6  1e6
+  /
+END
+
+
+#=========================== EOS ===================================
+EOS WATER
+  #simplified value for hydraulic conductivity computation
+  DENSITY CONSTANT 997.16d0 kg/m^3
+  VISCOSITY CONSTANT 8.904156d-4 Pa-s
+END
+
+
+#=========================== material properties ==============================
+DATASET PERMEABILITY
+  FILENAME permeability.h5
+END
+
+MATERIAL_PROPERTY mater
+  ID 1
+  SATURATION_FUNCTION default
+  POROSITY 0.3
+  PERMEABILITY
+    #PERM_ISO 1.d-7
+    DATASET PERMEABILITY
+  /
+END
+
+#=========================== characteristic curves ============================
+CHARACTERISTIC_CURVES default
+  DEFAULT
+END
+
+
+#=========================== output options ===================================
+OUTPUT
+  FORMAT HDF5
+  VARIABLES
+    LIQUID_PRESSURE
+    X_COORDINATE
+    Y_COORDINATE
+    Z_COORDINATE
+    VOLUME
+  /
+  VELOCITY_AT_CENTER
+  SNAPSHOT_FILE
+    PERIODIC TIMESTEP 1
+  /
+  NO_PRINT_INITIAL
+END
+
+
+#=========================== times ============================================
+TIME
+  FINAL_TIME 1e3 s
+  INITIAL_TIMESTEP_SIZE 1e3 y
+  MAXIMUM_TIMESTEP_SIZE 1e3 y
+END
+
+
+
+#=========================== flow conditions ==================================
+FLOW_CONDITION inlet
+  TYPE
+    LIQUID_FLUX NEUMANN
+  /
+  LIQUID_FLUX 10. #m/s
+END
+
+FLOW_CONDITION outlet
+  TYPE
+    LIQUID_PRESSURE dirichlet
+  /
+  LIQUID_PRESSURE 201325.
+END
+
+
+
+#=========================== condition couplers ===============================
+# initial condition
+INITIAL_CONDITION
+  FLOW_CONDITION outlet
+  REGION all
+END
+BOUNDARY_CONDITION inlet
+  FLOW_CONDITION inlet
+  REGION inlet_faces
+END
+BOUNDARY_CONDITION outlet
+  FLOW_CONDITION outlet
+  REGION outlet_faces
+END
+
+
+#=========================== stratigraphy couplers ============================
+STRATA
+  REGION all
+  MATERIAL mater
+END
+
+END_SUBSURFACE
+
+
+SENSITIVITY_FLOW
+  SENSITIVITY_OUTPUT_FORMAT HDF5
+  VARIABLES
+    PRESSURE
+    PERMEABILITY
+  /
+  OUTPUT
+    PERIODIC_TIMESTEP 1
+  /
+END
