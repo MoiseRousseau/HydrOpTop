@@ -11,6 +11,7 @@ class Base_Filter:
     return
   
   def set_inputs(self, inputs):
+    self.inputs = inputs
     return
   
   def get_filtered_density(self, p):
@@ -42,10 +43,8 @@ class Base_Filter:
 
     return J
   
-  def __get_input_variables_needed__(self):
+  def __get_variables_needed__(self):
     return self.input_variables_needed
-  def __get_solved_variables_needed__(self):
-    return []
   def __get_name__(self):
     return self.name
   

@@ -32,7 +32,7 @@ class Reference_Liquid_Head(Base_Function):
     self.cell_ids = np.array(cell_ids)
     
     #inputs for function evaluation 
-    self.head = None
+    self.inputs = None
     self.observation_name = observation_name
     
     #function derivative for adjoint
@@ -42,7 +42,7 @@ class Reference_Liquid_Head(Base_Function):
     self.adjoint = None
     
     #required for problem crafting
-    self.solved_variables_needed = ["LIQUID_HEAD"]
+    self.variables_needed = ["LIQUID_HEAD"]
     #if self.observation_name is not None:
     # 	self.solved_variables_needed = ["LIQUID_HEAD_AT_OBSERVATION"]
     self.name = "Reference Head"
@@ -54,13 +54,6 @@ class Reference_Liquid_Head(Base_Function):
       raise ValueError("Error norm need to be a positive integer")
     self.norm = x
     return
-    
-  def set_inputs(self, inputs):
-    self.head = inputs[0]
-    return
-    
-  def get_inputs(self):
-    return [self.head]
 
   
   ### COST FUNCTION ###
@@ -69,6 +62,7 @@ class Reference_Liquid_Head(Base_Function):
     Evaluate the cost function
     Return a scalar of dimension [L]
     """
+    self.head = self.inputs["LIQUID_HEAD"]
     if not self.initialized: self.__initialize__()
     if self.observation_name is not None:
       r = np.array([
@@ -87,13 +81,13 @@ class Reference_Liquid_Head(Base_Function):
     Evaluate the derivative of the function according to the pressure.
     If a numpy array is provided, derivative will be copied 
     in this array, else create a new numpy array.
-    Derivative have unit m/Pa
+    Derivative have unit m/m
     """
+    self.head = self.inputs["LIQUID_HEAD"]
     if not self.initialized: self.__initialize__()
     if self.dobj_dP is None:
       self.dobj_dP = np.zeros(len(self.head), dtype='f8')
-    else:
-      self.dobj_dP[:] = 0.
+    self.dobj_dP[:] = 0.
     if self.observation_name is not None:
       r = np.array([
         self.head[x] - h for x,h in zip(self.observation_name, self.ref_head)

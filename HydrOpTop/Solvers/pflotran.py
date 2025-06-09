@@ -6,10 +6,12 @@ import os
 import time
 
 from .Base_Simulator import Base_Simulator
+from ..utils import geometry_utils as geom
 
 DEFAULT_GRAVITY = 9.8068
 DEFAULT_VISCOSITY = 8.904156e-4
 DEFAULT_DENSITY = 997.16
+DEFAULT_REF_PRESSURE = 101325.0
 
 class PFLOTRAN(Base_Simulator):
   r"""
@@ -48,6 +50,7 @@ class PFLOTRAN(Base_Simulator):
     self.no_run = False #boolean flag to not run PFLOTRAN for debugging
     
     #output
+    self.solved_variables = ["LIQUID_HEAD", "PRESSURE"]
     self.pft_out = '.'.join(pft_in.split('.')[:-1])+'.h5'
     self.pft_out_sensitivity = '.'.join(pft_in.split('.')[:-1]) + "-sensitivity-flow"
     if self.mesh_type in ["ugi", "h5"]:
@@ -62,27 +65,32 @@ class PFLOTRAN(Base_Simulator):
       self.mesh_info_present = True
     
     #for internal working
-    self.dict_var_out = {"FACE_AREA" : "Face Area", 
-                         "FACE_DISTANCE_BETWEEN_CENTER" : "Face Distance Between Center",
-                         "FACE_UPWIND_FRACTION" : "Face Upwind Fraction",
-                         "FACE_NORMAL_X": "Face Normal X Component",
-                         "FACE_NORMAL_Y": "Face Normal Y Component",
-                         "FACE_NORMAL_Z": "Face Normal Z Component",
-                         "FACE_CELL_CENTER_VECTOR_X": "Face Cell Center X Component",
-                         "FACE_CELL_CENTER_VECTOR_Y": "Face Cell Vector Y Component",
-                         "FACE_CELL_CENTER_VECTOR_Z": "Face Cell Vector Z Component",
-                         "LIQUID_CONDUCTIVITY" : "Liquid Conductivity",
-                         "LIQUID_PRESSURE" : "Liquid Pressure",
-                         "LIQUID_HEAD" : "Liquid Pressure",
-                         "PERMEABILITY" : "Permeability",
-                         "VOLUME" : "Volume", 
-                         "ELEMENT_CENTER_X" : "X Coordinate",
-                         "ELEMENT_CENTER_Y" : "Y Coordinate",
-                         "ELEMENT_CENTER_Z" : "Z Coordinate"}
+    self.dict_var_out = {
+        "FACE_AREA" : "Face Area", 
+        "FACE_DISTANCE_BETWEEN_CENTER" : "Face Distance Between Center",
+        "FACE_UPWIND_FRACTION" : "Face Upwind Fraction",
+        "FACE_NORMAL_X": "Face Normal X Component",
+        "FACE_NORMAL_Y": "Face Normal Y Component",
+        "FACE_NORMAL_Z": "Face Normal Z Component",
+        "FACE_CELL_CENTER_VECTOR_X": "Face Cell Center X Component",
+        "FACE_CELL_CENTER_VECTOR_Y": "Face Cell Vector Y Component",
+        "FACE_CELL_CENTER_VECTOR_Z": "Face Cell Vector Z Component",
+        "LIQUID_CONDUCTIVITY" : "Liquid Conductivity",
+        "LIQUID_PRESSURE" : "Liquid Pressure",
+        "LIQUID_HEAD" : "Liquid Pressure",
+        "PERMEABILITY" : "Permeability",
+        "VOLUME" : "Volume", 
+        "ELEMENT_CENTER_X" : "X Coordinate",
+        "ELEMENT_CENTER_Y" : "Y Coordinate",
+        "ELEMENT_CENTER_Z" : "Z Coordinate"
+    }
     self.dict_var_sensitivity_matlab = \
          {"PERMEABILITY":"permeability","LIQUID_PRESSURE":"pressure"}
-    self.dict_var_sensitivity_hdf5 = \
-         {"PERMEABILITY":"Permeability []","LIQUID_PRESSURE":"Pressure []"}
+    self.dict_var_sensitivity_hdf5 = {
+         "PERMEABILITY":"Permeability []",
+         "LIQUID_PRESSURE":"Pressure []",
+         "LIQUID_HEAD":"Pressure []",
+     }
     return
   
   def set_polyhedral_mesh_file(self, x):
@@ -124,17 +132,15 @@ class PFLOTRAN(Base_Simulator):
   
   # interacting with data #
   def get_region_ids(self, reg_name):
-    r"""
-    Description:
-      Interact with the REGION card defined in the PFLOTRAN input file
-    
-    Parameters:
-      ``reg_name`` (str): Name of the region in PFLOTRAN input file
-      
-    Return:
-      A numpy 1D array containing the cell ID belonging to the region ``reg_name`` as in the PFLOTRAN input file.
-    
     """
+    Interact with the REGION card defined in the PFLOTRAN input file
+    Return the cell Ids associated with the region
+    
+    :param reg_name: Name of the region in PFLOTRAN input file
+    :type reg_name: str
+    """
+    if reg_name == "__all__":
+      return np.arange(1,self.n_cells+1)
     #look for region in pflotran input
     filename = ""
     for i,line in enumerate(self.input_deck):
@@ -150,6 +156,7 @@ class PFLOTRAN(Base_Simulator):
       exit(1)
     
     #try hdf5
+    ext = filename.split('.')[-1]
     try:
       src = h5py.File(filename, 'r')
       if reg_name in src["Regions"]:
@@ -163,8 +170,8 @@ class PFLOTRAN(Base_Simulator):
     except:
       try:
         cell_ids = np.genfromtxt(filename, dtype='i8')
-      except:
-        print(f"File {filename} not readable")
+      except Exception as e:
+        raise IOError(e)
     return cell_ids 
   
   def get_connections_ids_integral_flux(self, integral_flux_name):
@@ -251,32 +258,52 @@ class PFLOTRAN(Base_Simulator):
       out.create_dataset("Cell Ids", data=X_ids)
     out.close()
     return
+
+  def __get_mesh_center__(self):
+    if self.mesh_type in ["ugi","h5"]:
+      vert,elem = self.__get_unstructured_mesh__()
+      center = np.array([
+        geom.element_center(vert[e[1:e[0]+1]-1]) for e in elem
+      ])
+      return center
+    mesh_path = self.input_folder + self.mesh_file
+    if self.mesh_type in ["uge"]:
+      src = open(mesh_path, 'r')
+      center = [[float(x) for x in l.split()[1:4]] for l in src.readlines()[1:self.n_cells+1]]
+      center = np.array(center)
+      src.close()
+    elif self.mesh_type in ["h5e"]:
+      mesh = h5py.File(mesh_path, 'r')
+      center = np.array(mesh["Domain/Cells/Centers"])
+      mesh.close()
+    return center
+  
+  def __get_mesh_volume__(self):
+    mesh_path = self.input_folder + self.mesh_file
+    if self.mesh_type in ["ugi","h5"]:
+      vert,elem = self.__get_unstructured_mesh__()
+      volume = np.array([
+        geom.element_volume(vert[e[1:e[0]+1]-1]) for e in elem
+      ])
+    elif self.mesh_type in ["uge"]:
+      src = open(mesh_path, 'r')
+      volume = np.array(
+        [float(l.split()[-1]) for l in src.readlines()[1:self.n_cells+1]]
+      )
+      src.close()
+    elif self.mesh_type in ["h5e"]:
+      src = h5py.File(mesh_path, 'r')
+      volume = np.array(src["Domain/Cells/Volumes"])
+      src.close()
+    return volume
    
-    
   def get_mesh(self):
     """
     TODO
     """
     #should return the mesh ready to be pass to meshio
     if self.mesh_type in ["ugi","h5"]:
-      mesh_path = self.input_folder + self.mesh_file
-      if self.mesh_type == "h5":
-        mesh = h5py.File(mesh_path, 'r')
-        vert = np.array(mesh["Domain/Vertices"])
-        elem = np.array(mesh["Domain/Cells"])
-        mesh.close()
-      elif self.mesh_type == "ugi":
-        mesh = open(mesh_path,'r')
-        n_e, n_v = [int(x) for x in mesh.readline().split()]
-        elem = np.zeros((n_e,9),dtype='i8')
-        for iline in range(n_e):
-          line = [int(x) for x in mesh.readline().split()[1:]]
-          elem[iline,0] = len(line)
-          elem[iline,1:len(line)+1] = line
-        vert = np.zeros((n_v,3),dtype='f8')
-        for iline in range(n_v):
-          vert[iline] = [float(x) for x in mesh.readline().split()]
-        mesh.close()
+      vert,elem = self.__get_unstructured_mesh__()
       #convert to meshio structure
       elem_type_code = {"tetra":4, "pyramid":5, "wedge":6, "hexahedron":8}
       cells = []
@@ -385,6 +412,15 @@ class PFLOTRAN(Base_Simulator):
       ``timestep`` (int): the i-th timestep to extract (not working yet)
     
     """
+    if "ELEMENT_CENTER_" in var:
+      center = self.__get_mesh_center__()
+      if "X" in var: return center[:,0]
+      if "Y" in var: return center[:,1]
+      if "Z" in var: return center[:,2]
+    if "VOLUME" in var:
+      return self.__get_mesh_volume__()
+      #Get mesh
+      # Compute volume (already given in UGE grids)
     if var == "CONNECTION_IDS":
       return self.get_internal_connections()
     #treat coordinate separately as they are in Domain/XC unless for uge grid
@@ -429,37 +465,41 @@ class PFLOTRAN(Base_Simulator):
     
     #other variable
     src = h5py.File(f_src, 'r')
-    if False:#var in == "LIQUID_HEAD": 
+    if var == "LIQUID_HEAD": 
         right_time, out_var = self.__check_output_variable_present__(
             src, i_timestep, "LIQUID_PRESSURE"
         )
-        eg = DEFAULT_GRAVITY * DEFAULT_DENSITY #TODO non constent density
-        out = np.array(src[right_time + '/' + out_var]) - self.reference_pressure / eg
+        eg = 1 / (DEFAULT_GRAVITY * DEFAULT_DENSITY) #TODO non constant density
+        temp = (np.array(src[right_time + '/' + out_var]) - DEFAULT_REF_PRESSURE) * eg
         right_time, out_var = self.__check_output_variable_present__(
             src, i_timestep, "ELEMENT_CENTER_Z"
         )
-        out += np.array(src[right_time + '/' + out_var])
+        temp += np.array(src[right_time + '/' + out_var])
     else:
       right_time, out_var = self.__check_output_variable_present__(src, i_timestep, var)
-      if out is None:
-        out = np.array(src[right_time + '/' + out_var])
-      else:
-        out[:] = np.array(src[right_time + '/' + out_var])
+      temp = np.array(src[right_time + '/' + out_var])
+    if out is None:
+      out = temp
+    else:
+      out[:] = temp
     src.close()
     return out
   
   def get_sensitivity(self, var, timestep=None, coo_mat=None):
     #TODO case for liquid head which is (p - p0 / eg) + z
     if self.output_sensitivity_format == "HDF5":
-       f = self.pft_out_sensitivity + '.h5'
-       src = h5py.File(f, 'r')
-       i = np.array(src["Mat Structure/Row Indices"])
-       j = np.array(src["Mat Structure/Column Indices"])
-       if timestep is None: timestep = -1
-       list_timestep = list(src.keys())
-       temp_str = list_timestep[timestep] + '/' + self.dict_var_sensitivity_hdf5[var]
-       data = np.array(src[ temp_str ])
-       src.close()
+      f = self.pft_out_sensitivity + '.h5'
+      src = h5py.File(f, 'r')
+      i = np.array(src["Mat Structure/Row Indices"])
+      j = np.array(src["Mat Structure/Column Indices"])
+      if timestep is None: timestep = -1
+      list_timestep = list(src.keys())
+      temp_str = list_timestep[timestep] + '/' + self.dict_var_sensitivity_hdf5[var]
+      data = np.array(src[ temp_str ])
+      if var == "LIQUID_HEAD":
+        eg = (DEFAULT_GRAVITY * DEFAULT_DENSITY) #TODO non constant density
+        data *= eg
+      src.close()
     elif self.output_sensitivity_format == "MATLAB":
       if timestep is None:
         output_file = [x[:-4] for x in os.listdir(self.input_folder) if x[-4:] == '.mat']
@@ -535,6 +575,27 @@ class PFLOTRAN(Base_Simulator):
     return 
     
   
+  def __get_unstructured_mesh__(self):
+      mesh_path = self.input_folder + self.mesh_file
+      if self.mesh_type == "h5":
+        mesh = h5py.File(mesh_path, 'r')
+        vert = np.array(mesh["Domain/Vertices"])
+        elem = np.array(mesh["Domain/Cells"])
+        mesh.close()
+      elif self.mesh_type == "ugi":
+        mesh = open(mesh_path,'r')
+        n_e, n_v = [int(x) for x in mesh.readline().split()]
+        elem = np.zeros((n_e,9),dtype='i8')
+        for iline in range(n_e):
+          line = [int(x) for x in mesh.readline().split()[1:]]
+          elem[iline,0] = len(line)
+          elem[iline,1:len(line)+1] = line
+        vert = np.zeros((n_v,3),dtype='f8')
+        for iline in range(n_v):
+          vert[iline] = [float(x) for x in mesh.readline().split()]
+        mesh.close()
+      return vert,elem
+
   def __get_mesh_info__(self):
     """
     Read PFLOTRAN input deck to get the mesh type and the mesh file
@@ -623,6 +684,5 @@ class PFLOTRAN(Base_Simulator):
       print(src[right_time].keys())
       print(f"Do you forgot to add the \"{var}\" output variable under the OUTPUT card?\n")
       exit(1)
-    return right_time, out_var
-    
+    return right_time, out_var    
     

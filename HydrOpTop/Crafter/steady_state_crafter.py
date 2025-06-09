@@ -80,22 +80,17 @@ class Steady_State_Crafter:
   
   
   def initialize_function_vars(self, func):
-    func_var = []
-    for var in func.__get_solved_variables_needed__():
-      func_var.append(self.solver.get_output_variable(var))
-    for var in func.__get_input_variables_needed__():
-      func_var.append(self.solver.get_output_variable(var))
+    func_var = {
+      var: self.solver.get_output_variable(var) for var in func.__get_variables_needed__()
+    }
     func.set_inputs(func_var)
     return func_var
     
   def update_function_vars(self, func, func_var):
-    for i,var in enumerate(func.__get_solved_variables_needed__()):
-      self.solver.get_output_variable(var, func_var[i], -1) #last timestep
-    i = len(func.__get_solved_variables_needed__())
-    for j,var in enumerate(func.__get_input_variables_needed__()):
-      self.solver.get_output_variable(var, func_var[i+j], -1) #last timestep
+    for var in func.__get_variables_needed__():
+      self.solver.get_output_variable(var, func_var[var], -1)
     return
-    
+
   def filter_density(self, p):
     if not self.filters:
       return p
@@ -106,7 +101,7 @@ class Steady_State_Crafter:
       self.initialize_function_vars(filter_) #update filter var
       p_bar = filter_.get_filtered_density(p_bar)
     return p_bar
-    
+
   def evaluate_total_gradient(self, func, p, p_bar=None):
     if self.filters:
       if p_bar is None:
@@ -117,9 +112,10 @@ class Steady_State_Crafter:
     dobj_dY = func.d_objective_dY(p_)
     dobj_dp_partial = func.d_objective_dp_partial(p_)
     dobj_dX = func.d_objective_dX(p_)
-    grad = func.adjoint.compute_sensitivity(p_, dobj_dY, 
-                dobj_dX, func.__get_input_variables_needed__()) + \
-                dobj_dp_partial
+    grad = func.adjoint.compute_sensitivity(
+      p_, dobj_dY, dobj_dX, func.__get_variables_needed__()
+    ) + dobj_dp_partial # was input_variables_needed
+
     if self.filters:
       p_ = p
       for i,filter_ in enumerate(self.filters):
@@ -133,15 +129,23 @@ class Steady_State_Crafter:
   
   
   def output_to_user(self):
-    self.IO.output(self.func_eval, 
-                   self.last_cf, 
-                   self.last_constraints, 
-                   self.last_p, 
-                   self.last_grad, 
-                   self.last_grad_constraints, 
-                   {x.get_name():x.convert_p_to_mat_properties(self.last_p_bar) for x in self.mat_props},
-                   self.last_p_bar,
-                   val_at=self.p_ids-1)
+    val_at = np.argwhere(np.isin(
+      self.solver.get_region_ids("__all__"), self.p_ids
+    )).flatten()
+    self.IO.output(
+      it=self.func_eval, #iteration number
+      cf=self.last_cf, #cost function value
+      constraints_val=self.last_constraints, #constraints value
+      p_raw=self.last_p, #raw density parameter (not filtered)
+      grad_cf=self.last_grad, # d(cost function) / d p
+      grad_constraints=self.last_grad_constraints, 
+      mat_props={
+        x.get_name():x.convert_p_to_mat_properties(self.last_p_bar) for x in self.mat_props
+      },
+      p_filtered=self.last_p_bar,
+      adj_obj=self.obj.adjoint.adjoint.last_l,
+      val_at=val_at
+    )
     return
     
   
@@ -219,6 +223,8 @@ class Steady_State_Crafter:
       opt.set_maxeval(max_it)
       if ftol is not None: 
         opt.set_ftol_rel(ftol)
+      # adjust initial step size
+      #opt.set_initial_step(20)
       #optimize
       try:
         p_opt = opt.optimize(initial_guess)
@@ -236,15 +242,17 @@ class Steady_State_Crafter:
                                     -np.inf, 0,
                                     jac=lambda p: self.scipy_constraint_jac(constraint,p))
         consts.append(const)
-      p_opt = minimize(self.scipy_function_to_optimize, 
-                       method=algo,
-                       jac=self.scipy_jac, 
-                       x0=initial_guess, 
-                       bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0),
-                       constraints=consts, 
-                       tol=ftol,
-                       options=options,
-                       callback=self.scipy_callback)
+      p_opt = minimize(
+         self.scipy_function_to_optimize, 
+         method=algo,
+         jac=self.scipy_jac, 
+         x0=initial_guess,
+         bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0),
+         constraints=consts, 
+         tol=ftol,
+         options=options,
+         callback=self.scipy_callback
+      )
       
     
     elif optimizer == "cyipopt":
@@ -347,18 +355,19 @@ class Steady_State_Crafter:
     ###FILTERING: convert p to p_bar
     p_bar = self.filter_density(p)
     the_constraint,compare,val = self.constraints[iconstraint]
-    constraint = the_constraint.evaluate(p_bar) - val
+    constraint = the_constraint.evaluate(p_bar)
     c_name = self.constraints[iconstraint][0].name
-    print(f"Current {c_name} (constrain): {constraint+val:.6e}")
+    print(f"Current {c_name} (constrain): {constraint:.6e}")
     if grad.size > 0:
       grad[:] = self.evaluate_total_gradient(the_constraint, p, p_bar)
     if compare == '>':
-      grad *= -1.
+      grad[:] *= -1.
       constraint = -constraint
+      val *= -1
     
     self.last_constraints[c_name] = constraint
     self.last_grad_constraints[c_name] = grad.copy()
-    return constraint - the_constraint.__get_constraint_tol__()
+    return constraint - val
     
     
   ########################
@@ -415,7 +424,7 @@ class Steady_State_Crafter:
     print("Initialization...")
     #verify if each cells to parametrize are the same
     C = self.mat_props[0].get_cell_ids_to_parametrize()
-    input_dim = C
+    input_dim = len(C) if C is not None else None
     for f in self.filters:
       if isinstance(f,Pilot_Points):
         input_dim = len(f.control_points)
@@ -430,12 +439,11 @@ class Steady_State_Crafter:
           exit(1)
     #create correspondance and problem size
     if input_dim is None: #i.e. parametrize all cell in the simulation
-      self.problem_size = self.solver.get_grid_size()
-    else: 
-      self.problem_size = input_dim
+      input_dim = self.solver.get_grid_size()
+    self.problem_size = input_dim
     self.p_ids = C #from 0 based indexing to solver indexing
     if self.p_ids is None:
-      self.p_ids = np.arange(1, self.solver.get_grid_size()+1) 
+      self.p_ids = self.solver.get_region_ids("all")
     self.last_p = np.zeros(input_dim,dtype='f8')
     self.last_grad = np.zeros(input_dim,dtype='f8')
     self.last_p_bar = np.zeros(len(self.p_ids),dtype='f8')
@@ -449,11 +457,19 @@ class Steady_State_Crafter:
     #initialize adjoint for objective function
     #TODO: what happen for 2 variables butlowly or highly coupled ??
     if self.obj.adjoint is None: #could have been set by user
-      if len(self.obj.__get_solved_variables_needed__()) == 0: #no adjoint required
+      solved_variables_needed = []
+      for var in self.obj.__get_variables_needed__():
+        if var in self.solver.solved_variables:
+          solved_variables_needed.append(var)
+      if solved_variables_needed:
+        adjoint = Sensitivity_Steady_Simple(
+          solved_variables_needed,
+          self.mat_props,
+          self.solver,
+          self.p_ids
+        )
+      else:
         adjoint = No_Adjoint(self.mat_props, self.p_ids)
-      elif len(self.obj.__get_solved_variables_needed__()) == 1: #one variable
-        adjoint = Sensitivity_Steady_Simple(self.obj.__get_solved_variables_needed__(),
-                                       self.mat_props, self.solver, self.p_ids)
       self.obj.set_adjoint_problem(adjoint)
       
     self.obj.set_p_to_cell_ids(self.p_ids)
@@ -465,19 +481,53 @@ class Steady_State_Crafter:
       constraint = constraint[0]
       constraint.set_p_to_cell_ids(self.p_ids)
       if constraint.adjoint is None:
-        if len(constraint.__get_solved_variables_needed__()) == 0:
+        solved_variables_needed = []
+        for var in self.constraint.__get_variables_needed__():
+          if var in self.solver.solved_variables:
+            solved_variables_needed.append(var)
+        if len(solved_variables_needed) == 0:
           adjoint = No_Adjoint(self.mat_props, self.p_ids)
-        elif len(constraint.__get_solved_variables_needed__()) == 1:
-          adjoint = Sensitivity_Steady_Simple(constraint.__get_solved_variables_needed__(),
-                                             self.mat_props, self.solver, self.p_ids)
+        else:
+          adjoint = Sensitivity_Steady_Simple(
+            solved_variables_needed,
+            self.mat_props, self.solver, self.p_ids
+          )
         constraint.set_adjoint_problem(adjoint)
         
     #initialize IO
     self.IO.communicate_functions_names(self.obj.__get_name__(), 
          [x[0].__get_name__() for x in self.constraints])
+     #iteration number
+     #cf, #cost function value
+     #constraints_val, #constraints value
+     #p_raw, #raw density parameter (not filtered)
+     #grad_cf, # d(cost function) / d p
+     #grad_constraints, # d(constraints) / d p
+     #mat_props, # parametrized mat props (dict)
+     #p_filtered, #filtered density parameters
+     #val_at=None): # cell/node ids corresponding to dataset
+    var_loc = {
+      "Density parameter":"cell",
+      "Density parameter filtered":"cell",
+      self.obj.__get_name__(): self.solver.get_var_location(
+        self.obj.__get_variables_needed__()[0]
+      ),
+    }
+    var_loc[f"Gradient d{self.obj.__get_name__()}_dp"] = var_loc["Density parameter"]
+    var_loc.update({
+      x[0].__get_name__(): self.solver.get_var_location(
+        x[0].__get_variables_needed__()[0]
+      ) for x in self.constraints
+    })
+    var_loc.update({
+      x.get_name(): self.solver.get_var_location(
+        x.get_name()
+      ) for x in self.mat_props
+    })
+    var_loc["Adjoint vector"] = "cell" #TODO must be solver attribute
+    self.IO.communicate_var_location(var_loc)
     vertices, cells, indexes = self.solver.get_mesh()
-    self.IO.set_mesh_info(vertices, cells, indexes,
-                          self.solver.get_var_location())
+    self.IO.set_mesh_info(vertices, cells, indexes)
     return
     
   
@@ -487,18 +537,6 @@ class Steady_State_Crafter:
     # solver one time to initialize the filter (even if it's costly)...
     if not self.filters:
       return
-    
-    print("Filter initialization")
-    for mat_prop in self.mat_props:
-      X = mat_prop.convert_p_to_mat_properties(np.zeros(self.solver.get_grid_size()))
-      self.solver.create_cell_indexed_dataset(X, mat_prop.get_name(),
-                      X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
-    #run Solver
-    for filter_ in self.filters:
-      if filter_.__get_input_variables_needed__() or filter_.__get_solved_variables_needed__():
-        ret_code = self.solver.run()
-        if ret_code: 
-          exit(ret_code)
     
     for filter_ in self.filters:
       self.initialize_function_vars(filter_)
@@ -518,7 +556,7 @@ class Steady_State_Crafter:
 \t    solver-independent approach
 \t
 \t               by
-\t       Moise Rousseau (2022)
+\t       Moise Rousseau (2025)
 \t
 \t===================================
     """)

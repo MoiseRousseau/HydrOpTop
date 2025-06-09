@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.sparse import dia_matrix
 from .Base_Filter_class import Base_Filter
-from ..Functions.Volume_Percentage import Volume_Percentage
+from ..Functions.volume_percentage import Volume_Percentage
 from scipy.optimize import root_scalar
 
 class Volume_Preserving_Heaviside_Filter(Base_Filter):

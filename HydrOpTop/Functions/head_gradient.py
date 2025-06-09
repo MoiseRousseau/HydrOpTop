@@ -59,7 +59,6 @@ class Head_Gradient(Base_Function):
       except:
         raise ValueError("Argument 'ids_to_consider' must be a numpy array or a object that can be converted to")
     self.power = power
-    self.correction_it = correction_iteration
     self.density = density
     self.gravity = gravity
     self.ref_pressure = ref_pressure
@@ -165,8 +164,6 @@ class Head_Gradient(Base_Function):
     if not self.initialized: self.__initialize__()
     head = (self.pressure-self.ref_pressure) / (self.density * self.gravity) + self.z
     gradXYZ = self.compute_head_gradient(head) - self.grad_correction*head[:,np.newaxis]
-    #for it in self.correction_it:
-      #make correction
     #objective value
     grad_mag = np.sqrt(gradXYZ[:,0]**2+gradXYZ[:,1]**2+gradXYZ[:,2]**2)
     cf = np.sum(self.volume[self.ids_to_consider] * grad_mag[self.ids_to_consider]**self.power) / self.V_tot

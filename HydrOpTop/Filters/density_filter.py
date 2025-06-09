@@ -36,8 +36,7 @@ class Density_Filter(Base_Filter):
       raise ValueError
     self.distance_weighting_power = distance_weighting_power
     self.p_ids = None
-    self.volume = None
-    self.mesh_center = None
+    self.inputs = {}
     self.neighbors = None
     self.initialized = False
     
@@ -46,18 +45,20 @@ class Density_Filter(Base_Filter):
     return
   
   def set_inputs(self, inputs):
-    self.volume = inputs[3]
-    self.mesh_center = np.array(inputs[:3]).transpose()
+    self.inputs = inputs
+    self.inputs["ELEMENT_CENTER"] = np.array(
+      [v for k,v in self.inputs.items() if "ELEMENT_CENTER_" in k]
+    ).transpose()
     return
   
   
   def initialize(self):
     if self.p_ids is not None:
-      V = self.volume[self.p_ids-1] #just need those in the optimized domain
-      X = self.mesh_center[self.p_ids-1,:]
+      V = self.inputs["VOLUME"][self.p_ids-1] #just need those in the optimized domain
+      X = self.inputs["ELEMENT_CENTER"][self.p_ids-1,:]
     else:
-      V = self.volume
-      X = self.mesh_center
+      V = self.inputs["VOLUME"]
+      X = self.inputs["ELEMENT_CENTER"]
     if isinstance(self.filter_radius, list): #anisotropic
       for i in range(3): X[:,i] /= self.filter_radius[i]
       R = 1.

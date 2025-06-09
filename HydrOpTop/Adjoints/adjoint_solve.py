@@ -3,100 +3,86 @@ import scipy.sparse.linalg as spla
 from scipy.sparse import dia_matrix
 import scipy.sparse as sp
 import numpy as np
-try:
-  from petsc4py import PETSc
-except:
-  pass
-try:
-  import cupy
-  import cupyx.scipy.sparse as css
-except:
-  pass
 
 
-
-class Adjoint_Solve:
-  r"""
-  Solve matrix equation Ax=B
-  """
-  def __init__(self, algo=None):
-    if algo is not None: 
-      self.algo = algo.lower()
-    else: 
-      self.algo = ""
-    self.last_l = None
-    if "gpu" in self.algo: 
-      print("WARNING: gpu solve is highly experimental")
-    
-    #default parameter for some algorithm
-    self.cg_tol = 5e-4
-    self.cg_preconditionner = "jacobi"
-    return
-  
-  def solve(self, A, b):
-    #default parameter
-    if self.algo == "":
-      if len(b) > 10000: 
-        self.algo = "bicgstab"
-      else: 
-        self.algo = "lu"
-    #solve
-    print(f"Solve adjoint equation using {self.algo}")
-    t_start = time.time()
-    if self.algo == "spsolve":
-      l = self.__sp_solve__(A,b)
-    if self.algo == "lu":
-      l = self.__lu_solve__(A,b)
-    elif self.algo == "bicgstab":
-      l = self.__bicgstab_solve__(A,b)
-    elif self.algo == "cg_gpu":
-      l = self.__cg_solve_gpu__(A,b)
-    print(f"Time to solve adjoint: {(time.time() - t_start)} s")
-    return l
-  
-  def __sp_solve__(self, A, b):
+def __sp_solve__(A, b, l0=None):
     _A = A.tocsr()
     l = spla.spsolve(_A, b) 
     return
-  
-  def __lu_solve__(self, A, b):
+
+def __lu_solve__(A, b, l0=None):
     _A = A.tocsc() #[L-1]
     LU = spla.splu(_A)
     l = LU.solve(b)
     return l
-  
-  def __bicgstab_solve__(self, A, b):
+
+def __bicgstab_solve__(A, b, l0=None):
     #always use jacobi preconditioning
     D_ = dia_matrix((np.sqrt(1/A.diagonal()),[0]), shape=A.shape)
     _A = D_ * A * D_
     _b = D_ * b
-    l, info = spla.bicgstab(_A, _b, x0=self.last_l, 
-                              tol=self.cg_tol, atol=-1) #do not rely on atol
-    #copy for making starting guess for future iteration
-    if self.last_l is None: self.last_l = np.copy(l)
-    else: self.last_l[:] = l
+    l, info = spla.bicgstab(
+        _A, _b, x0=l0 / D_, 
+        rtol=self.cg_tol, atol=1e-40
+    ) #do not rely on atol
     if info: 
-      print("Some error append during BiConjugate Gradient Stabilized solve")
-      print(f"Error code: {info}")
-      exit(1)
+        raise RuntimeError(f"Some error append during BiConjugate Gradient Stabilized solve, error code: {info}")
     l = D_ * l
     return l
-  
-  def __cg_solve_gpu__(self, A,b):
-    #always use jacobi preconditioning
-    D_ = dia_matrix((np.sqrt(1/A.diagonal()),[0]), shape=A.shape)
-    #set up gpu array
-    _A = css.csr_matrix(D_ * A * D_)
-    _b = cupy.array(D_ * b)
-    #solve gpu
-    l, info = css.linalg.cg(_A,_b, x0=self.last_l, tol=self.cg_tol, atol=-1)
-    if self.last_l is None: self.last_l = cupy.copy(l)
-    else: self.last_l[:] = l
-    if info: 
-      print("Some error append during Conjugate Gradient GPU solve")
-      print(f"Error code: {info}")
-      exit(1)
-    return np.array(D_ * l)
-    
 
+def __lsqr_solve__(A,b, l0=None):
+    l = spla.lsqr(A, b, atol=1e-6, btol=1e-6, x0=l0)
+    if l[1] == 1: 
+        print("Warning, adjoint solution is only an approximate solution")
+    #print(l)
+    return l[0]
+
+
+algo = {
+    "direct": __lu_solve__,
+    "iterative": __bicgstab_solve__,
+    "lu": __lu_solve__,
+    "spsolve": __sp_solve__,
+    "bicgstab": __bicgstab_solve__,
+    "least-square": __lsqr_solve__,
+}
+
+
+class Adjoint_Solve:
+    r"""
+    Solve matrix equation Ax=B
+    """
+    def __init__(self, algo=None, algo_kwargs={}):
+        if algo is not None: 
+          self.algo = algo.lower()
+        else: 
+          self.algo = None
+        self.last_l = None
+        
+        #default parameter for some algorithm
+        self.solve_params = algo_kwargs
+        self.cg_tol = 5e-4
+        self.cg_preconditionner = "jacobi"
+        return
+    
+    def solve(self, A, b):
+        #default parameter
+        if self.algo is None:
+            self.algo = self.select_default_algo(A,b)
+        #solve
+        print(f"Solve adjoint equation using {self.algo} solver")
+        t_start = time.time()
+        l = algo[self.algo](A,b,self.last_l)
+        if self.last_l is None: self.last_l = l
+        else: self.last_l[:] = l
+        print(f"Time to solve adjoint: {(time.time() - t_start)} s")
+        return l
+    
+    def select_default_algo(self, A, b):
+        if len(b) > 10000: 
+            return "bicgstab"
+        elif A.shape[0] != A.shape[1]:
+            return "least-square"
+        else: 
+            return "lu"
 

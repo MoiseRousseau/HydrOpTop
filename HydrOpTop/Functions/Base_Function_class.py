@@ -10,11 +10,7 @@ class Base_Function:
   """
   def __init__(self):
     self.name = "Base Function"
-    self.solved_variables_needed = [] #a lilst of variables solved by the solver needed to 
-                                     #calculate the function
-    self.input_variables_needed = [] #a lilst of variables NOT solved by the solver needed to 
-                                     #calculate the function (e.g. material properties)
-    self.constraint_tol = 0.
+    self.inputs = {}
     self.initialized = False
     self.adjoint = None #a variable to stored the adjoint when passed by the crafter
     return
@@ -27,19 +23,18 @@ class Base_Function:
     """
     Method required by the problem crafter to pass the solver output
     variables to the objective
-    Inputs argument have the same size and in the same order given in
-    "self.output_variable_needed".
     Note that the inputs will be passed one time only (during the
     initialization), and will after be changed in-place, so that function
     will never be called again...
     """
+    self.inputs = inputs
     return
   
   def get_inputs(self):
     """
     Return the current input values
     """
-    return []
+    return self.inputs
   
   def set_p_to_cell_ids(self,p_ids):
     """
@@ -88,9 +83,6 @@ class Base_Function:
     return 0.
     
   ### REQUIRED FOR CRAFTING ###
-  def __get_solved_variables_needed__(self): return self.solved_variables_needed
-  def __get_input_variables_needed__(self): return self.input_variables_needed
-  def __get_all_variables_needed__(self): return self.solved_variables_needed + self.input_variables_needed
+  def __get_variables_needed__(self): return self.variables_needed
   def __get_name__(self): return self.name
-  def __get_constraint_tol__(self): return self.constraint_tol
                       
