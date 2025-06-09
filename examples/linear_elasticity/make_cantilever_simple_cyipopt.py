@@ -6,7 +6,8 @@ Using cyipopt instead of mma as optimizer
 import numpy as np
 import time
                                   
-from HydrOpTop.Functions import Mechanical_Compliance, Volume_Percentage
+from mechanical_compliance import Mechanical_Compliance
+from HydrOpTop.Functions import Volume_Percentage
 from HydrOpTop.Materials import SIMP
 from HydrOpTop.Filters import Density_Filter
 from HydrOpTop.Crafter import Steady_State_Crafter
@@ -26,11 +27,13 @@ if __name__ == "__main__":
 
     dfilter = Density_Filter(0.3)
 
-    crafted_problem = Steady_State_Crafter(objective=cf, 
-                                         solver=sim, 
-                                         mat_props=[young_modulus], 
-                                         constraints=[max_vol], 
-                                         filters=[dfilter])
+    crafted_problem = Steady_State_Crafter(
+      objective=cf, 
+      solver=sim, 
+      mat_props=[young_modulus], 
+      constraints=[max_vol], 
+      filters=[dfilter]
+    )
     crafted_problem.IO.define_output_format("vtu")
     #crafted_problem.IO.no_output_initial()
     crafted_problem.IO.output_every_iteration(2)

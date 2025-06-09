@@ -246,39 +246,39 @@ class IO:
   def communicate_var_location(self, var_loc):
     self.var_loc = var_loc
     
-#  def write_fields_to_file(self, X, filename, Xname, at_ids=None):
-#    r"""
-#    Output the field data given in the list X using ``MeshIO`` python library.
-#    
-#    :param X: The list of field datas to output
-#    :type X: list of numpy array
-#    :param filename: The name of the output file. Note, the format is deduced from the file extension.
-#    :type param: str
-#    :param Xname: The dataset names. Must be ordered the same as X.
-#    :type Xname: list of str
-#    :param at_ids: If the X datasets does not span the whole simulation domain, the ``at_ids`` array give the point/cell ids corresponding to the given data.
-#    :type: iterable (same size as X)
-#    """
-#    X_ = []
-#    for x in X:
-#      if at_ids is not None:
-#        x_ = self.correct_dataset_length(x, at_ids)
-#      else:
-#        x_ = x
-#      X_.append(x_)
-#    dict_var = {}
-#    for i,x in enumerate(X_):
-#      data = []
-#      for (elem_type, index) in self.indexes:
-#        data.append(x[index])
-#      dict_var[Xname[i]] = data
-#    var_loc = None#TODO
-#    if self.var_loc == "cell":
-#      mesh = meshio.Mesh(self.vertices, self.elements, cell_data=dict_var)
-#    elif self.var_loc == "point":
-#      mesh = meshio.Mesh(self.vertices, self.elements, point_data=dict_var)
-#    mesh.write(filename)
-#    return
+  def write_fields_to_file(self, X, filename, Xname, at_ids=None):
+    r"""
+    Output the field data given in the list X using ``MeshIO`` python library.
+    
+    :param X: The list of field datas to output
+    :type X: list of numpy array
+    :param filename: The name of the output file. Note, the format is deduced from the file extension.
+    :type param: str
+    :param Xname: The dataset names. Must be ordered the same as X.
+    :type Xname: list of str
+    :param at_ids: If the X datasets does not span the whole simulation domain, the `at_ids`` array give the point/cell ids corresponding to the given data.
+    :type: iterable (same size as X)
+    """
+    X_ = []
+    for x in X:
+      if at_ids is not None:
+        x_ = self.correct_dataset_length(x, at_ids)
+      else:
+        x_ = x
+      X_.append(x_)
+    dict_var = {}
+    for i,x in enumerate(X_):
+      data = []
+      for (elem_type, index) in self.indexes:
+        data.append(x[index])
+      dict_var[Xname[i]] = data
+    var_loc = None#TODO
+    if self.var_loc == "cell":
+      mesh = meshio.Mesh(self.vertices, self.elements, cell_data=dict_var)
+    elif self.var_loc == "point":
+      mesh = meshio.Mesh(self.vertices, self.elements, point_data=dict_var)
+    mesh.write(filename)
+    return
   
   
   def plot_convergence_history(self, include_constraints=False, save_fig_to=None):

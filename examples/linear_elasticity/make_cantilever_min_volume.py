@@ -9,7 +9,8 @@ Minimize volume with maximum compliance
 
 import numpy as np
 
-from HydrOpTop.Functions import Volume_Percentage, Mechanical_Compliance
+from mechanical_compliance import Mechanical_Compliance
+from HydrOpTop.Functions import Volume_Percentage
 from HydrOpTop.Materials import SIMP
 from HydrOpTop.Filters import Density_Filter, Heaviside_Filter
 from HydrOpTop.Crafter import Steady_State_Crafter

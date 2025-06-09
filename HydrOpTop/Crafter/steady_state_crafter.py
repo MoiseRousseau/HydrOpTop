@@ -394,14 +394,17 @@ class Steady_State_Crafter:
   
   def scipy_constraint_val(self, constraint, p):
     self.scipy_run_sim(p)
-    val = constraint.evaluate(self.last_p_bar)
-    self.last_constraints[constraint.name] = val
-    return -val + constraint.__get_constraint_tol__()
+    val = constraint[0].evaluate(self.last_p_bar)
+    self.last_constraints[constraint[0].name] = val
+    if constraint[1] == '<':
+      return -val + constraint[2]
+    elif constraint[1] == '>':
+      return val - constraint[2]
   
   def scipy_constraint_jac(self, constraint, p):
     self.scipy_run_sim(p)
-    grad = -self.evaluate_total_gradient(constraint, p, self.last_p_bar) #don't forget the minus
-    self.last_grad_constraints[constraint.name] = grad.copy()
+    grad = -self.evaluate_total_gradient(constraint[0], p, self.last_p_bar) #don't forget the minus
+    self.last_grad_constraints[constraint[0].name] = grad.copy()
     return grad
   
   def scipy_callback(self):
@@ -443,7 +446,7 @@ class Steady_State_Crafter:
     self.problem_size = input_dim
     self.p_ids = C #from 0 based indexing to solver indexing
     if self.p_ids is None:
-      self.p_ids = self.solver.get_region_ids("all")
+      self.p_ids = self.solver.get_region_ids("__all__")
     self.last_p = np.zeros(input_dim,dtype='f8')
     self.last_grad = np.zeros(input_dim,dtype='f8')
     self.last_p_bar = np.zeros(len(self.p_ids),dtype='f8')
@@ -482,7 +485,7 @@ class Steady_State_Crafter:
       constraint.set_p_to_cell_ids(self.p_ids)
       if constraint.adjoint is None:
         solved_variables_needed = []
-        for var in self.constraint.__get_variables_needed__():
+        for var in constraint.__get_variables_needed__():
           if var in self.solver.solved_variables:
             solved_variables_needed.append(var)
         if len(solved_variables_needed) == 0:

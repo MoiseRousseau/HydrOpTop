@@ -16,18 +16,36 @@ def __lu_solve__(A, b, l0=None):
     l = LU.solve(b)
     return l
 
-def __bicgstab_solve__(A, b, l0=None):
+def __bicgstab_solve_old__(A, b, l0=None):
     #always use jacobi preconditioning
     D_ = dia_matrix((np.sqrt(1/A.diagonal()),[0]), shape=A.shape)
     _A = D_ * A * D_
     _b = D_ * b
     l, info = spla.bicgstab(
-        _A, _b, x0=l0 / D_, 
-        rtol=self.cg_tol, atol=1e-40
+      _A, _b, x0=l0 / D_.diagonal(), 
+      rtol=5e-4, atol=1e-40
+    ) #do not rely on atol
+    if info: 
+         raise RuntimeError(f"Some error append during BiConjugate Gradient Stabilized solve, error code: {info}")
+    l = D_ * l
+    return l
+
+
+def __bicgstab_solve__(A, b, l0=None, prec="jacobi"):
+    # Preconditionning
+    if prec == "jacobi":
+      M = dia_matrix((np.sqrt(1.0/A.diagonal()),[0]), shape=A.shape)
+    elif prec == "ilu":
+      M_ilu = spla.spilu(A.tocsc(), drop_tol=1e-4, fill_factor=0)
+      print(M_ilu)
+      M = spla.LinearOperator(A.shape, M_ilu.solve)
+    # Solve
+    l, info = spla.bicgstab(
+        A, b, x0=l0, M=M, 
+        rtol=5e-4, atol=1e-40
     ) #do not rely on atol
     if info: 
         raise RuntimeError(f"Some error append during BiConjugate Gradient Stabilized solve, error code: {info}")
-    l = D_ * l
     return l
 
 def __lsqr_solve__(A,b, l0=None):
@@ -61,8 +79,6 @@ class Adjoint_Solve:
         
         #default parameter for some algorithm
         self.solve_params = algo_kwargs
-        self.cg_tol = 5e-4
-        self.cg_preconditionner = "jacobi"
         return
     
     def solve(self, A, b):

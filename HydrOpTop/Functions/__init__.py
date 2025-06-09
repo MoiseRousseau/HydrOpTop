@@ -1,5 +1,5 @@
 import importlib
-
+from .Base_Function_class import Base_Function
 __all__ = [
     "Head_Gradient",
     "Mean_Liquid_Piezometric_Head",

@@ -1,6 +1,6 @@
 """
 Verification against classical cantilever benchmark
-###################################################
+===================================================
 
 Problem description
 -------------------
@@ -20,8 +20,8 @@ The Python Code
 """
 
 import numpy as np
-                                  
-from HydrOpTop.Functions import Mechanical_Compliance
+
+from mechanical_compliance import Mechanical_Compliance
 from HydrOpTop.Functions import Volume_Percentage
 from HydrOpTop.Materials import SIMP
 from HydrOpTop.Filters import Density_Filter
@@ -65,11 +65,13 @@ if __name__ == "__main__":
     #Output the final optimized and filtered density parameter in a out.vtu file
     crafted_problem.IO.write_fields_to_file([out.p_opt_filtered], "./out.vtu", ["Filtered_density"])
 
+
+
 # %%
-# Results
-# -------
+#Results
+#-------
 # 
-# .. image:: ./results.gif
-#    :alt: Optimization results
+#.. figure:: ./results.gif
+#   :alt: Optimization results
 #
 

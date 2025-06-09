@@ -10,7 +10,8 @@ We first carry out the optimization problem as in the cantilever example
 
 import numpy as np
 
-from HydrOpTop.Functions import Volume_Percentage, Mechanical_Compliance
+from mechanical_compliance import Mechanical_Compliance
+from HydrOpTop.Functions import Volume_Percentage
 from HydrOpTop.Materials import SIMP
 from HydrOpTop.Filters import Density_Filter, Volume_Preserving_Heaviside_Filter
 from HydrOpTop.Crafter import Steady_State_Crafter
@@ -64,3 +65,5 @@ if __name__ == "__main__":
 
     crafted_problem.IO.write_fields_to_file([p_opt.p_opt_filtered], "./out.vtu", ["Filtered_density"])
     crafted_problem.IO.plot_convergence_history()
+
+

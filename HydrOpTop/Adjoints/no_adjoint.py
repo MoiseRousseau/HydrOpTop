@@ -1,3 +1,5 @@
+from .adjoint_solve import Adjoint_Solve
+
 
 class No_Adjoint:
   """
@@ -8,6 +10,7 @@ class No_Adjoint:
     self.assign_at_ids = p_ids #in solver format!
     self.dXi_dp = None
     self.initialized = False
+    self.adjoint = Adjoint_Solve()
     return
   
   def update_mat_derivative(self, p):

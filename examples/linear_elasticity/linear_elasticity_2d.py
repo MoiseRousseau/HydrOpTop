@@ -5,8 +5,6 @@ import subprocess
 import time
 import struct
 import pathlib
-import os
-
 
 
 class Linear_Elasticity_2D:
@@ -30,10 +28,22 @@ class Linear_Elasticity_2D:
     self.element_center = None
     self.solver_command = str(pathlib.Path(__file__).parent.absolute()) + "/MinimalFEM"
     self.no_run = False
+    
+    self.var_loc = {
+      "STRESS":"point",
+      "DISPLACEMENTS":"point",
+      "VOLUME":"cell",
+      "MECHANICAL_LOAD":"point",
+      "YOUNG_MODULUS":"cell",
+    }
+    self.solved_variables = ["DISPLACEMENTS", "STRESS"]
     return
     
   def get_grid_size(self):
     return self.n_cells
+  
+  def get_region_ids(self, name):
+    return np.arange(0,self.n_cells)
   
   def disable_run(self):
     """
@@ -42,8 +52,8 @@ class Linear_Elasticity_2D:
     self.no_run = True
     return
   
-  def get_var_location(self):
-    return "cell" #or "point"
+  def get_var_location(self, var):
+    return self.var_loc[var]
   
   
   def create_cell_indexed_dataset(self, X_dataset, outfile="",
