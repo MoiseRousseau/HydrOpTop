@@ -30,23 +30,13 @@ class Reference_Liquid_Head(Base_Function):
     self.set_error_norm(norm)
     self.ref_head = np.array(head)
     self.cell_ids = np.array(cell_ids)
-    
-    #inputs for function evaluation 
-    self.inputs = None
     self.observation_name = observation_name
-    
-    #function derivative for adjoint
-    self.dobj_dP = None
-    self.dobj_dmat_props = None
-    self.dobj_dp_partial = None
-    self.adjoint = None
     
     #required for problem crafting
     self.variables_needed = ["LIQUID_HEAD"]
     #if self.observation_name is not None:
     # 	self.solved_variables_needed = ["LIQUID_HEAD_AT_OBSERVATION"]
     self.name = "Reference Head"
-    self.initialized = None
     return
   
   def set_error_norm(self, x):
@@ -63,7 +53,6 @@ class Reference_Liquid_Head(Base_Function):
     Return a scalar of dimension [L]
     """
     self.head = self.inputs["LIQUID_HEAD"]
-    if not self.initialized: self.__initialize__()
     if self.observation_name is not None:
       r = np.array([
         self.head[x] - h for x,h in zip(self.observation_name, self.ref_head)
@@ -76,33 +65,27 @@ class Reference_Liquid_Head(Base_Function):
   
   
   ### PARTIAL DERIVATIVES ###
-  def d_objective_dY(self,p): 
+  def d_objective(self, var, p):
     """
-    Evaluate the derivative of the function according to the pressure.
-    If a numpy array is provided, derivative will be copied 
-    in this array, else create a new numpy array.
-    Derivative have unit m/m
+    Given a variable, return the derivative of the cost function according to that variable.
+    Use current simulation state
     """
-    self.head = self.inputs["LIQUID_HEAD"]
-    if not self.initialized: self.__initialize__()
-    if self.dobj_dP is None:
-      self.dobj_dP = np.zeros(len(self.head), dtype='f8')
-    self.dobj_dP[:] = 0.
-    if self.observation_name is not None:
-      r = np.array([
-        self.head[x] - h for x,h in zip(self.observation_name, self.ref_head)
-      ])
-      self.dobj_dP[:] = self.norm * r**(self.norm-1)
-    elif self.cell_ids is None: 
-      self.dobj_dP[:] = self.norm * \
-                         (self.head-self.ref_head)**(self.norm-1)
+    head = self.inputs["LIQUID_HEAD"]
+    if var == "LIQUID_HEAD":
+      # Derivative according to the head
+      if self.observation_name is not None:
+        r = np.array([
+	  head[x] - h for x,h in zip(self.observation_name, self.ref_head)
+        ])
+        dobj = self.norm * r**(self.norm-1)
+      elif self.cell_ids is None:
+        dobj = self.norm * (head-self.ref_head)**(self.norm-1)
+      else:
+        dobj = np.zeros(len(head), dtype='f8')
+        dobj[self.cell_ids-1] = self.norm * (
+          head[self.cell_ids-1]-self.ref_head
+        )**(self.norm-1)
     else:
-      self.dobj_dP[self.cell_ids-1] = \
-        self.norm * (self.head[self.cell_ids-1]-self.ref_head)**(self.norm-1)
-    return [self.dobj_dP]
-  
-  
-  def __initialize__(self):
-    self.initialized = True
-    return
-                      
+      # The function depends of no other variables
+      dobj = np.zeros(len(head), dtype='f8')
+    return dobj

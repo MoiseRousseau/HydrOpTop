@@ -7,7 +7,6 @@ from .Base_Function_class import Base_Function
 
 class p_Weighted_Head_Gradient(Base_Function):
   r"""
-  Description:
     Calculate the mean head gradient in the prescribed domain weighted by the density
     parameter `p`. In practice, can be used to just consider the mean head gradient in
     the material defined by ``p=1``:
@@ -18,37 +17,28 @@ class p_Weighted_Head_Gradient(Base_Function):
 
     For more detail, see description of the objective function ``Head_Gradient``.
   
-  Parameters: 
-    ``ids_to_consider`` (iterable): the cell ids on which to compute the mean gradient
-    
-    ``power`` (float): the penalizing power `n` above
-    
-    ``correction_iteration`` (int): number of iteration for the deferred correction to better estimate the gradient (not yet implemented)
-    
-    ``gravity`` (float): norm of the gravity vector `g`
-    
-    ``density`` (float): fluid density `\rho`
-    
-    ``ref_pressure`` (float): reference pressure in PFLOTRAN simulation
-    
-    ``restrict_domain`` (bool): an option to calculate the gradient considering 
+  :param ids_to_consider: the cell ids on which to compute the mean gradient
+  :type ids_to_consider: iterable
+  :param power: the penalizing power `n` above
+  :type power: float
+  :param restrict_domain: An option to calculate the gradient considering 
     only the considered cells instead considering the whole simulation. Might
     change the gradient calculated at the boundary of the optimization domain.
-    
-    ``invert_weighting`` (bool): can be set to ``True`` to rather consider the mean head
+  :type restrict_domain: bool
+  :param invert_weighting: Can be set to ``True`` to rather consider the mean head
     gradient in the material designed by ``p=0``.
+  :type invert_weighting: bool
   
   Required PFLOTRAN outputs:
     ``LIQUID_PRESSURE``, ``CONNECTION_IDS``, 
-    ``FACE_AREA``, ``FACE_UPWIND_FRACTION``, ``VOLUME``, ``Z_COORDINATE``, 
+    ``FACE_AREA``, ``FACE_UPWIND_FRACTION``, ``VOLUME``,
     ``FACE_NORMAL_X``, ``FACE_NORMAL_Y`` and ``FACE_NORMAL_Z``
 
   """
-  def __init__(self, ids_to_consider="everywhere", power=1., correction_iteration=2,
-               gravity=9.8068, density=997.16, ref_pressure=101325, invert_weighting=False,
-               restrict_domain=False):
-    #the correction could be more powerfull considering the iterative scheme 
-    #decribed in moukalled 2016.
+  def __init__(
+    self, ids_to_consider="everywhere", power=1.,
+    invert_weighting=False, restrict_domain=False
+  ):
     #inputs for function evaluation
     if isinstance(ids_to_consider, str) and \
              ids_to_consider.lower() == "everywhere":
@@ -59,49 +49,37 @@ class p_Weighted_Head_Gradient(Base_Function):
       try:
         self.ids_to_consider = np.array(ids_to_consider) -1
       except:
-        print("The argument 'ids_to_consider' must be a numpy array or a object that can be converted to")
-        exit(1)
+        raise RuntimeError("The argument 'ids_to_consider' must be a numpy array or a object that can be converted to")
+
+    super(p_Weighted_Head_Gradient, self).__init__()
     self.power = power
-    self.correction_it = correction_iteration
-    self.density = density
-    self.gravity = gravity
-    self.ref_pressure = ref_pressure
     self.invert_weighting = invert_weighting
     self.restrict_domain = restrict_domain
-    self.tol = 0 #in case used as a constrain
     
     #quantities derived from the input calculated one time
     self.initialized = False #a flag indicating calculated (True) or not (False)
     self.vec_con = None
-    self.k_smooth = 100000
-    
-    #required attribute
-    self.p_ids = None 
-    self.ids_p = None
-    self.dobj_dP = None
-    self.dobj_dmat_props = [0.]*4
-    self.dobj_dp_partial = None
-    self.adjoint = None #attribute storing adjoint
     
     #required for problem crafting
-    self.solved_variables_needed = ["LIQUID_PRESSURE"]
-    self.input_variables_needed = ["CONNECTION_IDS", 
-                                   "FACE_AREA", "FACE_UPWIND_FRACTION", 
-                                   "VOLUME", "ELEMENT_CENTER_Z", 
-                                   "FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"] 
+    self.variables_needed = [
+      "LIQUID_HEAD",
+      "CONNECTION_IDS",
+      "FACE_AREA", "FACE_UPWIND_FRACTION",
+      "VOLUME",
+      "FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"
+    ]
     self.name = "p-Weighted Head Gradient"
     return
 
     
   def set_inputs(self, inputs):
-    no_bc_connections = (inputs[1][:,0] > 0) * (inputs[1][:,1] > 0)
-    self.pressure = inputs[0]
-    self.connection_ids = inputs[1][no_bc_connections]-1
-    self.areas = inputs[2][no_bc_connections]
-    self.fraction = inputs[3][no_bc_connections]
-    self.volume = inputs[4]
-    self.z = inputs[5]
-    self.normal = [x[no_bc_connections] for x in inputs[6:]]
+    no_bc_connections = (inputs["CONNECTION_IDS"][:,0] > 0) * (inputs["CONNECTION_IDS"][:,1] > 0)
+    self.head = inputs["LIQUID_HEAD"]
+    self.connection_ids = inputs["CONNECTION_IDS"][no_bc_connections]-1
+    self.fraction = inputs["FACE_UPWIND_FRACTION"][no_bc_connections]
+    self.areas = inputs["FACE_AREA"][no_bc_connections]
+    self.volume = inputs["VOLUME"]
+    self.normal = [inputs["FACE_NORMAL_"+c][no_bc_connections] for c in "XYZ"]
     return
   
   def set_p_to_cell_ids(self,p_ids):
@@ -157,8 +135,7 @@ class p_Weighted_Head_Gradient(Base_Function):
     if not self.initialized: self.__initialize__()
     if self.invert_weighting: p_ = 1-p[self.ids_to_consider_p]
     else: p_ = p[self.ids_to_consider_p]
-    head = (self.pressure-self.ref_pressure) / (self.density * self.gravity) + self.z
-    gradXYZ = self.compute_head_gradient(head) - self.grad_correction*head[:,np.newaxis]
+    gradXYZ = self.compute_head_gradient(self.head) - self.grad_correction*self.head[:,np.newaxis]
     #for it in self.correction_it:
       #make correction
     #objective value
@@ -169,91 +146,84 @@ class p_Weighted_Head_Gradient(Base_Function):
   
   
   ### PARTIAL DERIVATIVES ###
-  def d_objective_dY(self,p):
-    if not self.initialized: self.__initialize__()
-    if self.dobj_dP is None:
-      self.dobj_dP = np.zeros(len(self.pressure), dtype='f8')
-    else:
-      self.dobj_dP[:] = 0.
+  def d_objective(self, var, p):
+    if var == "LIQUID_HEAD":
+      dobj = np.zeros(len(self.head), dtype='f8')
       
-    #gradient value
-    n = self.power
-    head = (self.pressure-self.ref_pressure) / (self.density * self.gravity) + self.z
-    gradXYZ = self.compute_head_gradient(head) - self.grad_correction*head[:,np.newaxis]
-    grad_mag = np.sqrt(gradXYZ[:,0]**2+gradXYZ[:,1]**2+gradXYZ[:,2]**2)
-    
-    if self.invert_weighting: p_ = 1-p
-    else: p_ = p
-    
-    #increase of head at i on grad at i
-    d_grad = self.fraction[:,np.newaxis] * self.vec_con
-    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,0]], axis=1)
-    d_con = d_norm * grad_mag[self.connection_ids[:,0]]**(n-2)
-    d_con[self.mask_i] *= p_[self.ids_p[self.connection_ids[self.mask_i,0]]]
-    d_con[~self.mask_i] = 0.
-    if self.restrict_domain: d_con[~self.mask_restricted] = 0.
-    __cumsum_from_connection_to_array__(self.dobj_dP, self.ids_i,
-                                        d_con[self.mask_ij])
-    #increase of head at j on grad at i
-    d_grad = self.vec_con * (1-self.fraction[:,np.newaxis])
-    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,0],:], axis=1)
-    d_con = d_norm * grad_mag[self.connection_ids[:,0]]**(n-2)
-    d_con[self.mask_i] *= p_[self.ids_p[self.connection_ids[self.mask_i,0]]]
-    d_con[~self.mask_i] = 0.
-    if self.restrict_domain: d_con[~self.mask_restricted] = 0.
-    __cumsum_from_connection_to_array__(self.dobj_dP, self.ids_j,
-                                        d_con[self.mask_ij])
-                                        
-    #increase of head at j on grad at j
-    d_grad = -self.vec_con * (1-self.fraction[:,np.newaxis])
-    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,1],:], axis=1)
-    d_con = d_norm * grad_mag[self.connection_ids[:,1]]**(n-2)
-    d_con[self.mask_j] *= p_[self.ids_p[self.connection_ids[self.mask_j,1]]]
-    d_con[~self.mask_j] = 0.
-    if self.restrict_domain: d_con[~self.mask_restricted] = 0.
-    __cumsum_from_connection_to_array__(self.dobj_dP, self.ids_j,
-                                        d_con[self.mask_ij])
-    #increase of head at i on grad at j
-    d_grad = -self.vec_con * self.fraction[:,np.newaxis]
-    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,1],:], axis=1)
-    d_con = d_norm * grad_mag[self.connection_ids[:,1]]**(n-2)
-    d_con[self.mask_j] *= p_[self.ids_p[self.connection_ids[self.mask_j,1]]]
-    d_con[~self.mask_j] = 0.
-    if self.restrict_domain: d_con[~self.mask_restricted] = 0.
-    __cumsum_from_connection_to_array__(self.dobj_dP, self.ids_i,
-                                        d_con[self.mask_ij])
-    
-    #correction
-    d_grad = - self.volume[:,np.newaxis] * self.grad_correction
-    d_norm = np.sum(d_grad * gradXYZ, axis=1)
-    d_con = d_norm * grad_mag**(n-2)
-    self.dobj_dP[self.ids_to_consider] += p_[self.ids_to_consider_p] * d_con[self.ids_to_consider] 
-    
-    V = np.sum(p_[self.ids_to_consider_p]*self.volume[self.ids_to_consider])
-    self.dobj_dP *= n / V / (self.density * self.gravity) 
-    return [self.dobj_dP]
+      #gradient value
+      gradXYZ = self.compute_head_gradient(self.head) - self.grad_correction*self.head[:,np.newaxis]
+      grad_mag = np.sqrt(gradXYZ[:,0]**2+gradXYZ[:,1]**2+gradXYZ[:,2]**2)
+
+      if self.invert_weighting: p_ = 1-p
+      else: p_ = p
+
+      #increase of head at i on grad at i
+      d_grad = self.fraction[:,np.newaxis] * self.vec_con
+      d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,0]], axis=1)
+      d_con = d_norm * grad_mag[self.connection_ids[:,0]]**(self.power-2)
+      d_con[self.mask_i] *= p_[self.ids_p[self.connection_ids[self.mask_i,0]]]
+      d_con[~self.mask_i] = 0.
+      if self.restrict_domain: d_con[~self.mask_restricted] = 0.
+      __cumsum_from_connection_to_array__(dobj, self.ids_i,
+                                          d_con[self.mask_ij])
+      #increase of head at j on grad at i
+      d_grad = self.vec_con * (1-self.fraction[:,np.newaxis])
+      d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,0],:], axis=1)
+      d_con = d_norm * grad_mag[self.connection_ids[:,0]]**(self.power-2)
+      d_con[self.mask_i] *= p_[self.ids_p[self.connection_ids[self.mask_i,0]]]
+      d_con[~self.mask_i] = 0.
+      if self.restrict_domain: d_con[~self.mask_restricted] = 0.
+      __cumsum_from_connection_to_array__(dobj, self.ids_j,
+                                          d_con[self.mask_ij])
+
+      #increase of head at j on grad at j
+      d_grad = -self.vec_con * (1-self.fraction[:,np.newaxis])
+      d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,1],:], axis=1)
+      d_con = d_norm * grad_mag[self.connection_ids[:,1]]**(self.power-2)
+      d_con[self.mask_j] *= p_[self.ids_p[self.connection_ids[self.mask_j,1]]]
+      d_con[~self.mask_j] = 0.
+      if self.restrict_domain: d_con[~self.mask_restricted] = 0.
+      __cumsum_from_connection_to_array__(dobj, self.ids_j,
+                                          d_con[self.mask_ij])
+      #increase of head at i on grad at j
+      d_grad = -self.vec_con * self.fraction[:,np.newaxis]
+      d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,1],:], axis=1)
+      d_con = d_norm * grad_mag[self.connection_ids[:,1]]**(self.power-2)
+      d_con[self.mask_j] *= p_[self.ids_p[self.connection_ids[self.mask_j,1]]]
+      d_con[~self.mask_j] = 0.
+      if self.restrict_domain: d_con[~self.mask_restricted] = 0.
+      __cumsum_from_connection_to_array__(dobj, self.ids_i,
+                                          d_con[self.mask_ij])
+
+      #correction
+      d_grad = - self.volume[:,np.newaxis] * self.grad_correction
+      d_norm = np.sum(d_grad * gradXYZ, axis=1)
+      d_con = d_norm * grad_mag**(self.power-2)
+      dobj[self.ids_to_consider] += p_[self.ids_to_consider_p] * d_con[self.ids_to_consider]
+
+      V = np.sum(p_[self.ids_to_consider_p]*self.volume[self.ids_to_consider])
+      dobj *= self.power / V
+    else:
+      raise NotImplementedError()
+    return dobj
 
   
   def d_objective_dp_partial(self, p):
-    if self.dobj_dp_partial is None:
-      self.dobj_dp_partial = np.zeros(len(p), dtype='f8')
-    else:
-      self.dobj_dp_partial[:] = 0.
+    dobj_dp_partial = np.zeros(len(p), dtype='f8')
     if self.invert_weighting: 
       factor = -1
       p_ = 1-p
     else: 
       factor = 1
       p_ = p
-    head = (self.pressure-self.ref_pressure) / (self.density * self.gravity) + self.z
-    gradXYZ = self.compute_head_gradient(head) - self.grad_correction*head[:,np.newaxis]
+    gradXYZ = self.compute_head_gradient(self.head) - self.grad_correction*self.head[:,np.newaxis]
     grad_mag = np.sqrt(gradXYZ[:,0]**2+gradXYZ[:,1]**2+gradXYZ[:,2]**2)
     num = np.sum(p_[self.ids_to_consider_p]*self.volume[self.ids_to_consider] * grad_mag[self.ids_to_consider]**self.power)
     d_num = factor * self.volume[self.ids_to_consider] * grad_mag[self.ids_to_consider]**self.power
     den = np.sum(p_[self.ids_to_consider_p]*self.volume[self.ids_to_consider])
     d_den = factor * self.volume[self.ids_to_consider]
-    self.dobj_dp_partial[self.ids_to_consider_p] = (d_num * den - d_den*num) / den**2
-    return self.dobj_dp_partial
+    dobj_dp_partial[self.ids_to_consider_p] = (d_num * den - d_den*num) / den**2
+    return dobj_dp_partial
   
   
   ### INITIALIZER FUNCTION ###

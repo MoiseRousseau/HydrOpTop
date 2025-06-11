@@ -45,9 +45,7 @@ class Head_Gradient(Base_Function):
   def __init__(self, ids_to_consider="everywhere", power=1.,
                gravity=9.8068, density=997.16, 
                ref_pressure=101325, restrict_domain=False):
-    #the correction could be more powerfull considering the iterative scheme 
-    #decribed in moukalled 2016.
-    #inputs for function evaluation
+
     if isinstance(ids_to_consider, str) and \
              ids_to_consider.lower() == "everywhere":
       self.ids_to_consider = None
@@ -58,6 +56,8 @@ class Head_Gradient(Base_Function):
         self.ids_to_consider = np.array(ids_to_consider) -1
       except:
         raise ValueError("Argument 'ids_to_consider' must be a numpy array or a object that can be converted to")
+    
+    super(Head_Gradient, self).__init__()
     self.power = power
     self.density = density
     self.gravity = gravity
@@ -67,22 +67,15 @@ class Head_Gradient(Base_Function):
     #quantities derived from the input calculated one time
     self.initialized = False #a flag indicating calculated (True) or not (False)
     self.vec_con = None
-    self.k_smooth = 100000
-    
-    #required attribute
-    self.p_ids = None 
-    self.ids_p = None
-    self.dobj_dP = None
-    self.dobj_dmat_props = [0.]*4
-    self.dobj_dp_partial = 0.
-    self.adjoint = None #attribute storing adjoint
     
     #required for problem crafting
-    self.solved_variables_needed = ["LIQUID_PRESSURE"]
-    self.input_variables_needed = ["CONNECTION_IDS", 
-                                   "FACE_AREA", "FACE_UPWIND_FRACTION", 
-                                   "VOLUME", "ELEMENT_CENTER_Z", 
-                                   "FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"] 
+    self.variables_needed = [
+      "LIQUID_PRESSURE",
+      "CONNECTION_IDS",
+      "FACE_AREA", "FACE_UPWIND_FRACTION",
+      "VOLUME", "ELEMENT_CENTER_Z",
+      "FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"
+    ]
     self.name = "Head Gradient"
     return
     
@@ -91,14 +84,14 @@ class Head_Gradient(Base_Function):
     return
     
   def set_inputs(self, inputs):
-    no_bc_connections = (inputs[1][:,0] > 0) * (inputs[1][:,1] > 0)
-    self.pressure = inputs[0]
-    self.connection_ids = inputs[1][no_bc_connections]-1
-    self.areas = inputs[2][no_bc_connections]
-    self.fraction = inputs[3][no_bc_connections]
-    self.volume = inputs[4]
-    self.z = inputs[5]
-    self.normal = [x[no_bc_connections] for x in inputs[6:]]
+    no_bc_connections = (inputs["CONNECTION_IDS"][:,0] > 0) * (inputs["CONNECTION_IDS"][:,1] > 0)
+    self.pressure = inputs["LIQUID_PRESSURE"]
+    self.connection_ids = inputs["CONNECTION_IDS"][no_bc_connections]-1
+    self.areas = inputs["FACE_AREA"][no_bc_connections]
+    self.fraction = inputs["FACE_UPWIND_FRACTION"][no_bc_connections]
+    self.volume = inputs["VOLUME"]
+    self.z = inputs["ELEMENT_CENTER_Z"]
+    self.normal = [inputs["FACE_NORMAL_"+c][no_bc_connections] for c in "XYZ"]
     return
   
   ### COST FUNCTION ###
@@ -171,66 +164,66 @@ class Head_Gradient(Base_Function):
   
   
   ### PARTIAL DERIVATIVES ###
-  def d_objective_dY(self,p):
+  def d_objective(self,var, p):
     """
     Derivative according to pressure
     """
-    #TODO: see what happen when grad_mag is null
-    if self.dobj_dP is None:
-      self.dobj_dP = np.zeros(len(self.pressure), dtype='f8')
-    else:
-      self.dobj_dP[:] = 0.
+    if var == "LIQUID_PRESSURE":
+      #TODO: see what happen when grad_mag is null
+      dobj = np.zeros(len(self.pressure), dtype='f8')
+
+      #gradient value
+      n = self.power
+      head = (self.pressure-self.ref_pressure) / (self.density * self.gravity) + self.z
+      gradXYZ = self.compute_head_gradient(head) - self.grad_correction*head[:,np.newaxis]
+      grad_mag = np.sqrt(gradXYZ[:,0]**2+gradXYZ[:,1]**2+gradXYZ[:,2]**2)
       
-    #gradient value
-    n = self.power
-    head = (self.pressure-self.ref_pressure) / (self.density * self.gravity) + self.z
-    gradXYZ = self.compute_head_gradient(head) - self.grad_correction*head[:,np.newaxis]
-    grad_mag = np.sqrt(gradXYZ[:,0]**2+gradXYZ[:,1]**2+gradXYZ[:,2]**2)
-    
-    #d_con_x_y for cell x when head at cell y is increased
-    #increase of head at i on grad at i
-    d_grad = self.fraction[:,np.newaxis] * self.vec_con# + \
-                  #(self.volume[:,np.newaxis]*self.grad_correction)[self.connection_ids[:,0]-1]
-    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,0]], axis=1)
-    d_con = d_norm * grad_mag[self.connection_ids[:,0]]**(n-2)
-    d_con[~self.mask_i] = 0.
-    if self.restrict_domain: d_con[~self.mask_restricted] = 0.
-    __cumsum_from_connection_to_array__(self.dobj_dP, self.ids_i,
-                                        d_con[self.mask_ij])
-    #increase of head at j on grad at i
-    d_grad = self.vec_con * (1-self.fraction[:,np.newaxis])
-    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,0],:], axis=1)
-    d_con = d_norm * grad_mag[self.connection_ids[:,0]]**(n-2)
-    d_con[~self.mask_i] = 0.
-    if self.restrict_domain: d_con[~self.mask_restricted] = 0.
-    __cumsum_from_connection_to_array__(self.dobj_dP, self.ids_j,
-                                        d_con[self.mask_ij])
-                                        
-    #increase of head at j on grad at j
-    d_grad = -self.vec_con * (1-self.fraction[:,np.newaxis])
-    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,1],:], axis=1)
-    d_con = d_norm * grad_mag[self.connection_ids[:,1]]**(n-2)
-    d_con[~self.mask_j] = 0.
-    if self.restrict_domain: d_con[~self.mask_restricted] = 0.
-    __cumsum_from_connection_to_array__(self.dobj_dP, self.ids_j,
-                                        d_con[self.mask_ij])
-    #increase of head at i on grad at j
-    d_grad = -self.vec_con * self.fraction[:,np.newaxis]
-    d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,1],:], axis=1)
-    d_con = d_norm * grad_mag[self.connection_ids[:,1]]**(n-2)
-    d_con[~self.mask_j] = 0.
-    if self.restrict_domain: d_con[~self.mask_restricted] = 0.
-    __cumsum_from_connection_to_array__(self.dobj_dP, self.ids_i,
-                                        d_con[self.mask_ij])
-    
-    #correction
-    d_grad = - self.volume[:,np.newaxis] * self.grad_correction
-    d_norm = np.sum(d_grad * gradXYZ, axis=1)
-    d_con = d_norm * grad_mag**(n-2)
-    self.dobj_dP[self.ids_to_consider] += d_con[self.ids_to_consider] 
-    
-    self.dobj_dP *= n / self.V_tot / (self.density * self.gravity) 
-    return [self.dobj_dP]
+      #d_con_x_y for cell x when head at cell y is increased
+      #increase of head at i on grad at i
+      d_grad = self.fraction[:,np.newaxis] * self.vec_con# + \
+                    #(self.volume[:,np.newaxis]*self.grad_correction)[self.connection_ids[:,0]-1]
+      d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,0]], axis=1)
+      d_con = d_norm * grad_mag[self.connection_ids[:,0]]**(n-2)
+      d_con[~self.mask_i] = 0.
+      if self.restrict_domain: d_con[~self.mask_restricted] = 0.
+      __cumsum_from_connection_to_array__(dobj, self.ids_i,
+                                          d_con[self.mask_ij])
+      #increase of head at j on grad at i
+      d_grad = self.vec_con * (1-self.fraction[:,np.newaxis])
+      d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,0],:], axis=1)
+      d_con = d_norm * grad_mag[self.connection_ids[:,0]]**(n-2)
+      d_con[~self.mask_i] = 0.
+      if self.restrict_domain: d_con[~self.mask_restricted] = 0.
+      __cumsum_from_connection_to_array__(dobj, self.ids_j,
+                                          d_con[self.mask_ij])
+
+      #increase of head at j on grad at j
+      d_grad = -self.vec_con * (1-self.fraction[:,np.newaxis])
+      d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,1],:], axis=1)
+      d_con = d_norm * grad_mag[self.connection_ids[:,1]]**(n-2)
+      d_con[~self.mask_j] = 0.
+      if self.restrict_domain: d_con[~self.mask_restricted] = 0.
+      __cumsum_from_connection_to_array__(dobj, self.ids_j,
+                                          d_con[self.mask_ij])
+      #increase of head at i on grad at j
+      d_grad = -self.vec_con * self.fraction[:,np.newaxis]
+      d_norm = np.sum(d_grad * gradXYZ[self.connection_ids[:,1],:], axis=1)
+      d_con = d_norm * grad_mag[self.connection_ids[:,1]]**(n-2)
+      d_con[~self.mask_j] = 0.
+      if self.restrict_domain: d_con[~self.mask_restricted] = 0.
+      __cumsum_from_connection_to_array__(dobj, self.ids_i,
+                                          d_con[self.mask_ij])
+
+      #correction
+      d_grad = - self.volume[:,np.newaxis] * self.grad_correction
+      d_norm = np.sum(d_grad * gradXYZ, axis=1)
+      d_con = d_norm * grad_mag**(n-2)
+      dobj[self.ids_to_consider] += d_con[self.ids_to_consider]
+      
+      dobj *= n / self.V_tot / (self.density * self.gravity)
+    else:
+      raise NotImplementedError()
+    return dobj
   
   ### INITIALIZER FUNCTION ###
   def __initialize__(self):
@@ -259,7 +252,4 @@ class Head_Gradient(Base_Function):
     head = np.ones(len(self.volume),dtype='f8')
     self.grad_correction = self.compute_head_gradient(head)
     return
-  
-  ### REQUIRED FOR CRAFTING ###
-  def __get_constraint_tol__(self): return self.tol
                        

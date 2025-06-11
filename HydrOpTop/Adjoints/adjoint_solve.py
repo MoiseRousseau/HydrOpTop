@@ -21,8 +21,9 @@ def __bicgstab_solve_old__(A, b, l0=None):
     D_ = dia_matrix((np.sqrt(1/A.diagonal()),[0]), shape=A.shape)
     _A = D_ * A * D_
     _b = D_ * b
+    x0 = l0 / D_.diagonal() if l0 is not None else None
     l, info = spla.bicgstab(
-      _A, _b, x0=l0 / D_.diagonal(), 
+      _A, _b, x0=x0, 
       rtol=5e-4, atol=1e-40
     ) #do not rely on atol
     if info: 
@@ -58,10 +59,10 @@ def __lsqr_solve__(A,b, l0=None):
 
 algo = {
     "direct": __lu_solve__,
-    "iterative": __bicgstab_solve__,
+    "iterative": __bicgstab_solve_old__,
     "lu": __lu_solve__,
     "spsolve": __sp_solve__,
-    "bicgstab": __bicgstab_solve__,
+    "bicgstab": __bicgstab_solve_old__,
     "least-square": __lsqr_solve__,
 }
 

@@ -27,7 +27,7 @@ if __name__ == "__main__":
     perm = Log_SIMP(cell_ids_to_parametrize="all", property_name="PERMEABILITY", bounds=[1e-10, 1e-7], power=3)
 
     #define cost function as sum of the head in the pit
-    cf = Sum_Variable("LIQUID_PRESSURE", solved=True, ids_to_consider=inlet_vol)
+    cf = Sum_Variable("LIQUID_PRESSURE", ids_to_consider=inlet_vol)
 
     #define maximum volume constrains
     max_vol = (Volume_Percentage("parametrized_cell"), '<', 0.1)

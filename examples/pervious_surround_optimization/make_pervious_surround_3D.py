@@ -52,7 +52,7 @@ if __name__ == "__main__":
     out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=200, ftol=1e-8, initial_guess=p_ini)
 
     #9. Output the final optimized and filtered density parameter in a out.vtu file
-    crafted_problem.IO.write_fields_to_file([out.p_opt_filtered], "./out.vtu", ["Filtered_density"], at_ids=pit_ids-1)
+    crafted_problem.IO.write_fields_to_file([out.p_opt_filtered], "./out.vtu", ["Filtered_density"], var_loc="cell", at_ids=pit_ids-1)
     print(f"Elapsed time: {time.time()-t} seconds")
     crafted_problem.IO.plot_convergence_history()
     

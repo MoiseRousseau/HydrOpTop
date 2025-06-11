@@ -109,13 +109,20 @@ class Steady_State_Crafter:
       p_ = p_bar
     else:
       p_ = p
-    dobj_dY = func.d_objective_dY(p_)
+    # derivative according to solved var
+    dobj_dY = {}
+    dobj_dX = {}
+    for var in func.__get_variables_needed__():
+      if var in self.solver.solved_variables:
+        dobj_dY[var] = func.d_objective(var, p_)
+      elif var in [x.get_name() for x in self.mat_props]:
+        dobj_dX[var] = func.d_objective(var, p_)
     dobj_dp_partial = func.d_objective_dp_partial(p_)
-    dobj_dX = func.d_objective_dX(p_)
+    
     grad = func.adjoint.compute_sensitivity(
-      p_, dobj_dY, dobj_dX, func.__get_variables_needed__()
+      p_, dobj_dY, dobj_dX,
     ) + dobj_dp_partial # was input_variables_needed
-
+    
     if self.filters:
       p_ = p
       for i,filter_ in enumerate(self.filters):
@@ -512,9 +519,6 @@ class Steady_State_Crafter:
     var_loc = {
       "Density parameter":"cell",
       "Density parameter filtered":"cell",
-      self.obj.__get_name__(): self.solver.get_var_location(
-        self.obj.__get_variables_needed__()[0]
-      ),
     }
     var_loc[f"Gradient d{self.obj.__get_name__()}_dp"] = var_loc["Density parameter"]
     var_loc.update({

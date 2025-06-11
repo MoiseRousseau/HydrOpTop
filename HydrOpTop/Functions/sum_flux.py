@@ -3,7 +3,10 @@
 import numpy as np
 import h5py
 
-#from ..Solvers.PFLOTRAN import DEFAULT_DENSITY, DEFAULT_GRAVITY, DEFAULT_VISCOSITY
+DEFAULT_GRAVITY = 9.8068
+DEFAULT_VISCOSITY = 8.904156e-4
+DEFAULT_DENSITY = 997.16
+
 from .common import __cumsum_from_connection_to_array__, \
                     smooth_abs_function, d_smooth_abs_function
 from .Base_Function_class import Base_Function
@@ -40,6 +43,8 @@ class Sum_Flux(Base_Function):
     Connections is a 2D array storing the cell ids shared by the face
     Squared permit to sum all flux in absolute value and differentiable in 0
     """
+    super(Sum_Flux, self).__init__()
+
     #objective argument
     if connections is None:
       self.connections_to_sum = None #consider all the connections
@@ -70,25 +75,16 @@ class Sum_Flux(Base_Function):
     self.d_z_con = None #d_z for connection to sum
     self.distance_con = None
     self.d_fraction_con = None
-    #required attribute
-    self.p_ids = None #correspondance between index in p and PFLOTRAN cell ids
-                      #set by the crafter
-    self.ids_p = None
-    self.dobj_dp_partial = None
-    self.dobj_dP = None 
-    #below: derivative are 0. except for permeability. So we put None such as the function
-    #d_objective_d_inputs could initialized it
-    self.dobj_dmat_props = [0., None, 0., 0., 0., 0., 0.] 
-    self.adjoint = None #attribute storing adjoint
-    self.filter = None #store the filter object
     self.initialized = False
     
     #required for problem crafting
-    self.solved_variables_needed = ["LIQUID_PRESSURE"]
-    self.input_variables_needed = ["FACE_AREA",
-                                   "PERMEABILITY", "FACE_UPWIND_FRACTION", 
-                                   "FACE_DISTANCE_BETWEEN_CENTER",
-                                   "ELEMENT_CENTER_Z", "CONNECTION_IDS"] 
+    self.variables_needed = [
+      "LIQUID_PRESSURE",
+      "FACE_AREA",
+      "PERMEABILITY", "FACE_UPWIND_FRACTION",
+      "FACE_DISTANCE_BETWEEN_CENTER",
+      "ELEMENT_CENTER_Z", "CONNECTION_IDS"
+    ]
     self.name = "Flux Sum"
     return
     
@@ -97,26 +93,15 @@ class Sum_Flux(Base_Function):
     return
     
   def set_inputs(self, inputs):
-    """
-    Method required by the problem crafter to pass the pflotran output
-    variables to the objective (the Yi)
-    Inputs argument have the same size than __get_PFLOTRAN_output_variable_needed__
-    Note that the inputs will be passed one time only, and will after be changed
-    in-place, so that function will never be called again...
-    """
     #parse input at each iteration
-    self.pressure = inputs[0]
-    self.areas = inputs[1]
-    self.k = inputs[2]
-    self.d_fraction = inputs[3]
-    self.distance = inputs[4]
-    self.z = inputs[5]
-    self.connection_ids = inputs[6]
+    self.pressure = inputs["LIQUID_PRESSURE"]
+    self.areas = inputs["FACE_AREA"]
+    self.k = inputs["PERMEABILITY"]
+    self.d_fraction = inputs["FACE_UPWIND_FRACTION"]
+    self.distance = inputs["FACE_DISTANCE_BETWEEN_CENTER"]
+    self.z = inputs["ELEMENT_CENTER_Z"]
+    self.connection_ids = inputs["CONNECTION_IDS"]
     return
-  
-  def get_inputs(self):
-    return [self.pressure, self.areas, self.k, self.d_fraction, self.distance,
-            self.z, self.connection_ids]
     
   def interpole_at_face(self, X):
     """
@@ -155,90 +140,78 @@ class Sum_Flux(Base_Function):
     #if self.squared: 
     #  cf *= - self.sign * (d_P_con + eg * self.d_z_con) / self.distance_con
     return np.sum(fluxes)
-  
-  
-  def d_objective_dY(self,p): 
-    """
-    Evaluate the derivative of the cost function according to the pressure.
-    Required the solve the adjoint, thus must have the size of the grid
-    """
-    if not self.initialized: self.__initialize__()
-    if self.dobj_dP is None:
-      self.dobj_dP = np.zeros(len(self.pressure), dtype='f8') #pressure size of the grid
-    else:
-      self.dobj_dP[:] = 0
-    
-    k_con = self.interpole_at_face(self.k)[self.mask]
-    deriv = self.sign * self.area_con * k_con / (self.distance_con * \
-                                                                   default_viscosity)
-    
-    if self.option == "signed_reverse":
-      deriv = -deriv
-    elif self.option == "absolute":
-      fluxes = self.calculate_flux_at_faces()
-      deriv = d_smooth_abs_function(fluxes) * deriv
-    
-    #if self.squared:
-    #  d_P_con = self.pressure[self.connection_ids[:,1][self.mask]-1] - \
-    #                           self.pressure[self.connection_ids[:,0][self.mask]-1]
-    #  eg = default_water_density * default_gravity
-    #  deriv = -2 * abs(self.sign) * self.area_con * k_con / default_viscosity * \
-    #                               (d_P_con + eg * self.d_z_con) / self.distance_con**2
-    
-    __cumsum_from_connection_to_array__(self.dobj_dP, 
-                                     self.connection_ids[:,0][self.mask]-1,
-                                     deriv)
-    __cumsum_from_connection_to_array__(self.dobj_dP, 
-                                     self.connection_ids[:,1][self.mask]-1,
-                                     -deriv)
-    return [self.dobj_dP]
-  
-  
-  def d_objective_dX(self,p):
-    """
-    Derivative of the objective function according to other input variable
-    Argument:
-    - p : the material parameter
-    Return:
-    - A list of the derivative in the same order they are listed in 
-      self.mat_props_dependance
-    Note, could return a dummy value if the objective input does not 
-    depend on the material properties explicitely or implicitely
-    Must have the size of the inputs
-    """
-    if not self.initialized: self.__initialize__()
-    if self.dobj_dmat_props[1] is None:
-      self.dobj_dmat_props[1] = np.zeros(len(self.pressure),dtype='f8')
-    else:
-      self.dobj_dmat_props[1][:] = 0.
-      
-    K1 = self.k[self.connection_ids[:,0][self.mask]-1] 
-    K2 = self.k[self.connection_ids[:,1][self.mask]-1]
-    den = ( self.d_fraction_con*K1 + (1-self.d_fraction_con)*K2 ) ** 2
-    d_P_con = self.pressure[self.connection_ids[:,1][self.mask]-1] - \
-                             self.pressure[self.connection_ids[:,0][self.mask]-1]
-    eg = default_water_density * default_gravity
-    prefactor = -self.sign * self.area_con *  (d_P_con + eg * \
-                              self.d_z_con) / (self.distance_con * default_viscosity)
-    #if self.squared: 
-    #  prefactor *= -self.sign * (d_P_con + eg * self.d_z_con) / self.distance_con
-    dK1 = prefactor * K2**2 * (1-self.d_fraction_con) / den
-    dK2 = prefactor * K1**2 * self.d_fraction_con / den
-    
-    if self.option == "signed_reverse":
-      dK1 = -dK1
-      dK2 = -dK2
-    elif self.option == "absolute":
-      fluxes = self.calculate_flux_at_faces()
-      dK1 = dK1 * d_smooth_abs_function(fluxes)
-      dK2 = dK2 * d_smooth_abs_function(fluxes)
 
-    __cumsum_from_connection_to_array__(self.dobj_dmat_props[1], \
-                                     self.connection_ids[:,0][self.mask]-1, dK1)
-    __cumsum_from_connection_to_array__(self.dobj_dmat_props[1], \
-                                     self.connection_ids[:,1][self.mask]-1, dK2)
-    return self.dobj_dmat_props
   
+  def d_objective(self, var, p):
+    """
+    Given a variable, return the derivative of the cost function according to that variable.
+    Use current simulation state
+    """
+    if not self.initialized: self.__initialize__()
+    if var == "LIQUID_HEAD":
+      raise NotImplementedError()
+    elif var == "LIQUID_PRESSURE":
+      k_con = self.interpole_at_face(self.k)[self.mask]
+      deriv = self.sign * self.area_con * k_con / (self.distance_con * \
+                                                                     DEFAULT_VISCOSITY)
+      if self.option == "signed_reverse":
+        deriv = -deriv
+      elif self.option == "absolute":
+        fluxes = self.calculate_flux_at_faces()
+        deriv = d_smooth_abs_function(fluxes) * deriv
+      
+      #if self.squared:
+      #  d_P_con = self.pressure[self.connection_ids[:,1][self.mask]-1] - \
+      #                           self.pressure[self.connection_ids[:,0][self.mask]-1]
+      #  eg = default_water_density * default_gravity
+      #  deriv = -2 * abs(self.sign) * self.area_con * k_con / default_viscosity * \
+      #                               (d_P_con + eg * self.d_z_con) / self.distance_con**2
+      # Accumulator
+      dobj = np.zeros(len(self.pressure), dtype='f8')
+      __cumsum_from_connection_to_array__(
+        dobj, self.connection_ids[:,0][self.mask]-1, deriv
+      )
+      __cumsum_from_connection_to_array__(
+        dobj, self.connection_ids[:,1][self.mask]-1, -deriv
+      )
+    elif var == "PERMEABILITY":
+      dobj = np.zeros(len(self.k), dtype='f8')
+      K1 = self.k[self.connection_ids[:,0][self.mask]-1]
+      K2 = self.k[self.connection_ids[:,1][self.mask]-1]
+      den = ( self.d_fraction_con*K1 + (1-self.d_fraction_con)*K2 ) ** 2
+      d_P_con = self.pressure[self.connection_ids[:,1][self.mask]-1] - \
+                               self.pressure[self.connection_ids[:,0][self.mask]-1]
+      eg = DEFAULT_DENSITY * DEFAULT_GRAVITY
+      prefactor = -self.sign * self.area_con *  (d_P_con + eg * \
+                                self.d_z_con) / (self.distance_con * DEFAULT_VISCOSITY)
+      #if self.squared:
+      #  prefactor *= -self.sign * (d_P_con + eg * self.d_z_con) / self.distance_con
+      dK1 = prefactor * K2**2 * (1-self.d_fraction_con) / den
+      dK2 = prefactor * K1**2 * self.d_fraction_con / den
+
+      if self.option == "signed_reverse":
+        dK1 = -dK1
+        dK2 = -dK2
+      elif self.option == "absolute":
+        fluxes = self.calculate_flux_at_faces()
+        dK1 = dK1 * d_smooth_abs_function(fluxes)
+        dK2 = dK2 * d_smooth_abs_function(fluxes)
+
+      __cumsum_from_connection_to_array__(
+        dobj,
+        self.connection_ids[:,0][self.mask]-1,
+        dK1
+      )
+      __cumsum_from_connection_to_array__(
+        dobj,
+        self.connection_ids[:,1][self.mask]-1,
+        dK2
+      )
+    else:
+      print(f"No derivation for variable {var}")
+      dobj = 0.
+    return dobj
+
   
   ### INITIALIZER FUNCTION ###
   def __initialize__(self):

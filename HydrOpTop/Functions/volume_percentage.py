@@ -17,7 +17,7 @@ class Volume_Percentage(Base_Function):
   """
   def __init__(self, ids_to_sum_volume="parametrized_cell",
                      volume_of_p0=False):
-                     
+
     super(Volume_Percentage, self).__init__()
     
     if isinstance(ids_to_sum_volume, str):
@@ -38,21 +38,9 @@ class Volume_Percentage(Base_Function):
     self.initialized = False
     self.V_tot = None
     
-    self.solved_variables_needed = []
-    self.input_variables_needed = ["VOLUME"] 
+    self.variables_needed = ["VOLUME"]
     self.name = "Volume"
-    return
-  
-  
-  def set_inputs(self, inputs):
-    self.V = inputs[0]
-    return
-  
-  def get_inputs(self):
-    return [self.V]
-    
-  def set_p_to_cell_ids(self, cell_ids):
-    self.p_ids = cell_ids
+    self.inputs = {}
     return
   
   
@@ -62,18 +50,23 @@ class Volume_Percentage(Base_Function):
     Evaluate the cost function
     Return a scalar of dimension [L**3]
     """
+    V = self.inputs["VOLUME"]
     if not self.initialized: self.__initialize__()
     if self.vp0: p_ = 1-p
     else: p_ = p
     if self.ids_to_consider is None:
       #sum on all parametrized cell
-      cf = np.sum(self.V[self.p_ids-1]*p_)/self.V_tot
+      cf = np.sum(V[self.p_ids-1]*p_)/self.V_tot
     else:
-      cf = np.sum((self.V[self.ids_to_consider-1]*p_))/self.V_tot
+      cf = np.sum((V[self.ids_to_consider-1]*p_))/self.V_tot
     return cf
 
   
   def d_objective_dp_partial(self,p): 
+    """
+    Derivative according to the density parameter which is the percentage of material in the cell
+    """
+    V = self.inputs["VOLUME"]
     res = np.zeros(len(p),dtype='f8')
     if self.vp0: 
       factor = -1.
@@ -82,9 +75,9 @@ class Volume_Percentage(Base_Function):
     if not self.initialized: 
       self.__initialize__()
     if self.ids_to_consider is None:
-      res[:] = factor * self.V[self.p_ids-1]/self.V_tot
+      res[:] = factor * V[self.p_ids-1]/self.V_tot
     else:
-      res[:] = factor * self.V[self.ids_to_consider-1]/self.V_tot
+      res[:] = factor * V[self.ids_to_consider-1]/self.V_tot
     return res
   
   
@@ -96,8 +89,8 @@ class Volume_Percentage(Base_Function):
     """
     self.initialized = True
     if self.ids_to_consider is None:
-      self.V_tot = np.sum(self.V[self.p_ids-1])
+      self.V_tot = np.sum(self.inputs["VOLUME"][self.p_ids-1])
     else:
-      self.V_tot = np.sum(self.V[self.ids_to_consider-1])
+      self.V_tot = np.sum(self.inputs["VOLUME"][self.ids_to_consider-1])
     return
 

@@ -50,7 +50,7 @@ class PFLOTRAN(Base_Simulator):
     self.no_run = False #boolean flag to not run PFLOTRAN for debugging
     
     #output
-    self.solved_variables = ["LIQUID_HEAD", "PRESSURE"]
+    self.solved_variables = ["LIQUID_HEAD", "LIQUID_PRESSURE"]
     self.pft_out = '.'.join(pft_in.split('.')[:-1])+'.h5'
     self.pft_out_sensitivity = '.'.join(pft_in.split('.')[:-1]) + "-sensitivity-flow"
     if self.mesh_type in ["ugi", "h5"]:
@@ -126,7 +126,7 @@ class PFLOTRAN(Base_Simulator):
     return
 
   
-  def get_var_location(self):
+  def get_var_location(self, var):
     return "cell"
   
   
@@ -486,7 +486,6 @@ class PFLOTRAN(Base_Simulator):
     return out
   
   def get_sensitivity(self, var, timestep=None, coo_mat=None):
-    #TODO case for liquid head which is (p - p0 / eg) + z
     if self.output_sensitivity_format == "HDF5":
       f = self.pft_out_sensitivity + '.h5'
       src = h5py.File(f, 'r')

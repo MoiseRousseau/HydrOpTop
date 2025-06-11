@@ -41,19 +41,14 @@ class Mechanical_Compliance(Base_Function):
   
   
   ### PARTIAL DERIVATIVES ###
-  def d_objective_dY(self,p): 
+  def d_objective(self, var, p): 
     """
     Derivative according to solved variable (displacement)
     """
-    f = self.inputs["MECHANICAL_LOAD"]
-    return [f] #load
-  
-  
-  def d_objective_dX(self,p):
-    """
-    Derivative according to input variable (load)
-    """
-    u = self.inputs["DISPLACEMENTS"]
-    return [u] #displacement
-  
+    if var == "MECHANICAL_LOAD":
+      return self.inputs["DISPLACEMENTS"]
+    if var == "DISPLACEMENTS":
+      return self.inputs["MECHANICAL_LOAD"]
+    else:
+      return 0.
                       

@@ -40,18 +40,26 @@ class Sensitivity_Steady_Simple:
     
   def update_mat_derivative(self, p):
     for i,mat_prop in enumerate(self.parametrized_mat_props):
-      mat_prop.d_mat_properties(p, self.dXi_dp[i])
+      mat_prop.d_mat_properties(
+        p, self.dXi_dp[mat_prop.get_name()]
+      )
     return
   
   def update_residual_derivatives(self):
     for i,solved_var in enumerate(self.solved_vars):
-      self.solver.get_sensitivity(solved_var, coo_mat=self.dR_dYi[i])
+      self.solver.get_sensitivity(
+        solved_var,
+        coo_mat=self.dR_dYi[solved_var]
+      )
     for i,mat_prop in enumerate(self.parametrized_mat_props):
-      self.solver.get_sensitivity(mat_prop.get_name(), coo_mat=self.dR_dXi[i])
+      self.solver.get_sensitivity(
+        mat_prop.get_name(),
+        coo_mat=self.dR_dXi[mat_prop.get_name()]
+      )
     return 
   
   
-  def compute_sensitivity(self, p, dc_dYi, dc_dXi, Xi_name):
+  def compute_sensitivity(self, p, dc_dYi, dc_dXi):
     """
     Compute the total cost function derivative according to material density
     parameter p.
@@ -68,25 +76,34 @@ class Sensitivity_Steady_Simple:
       self.update_mat_derivative(p)
       self.update_residual_derivatives()
     
-    #compute adjoint
-    l = self.adjoint.solve(self.dR_dYi[0], dc_dYi[0]) #solver ordering
-    
     #note: dR_dXi in solver ordering, so we convert it to p ordering with assign_at_ids
     # and dXi_dP in p ordering
     #thus: dR_dXi_dXi_dp in p ordering
-    n = len(self.dXi_dp[0])
-    dR_dXi_dXi_dp = ( (self.dR_dXi[0]).tocsr() )[:,self.assign_at_ids-1].dot( dia_matrix((self.dXi_dp[0], [0]),shape=(n,n)) )
+    assert len(self.dR_dXi) == len(self.dXi_dp)
+    var = [x for x in self.dXi_dp.keys()][0]
+    n = len(self.dXi_dp[var])
+    dR_dXi_dXi_dp = ( (self.dR_dXi[var]).tocsr() )[:,self.assign_at_ids-1].dot(
+      dia_matrix( (self.dXi_dp[var],[0]), shape=(n,n) )
+    )
+    
     if self.n_parametrized_props > 1:
-      for i in range(1,self.n_parametrized_props):
-        dR_dXi_dXi_dp += ( (self.dR_dXi[i]).tocsr() )[:,self.assign_at_ids-1].dot( dia_matrix((self.dXi_dp[i], [0]),shape=(n,n)) )
+      #TODO
+      raise NotImplementedError()
+    #if self.n_parametrized_props > 1:
+    #  for i in range(1,self.n_parametrized_props):
+    #    dR_dXi_dXi_dp += ( (self.dR_dXi[i]).tocsr() )[:,self.assign_at_ids-1].dot( dia_matrix((self.dXi_dp[i], [0]),shape=(n,n)) )
     
     dc_dXi_dXi_dp = 0.
-    for i,mat_prop in enumerate(self.parametrized_mat_props):
-      for j,name in enumerate(Xi_name):
-        if name == mat_prop.name:
-          dc_dXi_dXi_dp += dc_dXi[j][self.assign_at_ids-1]*self.dXi_dp[i]
+    for name in dc_dXi.keys():
+      dc_dXi_dXi_dp += dc_dXi[name][self.assign_at_ids-1]*self.dXi_dp[name]
+
     #if self.assign_at_ids is not None and isinstance(dc_dXi_dXi_dp,np.ndarray):
     #  dc_dXi_dXi_dp = dc_dXi_dXi_dp[self.assign_at_ids-1]
+    
+    #compute adjoint
+    assert len(self.dR_dYi) == len(dc_dYi)
+    var = [x for x in self.dR_dYi.keys()][0]
+    l = self.adjoint.solve(self.dR_dYi[var], dc_dYi[var]) #solver ordering
       
     S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
     
@@ -94,15 +111,22 @@ class Sensitivity_Steady_Simple:
   
   
   def __initialize_adjoint__(self,p): 
-    self.dXi_dp = [mat_prop.d_mat_properties(p) for mat_prop in self.parametrized_mat_props] 
-               # dim = [mat_prop] * L * T2 / M
+    self.dXi_dp = {
+      mat_prop.get_name():mat_prop.d_mat_properties(p) for mat_prop in self.parametrized_mat_props
+    } # dim = [mat_prop] * L * T2 / M
     self.n_parametrized_props = len(self.dXi_dp)
       
-    self.dR_dXi = [self.solver.get_sensitivity(mat_prop.get_name()) 
-                                            for mat_prop in self.parametrized_mat_props]
+    self.dR_dXi = {
+      mat_prop.get_name() : self.solver.get_sensitivity(
+        mat_prop.get_name()
+      ) for mat_prop in self.parametrized_mat_props
+    }
 
-    self.dR_dYi = [self.solver.get_sensitivity(solved_var) 
-                                            for solved_var in self.solved_vars]
+    self.dR_dYi = {
+      solved_var : self.solver.get_sensitivity(
+        solved_var
+      ) for solved_var in self.solved_vars
+    }
     
     self.initialized = True
     return

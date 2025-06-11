@@ -176,7 +176,7 @@ class IO:
       for name,grad in grad_constraints.items():
         dict_var[f"Gradient d{name}_dp"] = self.correct_dataset_length(
           grad,
-          self.var_loc[self.cf_name],
+          self.var_loc["Density parameter"],
           val_at
         )
     #add mat props
@@ -246,7 +246,7 @@ class IO:
   def communicate_var_location(self, var_loc):
     self.var_loc = var_loc
     
-  def write_fields_to_file(self, X, filename, Xname, at_ids=None):
+  def write_fields_to_file(self, X, filename, Xname, var_loc="cell", at_ids=None):
     r"""
     Output the field data given in the list X using ``MeshIO`` python library.
     
@@ -256,13 +256,15 @@ class IO:
     :type param: str
     :param Xname: The dataset names. Must be ordered the same as X.
     :type Xname: list of str
+    :param var_loc: Location of the field (cell or point)
+    :type var_loc: str
     :param at_ids: If the X datasets does not span the whole simulation domain, the `at_ids`` array give the point/cell ids corresponding to the given data.
     :type: iterable (same size as X)
     """
     X_ = []
     for x in X:
       if at_ids is not None:
-        x_ = self.correct_dataset_length(x, at_ids)
+        x_ = self.correct_dataset_length(x, var_loc, at_ids)
       else:
         x_ = x
       X_.append(x_)
@@ -272,10 +274,9 @@ class IO:
       for (elem_type, index) in self.indexes:
         data.append(x[index])
       dict_var[Xname[i]] = data
-    var_loc = None#TODO
-    if self.var_loc == "cell":
+    if var_loc == "cell":
       mesh = meshio.Mesh(self.vertices, self.elements, cell_data=dict_var)
-    elif self.var_loc == "point":
+    elif var_loc == "point":
       mesh = meshio.Mesh(self.vertices, self.elements, point_data=dict_var)
     mesh.write(filename)
     return

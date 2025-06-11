@@ -9,7 +9,7 @@ class p_Weighted_Sum(Base_Function):
              
             f = \sum_{i \in D} p_i^n F_i
 
-    :param field: The field F to sum as array of value
+    :param field: The constant field F to sum as array of value
     :type field: iterable
     :param ids_to_sum: a list of cell ids on which to compute the volume percentage. If not provided, sum on all parametrized cells
     :type ids_to_sum: iterable
@@ -28,6 +28,7 @@ class p_Weighted_Sum(Base_Function):
         self.n = penalization
         self.vp0 = index_by_p0 #boolean to compute the volume of the mat p=1 (False) p=0 (True)
         self.name = "p Weighted Sum"
+        self.variables_needed = []
         return
     
     

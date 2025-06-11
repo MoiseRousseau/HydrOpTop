@@ -55,7 +55,10 @@ class Pilot_Points(Base_Filter):
   
   
   def set_inputs(self, inputs):
-    self.coords = np.array(inputs).T
+    self.inputs = inputs
+    self.coords = np.array(
+      [v for k,v in self.inputs.items() if "ELEMENT_CENTER_" in k]
+    ).transpose()
     return
 
   
