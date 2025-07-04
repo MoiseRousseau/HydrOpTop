@@ -54,8 +54,8 @@ class Density_Filter(Base_Filter):
   
   def initialize(self):
     if self.p_ids is not None:
-      V = self.inputs["VOLUME"][self.p_ids-1] #just need those in the optimized domain
-      X = self.inputs["ELEMENT_CENTER"][self.p_ids-1,:]
+      V = self.inputs["VOLUME"][self.p_ids] #just need those in the optimized domain
+      X = self.inputs["ELEMENT_CENTER"][self.p_ids,:]
     else:
       V = self.inputs["VOLUME"]
       X = self.inputs["ELEMENT_CENTER"]
@@ -72,7 +72,7 @@ class Density_Filter(Base_Filter):
     self.D_matrix.data = self.D_matrix.data ** self.distance_weighting_power
     self.D_matrix = self.D_matrix.dot( dia_matrix((V[np.newaxis,:],0),
                                                    shape=self.D_matrix.shape) )
-    self.deriv = self.D_matrix.multiply(1/self.D_matrix.sum(axis=1)).transpose()
+    self.D_matrix = self.D_matrix.multiply(1/self.D_matrix.sum(axis=1))
     self.initialized = True
     return
   
@@ -80,12 +80,14 @@ class Density_Filter(Base_Filter):
     if not self.initialized: self.initialize()
     if p_bar is None:
       p_bar = np.zeros(len(p), dtype='f8')
-    temp = self.D_matrix.dot( dia_matrix((p[np.newaxis,:],0),shape=self.D_matrix.shape) )
-    p_bar[:] = (temp.sum(axis=1) / self.D_matrix.sum(axis=1)).flatten()
+    p_bar[:] = self.D_matrix @ p
+    #print(self.inputs["ELEMENT_CENTER"][self.p_ids,:][self.D_matrix.getrow(2).tocoo().col])
+    #temp = self.D_matrix.dot( dia_matrix((p[np.newaxis,:],0),shape=self.D_matrix.shape) )
+    #p_bar[:] = (temp.sum(axis=1) / self.D_matrix.sum(axis=1)).flatten()
     return p_bar
   
   def get_filter_derivative(self, p):
     if not self.initialized: self.initialize()
-    out = self.deriv
+    out = self.D_matrix
     return out
 
