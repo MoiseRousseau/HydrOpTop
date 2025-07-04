@@ -11,9 +11,25 @@ def __sp_solve__(A, b, l0=None):
     return
 
 def __lu_solve__(A, b, l0=None):
-    _A = A.tocsc() #[L-1]
-    LU = spla.splu(_A)
-    l = LU.solve(b)
+    damped_factor = [0.,1e-12,1e-8,1e-6,1e-4,1e-3,1e-2,1e-1,1.]
+    for df in damped_factor:
+        if df != 0.:
+            print(f"    Current damping factor: {df}")
+        #_A = ( A + sp.diags(A.diagonal()*df) ).tocsc()
+        _A = ( A + sp.eye(A.shape[0]) * df * A.mean() ).tocsc()
+        try:
+            LU = spla.splu(_A)
+            l = LU.solve(b)
+            break
+        except:
+            print("LU solve failed, try increasing damping factor")
+    return l
+
+def __lu_solve_scaled__(A, b, l0=None):
+    A_diag = np.where(A.diagonal() == 0., A.mean() * 1e-8, A.diagonal())
+    D_ = dia_matrix((np.sqrt(1/np.abs(A_diag)),[0]), shape=A.shape)
+    LU = spla.splu(D_ @ A @ D_)
+    l = D_ @ LU.solve(D_ @ b)
     return l
 
 def __bicgstab_solve_old__(A, b, l0=None):
@@ -35,7 +51,7 @@ def __bicgstab_solve_old__(A, b, l0=None):
 def __bicgstab_solve__(A, b, l0=None, prec="jacobi"):
     # Preconditionning
     if prec == "jacobi":
-      M = dia_matrix((np.sqrt(1.0/A.diagonal()),[0]), shape=A.shape)
+      M = dia_matrix((np.sqrt(1.0/np.abs(A.diagonal())),[0]), shape=A.shape)
     elif prec == "ilu":
       M_ilu = spla.spilu(A.tocsc(), drop_tol=1e-4, fill_factor=0)
       print(M_ilu)
