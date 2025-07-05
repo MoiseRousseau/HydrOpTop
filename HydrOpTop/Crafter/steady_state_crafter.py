@@ -47,10 +47,10 @@ class Steady_State_Crafter:
     self.first_call_gradient = True
     self.func_eval = 0
     self.iteration = 0
+    self.best_p = (None,None) #best cf, best p
     self.last_p = None
     self.last_grad = None
     self.last_p_bar = None
-    self.first_cf = None
     self.first_p = None
     
     self.__initialize_IO_array__()
@@ -136,17 +136,19 @@ class Steady_State_Crafter:
     val_at = np.argwhere(np.isin(
       self.solver.get_region_ids("__all__"), self.p_ids
     )).flatten()
+    p =  self.best_p[1] if final else self.last_p
+    p_bar = self.filter_density(p) if final else self.last_p_bar
     self.IO.output(
       it=self.func_eval, #iteration number
       cf=self.last_cf, #cost function value
       constraints_val=self.last_constraints, #constraints value
-      p_raw=self.last_p, #raw density parameter (not filtered)
+      p_raw=p, #raw density parameter (not filtered)
       grad_cf=self.last_grad, # d(cost function) / d p
       grad_constraints=self.last_grad_constraints, 
       mat_props={
-        x.get_name():x.convert_p_to_mat_properties(self.last_p_bar) for x in self.mat_props
+        x.get_name():x.convert_p_to_mat_properties(p_bar) for x in self.mat_props
       },
-      p_filtered=self.last_p_bar,
+      p_filtered=p_bar,
       adj_obj=self.obj.adjoint.adjoint.last_l,
       val_at=val_at,
       final=final,
@@ -198,7 +200,6 @@ class Steady_State_Crafter:
                      max_it=50,
                      stop={},
                      options={}):
-    self.first_cf = None
     self.iteration = 0
     self.func_eval = 0
     ### DEFAULT INPUTS
@@ -216,8 +217,7 @@ class Steady_State_Crafter:
       elif action == "maximize":
         opt.set_max_objective(self.nlopt_function_to_optimize) 
       else:
-        print(f"Error: Unknown action \"{action}\" (should be \"minimize\" or \"maximize\"")
-        return None
+        raise RuntimeError(f"Error: Unknown action \"{action}\" (should be \"minimize\" or \"maximize\"")
       #add constraints
       for i,tc in enumerate(self.constraints):
         opt.add_inequality_constraint(self.nlopt_constraint(i),
@@ -230,8 +230,9 @@ class Steady_State_Crafter:
       #define stop criterion
       opt.set_maxeval(max_it)
       if stop:
-        if "ftol" in stop.keys(): opt.set_ftol_rel(stop["ftol"])
-        if "stopval" in stop.keys(): opt.set_ftol_rel(stop["stopval"])
+        if "ftol_rel" in stop.keys(): opt.set_ftol_rel(stop["ftol_rel"])
+        if "ftol_abs" in stop.keys(): opt.set_ftol_abs(stop["ftol_abs"])
+        if "stopval" in stop.keys(): opt.set_stopval(stop["stopval"])
 
       # adjust initial step size
       #opt.set_initial_step(20)
@@ -310,11 +311,14 @@ class Steady_State_Crafter:
       print(f"Error: Unknown optimizer or unadapted \"{optimizer}\"")
       return None
       
-    #print output
+    #print last iteration
+    print("\nOptimization finished!")
+    print(f"Best {self.obj.name} cost function value: {self.best_p[0]}")
+    print("Write optimum")
     self.output_to_user(final=True)
     print("END!")
     
-    out = Output_Struct(p_opt)
+    out = Output_Struct(self.best_p[1])
     if self.filters: 
       out.p_opt_filtered = self.filter_density(p_opt)
     out.fx = self.last_cf
@@ -330,9 +334,6 @@ class Steady_State_Crafter:
   ### NLOPT FUNCTION ###
   ######################
   def nlopt_function_to_optimize(self, p, grad):
-    #save last iteration
-    if self.func_eval != 0:
-      self.output_to_user()
     #start new it
     self.func_eval += 1
     print(f"\nFonction evaluation {self.func_eval}")
@@ -340,8 +341,6 @@ class Steady_State_Crafter:
     p_bar = self.pre_evaluation_objective(p)
     ### OBJECTIVE EVALUATION AND DERIVATIVE
     cf = self.obj.evaluate(p_bar)
-    if self.first_cf is None: 
-      self.first_cf = cf
     if grad.size > 0:
       grad[:] = self.evaluate_total_gradient(self.obj, p, p_bar)
     #save for output at next iteration
@@ -349,14 +348,14 @@ class Steady_State_Crafter:
     self.last_grad[:] = grad
     self.last_p[:] = p
     if self.filters:
-      self.last_p_bar = p_bar
-    #normalize cf to 1
-    cf /= self.first_cf
-    grad /= self.first_cf
-    #print to user
-    print(f"Current {self.obj.name} (cost function): {cf*self.first_cf:.6e}")
-    print(f"Min gradient: {np.min(grad*self.first_cf):.6e} at cell id {np.argmin(grad)+1}")
-    print(f"Max gradient: {np.max(grad*self.first_cf):.6e} at cell id {np.argmax(grad)+1}")
+      self.last_p_bar[:] = p_bar
+    # Store the best iterate
+    if self.best_p[0] is None or cf < self.best_p[0]:
+        self.best_p = (cf, p.copy())
+    print(f"Current {self.obj.name} (cost function): {cf:.6e}")
+    print(f"Min gradient: {np.min(grad):.6e} at cell id {np.argmin(grad)+1}")
+    print(f"Max gradient: {np.max(grad):.6e} at cell id {np.argmax(grad)+1}")
+    self.output_to_user()
     return cf
     
   def nlopt_constraint(self, i):
