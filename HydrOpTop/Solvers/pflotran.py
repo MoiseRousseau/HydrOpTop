@@ -31,9 +31,10 @@ class PFLOTRAN(Base_Simulator):
     ``PRESSURE``
   
   """
-  def __init__(self, pft_in, mesh_info=None):
+  def __init__(self, pft_in, dry_run=False, mesh_info=None):
     #input related
     self.pft_in = pft_in
+    self.dry_run = dry_run
     self.input_folder = '/'.join(pft_in.split('/')[:-1])+'/'
     self.prefix = (self.pft_in.split('/')[-1]).split('.')[0]
     self.output_sensitivity_format = "HDF5" #default
@@ -47,7 +48,7 @@ class PFLOTRAN(Base_Simulator):
     #running
     self.mpicommand = ""
     self.nproc = 1
-    self.no_run = False #boolean flag to not run PFLOTRAN for debugging
+    self.dry_run = False #boolean flag to not run PFLOTRAN for debugging
     
     #output
     self.solved_variables = ["LIQUID_HEAD", "LIQUID_PRESSURE"]
@@ -116,15 +117,6 @@ class PFLOTRAN(Base_Simulator):
     Return the number of element in the mesh.
     """
     return self.n_cells
-
-  
-  def disable_run(self):
-    """
-    Do not run PFLOTRAN (for debug purpose)
-    """
-    self.no_run = True
-    return
-
   
   def get_var_location(self, var):
     return "cell"
@@ -140,7 +132,7 @@ class PFLOTRAN(Base_Simulator):
     :type reg_name: str
     """
     if reg_name == "__all__":
-      return np.arange(1,self.n_cells+1)
+      return np.arange(0,self.n_cells)+1
     #look for region in pflotran input
     filename = ""
     for i,line in enumerate(self.input_deck):
@@ -172,7 +164,7 @@ class PFLOTRAN(Base_Simulator):
         cell_ids = np.genfromtxt(filename, dtype='i8')
       except Exception as e:
         raise IOError(e)
-    return cell_ids 
+    return cell_ids
   
   def get_connections_ids_integral_flux(self, integral_flux_name):
     r"""
@@ -238,6 +230,7 @@ class PFLOTRAN(Base_Simulator):
       ``resize_to`` (bool): boolean for resizing the given dataset to number of cell (default = True)
     
     """
+    resize_to = True # Enforce this or PFLOTRAN will return an error
     #first cell is at i = 0
     if not h5_file_name: h5_file_name=dataset_name.lower()+'.h5'
     h5_file_name = self.input_folder + h5_file_name
@@ -361,7 +354,7 @@ class PFLOTRAN(Base_Simulator):
   
   # running
   def run(self):
-    if self.no_run: return 0
+    if self.dry_run: return 0
     print("Running PFLOTRAN: ",end='')
     if self.mpicommand:
       cmd = [self.mpicommand, "-n", str(self.nproc), "pflotran", "-pflotranin", self.pft_in]
@@ -377,9 +370,6 @@ class PFLOTRAN(Base_Simulator):
   
   
   ### INTERACT WITH OUTPUT DATA ###
-  def initiate_output_cell_variable(self):
-    return np.zeros(self.n_cells, dtype='f8')
-  
   
   def get_internal_connections(self, out=None):
     """
@@ -397,8 +387,22 @@ class PFLOTRAN(Base_Simulator):
       exit(1)
     src.close()
     return out
-  
-  
+
+
+  def get_output_variables(self, vars_out, i_timestep=-1):
+        """
+        Return output variables after simulation (all variable in one call)
+        """
+        # Initialize output if None
+        for var, out in vars_out.items():
+            if out is None:
+                out = np.zeros(self.n_cells)
+                vars_out[var] = out
+        for var, out in vars_out.items():
+            self.get_output_variable(var, out, i_timestep)
+        return vars_out
+
+
   def get_output_variable(self, var, out=None, i_timestep=-1):
     r"""
     Description:
@@ -412,47 +416,20 @@ class PFLOTRAN(Base_Simulator):
       ``timestep`` (int): the i-th timestep to extract (not working yet)
     
     """
+    # Look for mesh related variable
     if "ELEMENT_CENTER_" in var:
       center = self.__get_mesh_center__()
-      if "X" in var: return center[:,0]
-      if "Y" in var: return center[:,1]
-      if "Z" in var: return center[:,2]
-    if "VOLUME" in var:
-      return self.__get_mesh_volume__()
-      #Get mesh
-      # Compute volume (already given in UGE grids)
-    if var == "CONNECTION_IDS":
-      return self.get_internal_connections()
-    #treat coordinate separately as they are in Domain/XC unless for uge grid
-    if var in ["ELEMENT_CENTER_X", "ELEMENT_CENTER_Y", "ELEMENT_CENTER_Z"] and \
-                                            self.mesh_type not in ["uge","h5e"]:
-      var = var[-1]+"C"
-      src = h5py.File(self.mesh_info, 'r')
-      if out is None:
-        out = np.array(src["Domain/"+var])
-      else:
-        out[:] = np.array(src["Domain/"+var])
-      src.close()
+      dict_index = {"X":0,"Y":1,"Z":2}
+      out[:] = center[:,dict_index[var[-1]]]
       return out
-    #treat separately face normal as it is not ouputted by PFLOTRAN
-#    if var in ["FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"] and \
-#      self.mesh_type == "h5e":
-#      src = h5py.File(self.input_folder + self.mesh_file, 'r')
-#      if "Normals" in src["Domain/Connections"]:
-#        temp = np.array(src["Domain/Connections/Normals"])
-#        if var == "FACE_NORMAL_X": temp = temp[:,0]
-#        elif var == "FACE_NORMAL_Y": temp = temp[:,1]
-#        else: temp = temp[:,2]
-#        if out is None:
-#          out = temp
-#        else:
-#          out[:] = temp
-#        print(var, temp[:100])
-#        return out
-#      else:
-#        print(f"{var} information not available, switch to FACE_CELL_CENTER_VECTOR instead")
-#        var = "FACE_CELL_CENTER_VECTOR_" + var[-1]
-#      src.close()
+    elif "VOLUME" in var:
+      out[:] = self.__get_mesh_volume__()
+      return out
+    elif var == "CONNECTION_IDS":
+      return self.get_internal_connections()
+
+    # Look for simulation variable
+    # Correct output variable if not present
     if var in ["FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"] and \
               self.mesh_type in ["uge","h5e"]:
       print(f"{var} information not available, switch to FACE_CELL_CENTER_VECTOR instead")
@@ -462,14 +439,13 @@ class PFLOTRAN(Base_Simulator):
       f_src = self.pft_out
     else:
       f_src = self.mesh_info
-    
-    #other variable
+    # Get the variable
     src = h5py.File(f_src, 'r')
     if var == "LIQUID_HEAD": 
         right_time, out_var = self.__check_output_variable_present__(
             src, i_timestep, "LIQUID_PRESSURE"
         )
-        eg = 1 / (DEFAULT_GRAVITY * DEFAULT_DENSITY) #TODO non constant density
+        eg = 1 / (DEFAULT_GRAVITY * DEFAULT_DENSITY)
         temp = (np.array(src[right_time + '/' + out_var]) - DEFAULT_REF_PRESSURE) * eg
         right_time, out_var = self.__check_output_variable_present__(
             src, i_timestep, "ELEMENT_CENTER_Z"

@@ -55,8 +55,8 @@ class Density_Filter(Base_Filter):
   
   def initialize(self):
     if self.p_ids is not None:
-      V = self.inputs["VOLUME"][self.p_ids] #just need those in the optimized domain
-      X = self.inputs["ELEMENT_CENTER"][self.p_ids,:]
+      V = self.inputs["VOLUME"][self.p_ids-1] #just need those in the optimized domain
+      X = self.inputs["ELEMENT_CENTER"][self.p_ids-1,:]
     else:
       V = self.inputs["VOLUME"]
       X = self.inputs["ELEMENT_CENTER"]

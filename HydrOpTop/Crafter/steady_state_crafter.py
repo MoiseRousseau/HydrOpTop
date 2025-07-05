@@ -54,7 +54,7 @@ class Steady_State_Crafter:
     self.first_p = None
     
     self.__initialize_IO_array__()
-    self.filters_initialized = False
+    self.__initialize_filter__()
     return
   
   def get_problem_size(self): 
@@ -80,25 +80,22 @@ class Steady_State_Crafter:
   
   
   def initialize_function_vars(self, func):
-    func_var = {
-      var: self.solver.get_output_variable(var) for var in func.__get_variables_needed__()
-    }
+    func_var = {var:None for var in func.__get_variables_needed__()}
+    self.solver.get_output_variables(func_var)
     func.set_inputs(func_var)
     return func_var
     
   def update_function_vars(self, func, func_var):
-    for var in func.__get_variables_needed__():
-      self.solver.get_output_variable(var, func_var[var], -1)
+    self.solver.get_output_variables(func_var, -1)
     return
 
   def filter_density(self, p):
     if not self.filters:
       return p
-    if not self.filters_initialized:
-      self.__initialize_filter__(p)
     p_bar = p.copy()
     for filter_ in self.filters: #apply filter consecutively
-      self.initialize_function_vars(filter_) #update filter var
+      # Filter does not need to be updated
+      #self.initialize_function_vars(filter_) #update filter var
       p_bar = filter_.get_filtered_density(p_bar)
     return p_bar
 
@@ -169,7 +166,7 @@ class Steady_State_Crafter:
     for mat_prop in self.mat_props:
       X = mat_prop.convert_p_to_mat_properties(p_bar)
       self.solver.create_cell_indexed_dataset(X, mat_prop.get_name(),
-                    X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=True)
+                    X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=False)
     ### RUN SOLVER
     ret_code = self.solver.run()
     if ret_code: 
@@ -458,7 +455,7 @@ class Steady_State_Crafter:
     if input_dim is None: #i.e. parametrize all cell in the simulation
       input_dim = self.solver.get_grid_size()
     self.problem_size = input_dim
-    self.p_ids = C #from 0 based indexing to solver indexing
+    self.p_ids = C #from 0 based indexing to solver indexing (1 based)
     if self.p_ids is None:
       self.p_ids = self.solver.get_region_ids("__all__")
     self.last_p = np.zeros(input_dim,dtype='f8')
@@ -545,10 +542,7 @@ class Steady_State_Crafter:
     return
     
   
-  def __initialize_filter__(self, p):
-    #filter initialization is tricky, because it may need solver output variables
-    # that have not been created yet. Thus, for instance, we have to run
-    # solver one time to initialize the filter (even if it's costly)...
+  def __initialize_filter__(self):
     if not self.filters:
       return
     
