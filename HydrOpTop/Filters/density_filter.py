@@ -1,6 +1,7 @@
-from .Mesh_NNR import Mesh_NNR
+from .Mesh_NNR import find_neighbors_within_radius2 as find_neighbors_within_radius
 import numpy as np
 from scipy.sparse import dia_matrix
+from scipy.io import mmwrite
 from .Base_Filter_class import Base_Filter
 
 class Density_Filter(Base_Filter):
@@ -65,9 +66,7 @@ class Density_Filter(Base_Filter):
     else:
       R = self.filter_radius
     print("Build kDTree and compute mesh fixed radius neighbors")
-    self.neighbors = Mesh_NNR(X)
-    self.neighbors.find_neighbors_within_radius(R)
-    self.D_matrix = -self.neighbors.get_distance_matrix().tocsr(copy=True)
+    self.D_matrix = -find_neighbors_within_radius(X, R)
     self.D_matrix.data += R
     self.D_matrix.data = self.D_matrix.data ** self.distance_weighting_power
     self.D_matrix = self.D_matrix.dot( dia_matrix((V[np.newaxis,:],0),
