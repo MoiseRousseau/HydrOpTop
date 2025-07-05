@@ -135,7 +135,7 @@ class Steady_State_Crafter:
     return grad
   
   
-  def output_to_user(self):
+  def output_to_user(self, final=False):
     val_at = np.argwhere(np.isin(
       self.solver.get_region_ids("__all__"), self.p_ids
     )).flatten()
@@ -151,7 +151,8 @@ class Steady_State_Crafter:
       },
       p_filtered=self.last_p_bar,
       adj_obj=self.obj.adjoint.adjoint.last_l,
-      val_at=val_at
+      val_at=val_at,
+      final=final,
     )
     return
     
@@ -201,6 +202,8 @@ class Steady_State_Crafter:
                      ftol=None,
                      options={}):
     self.first_cf = None
+    self.iteration = 0
+    self.func_eval = 0
     ### DEFAULT INPUTS
     if initial_guess is None:
       initial_guess = np.zeros(self.get_problem_size(), dtype='f8') + \
@@ -308,7 +311,7 @@ class Steady_State_Crafter:
       return None
       
     #print output
-    #self.output_to_user()
+    self.output_to_user(final=True)
     print("END!")
     
     out = Output_Struct(p_opt)
@@ -316,6 +319,10 @@ class Steady_State_Crafter:
       out.p_opt_filtered = self.filter_density(p_opt)
     out.fx = self.last_cf
     out.cx = self.last_constraints
+    out.func_eval = self.func_eval
+    out.mat_props = {
+      x.get_name():x.convert_p_to_mat_properties(self.last_p_bar) for x in self.mat_props
+    }
     return out
     
   
@@ -571,11 +578,13 @@ class Steady_State_Crafter:
 
 class Output_Struct:
   def __init__(self, p_opt):
-    self.p_opt = p_opt
+    self.p_opt = p_opt #raw density parameter (not filtered)
     self.p_opt_filtered = None
-    self.p_opt_grad = None
-    self.fx = None
-    self.cx = None
+    self.p_opt_grad = None # d(cost function) / d p
+    self.fx = None #cost function value
+    self.cx = None #constraints value
+    self.func_eval = 0 #iteration number
+    self.mat_props = {}
     return
   
   def __repr__(self):

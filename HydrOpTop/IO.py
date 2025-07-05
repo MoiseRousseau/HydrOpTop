@@ -130,7 +130,8 @@ class IO:
              mat_props=None, # parametrized mat props (dict)
              p_filtered=None, #filtered density parameters
              adj_obj=None,
-             val_at=None): # cell/node ids corresponding to dataset
+             val_at=None, # cell/node ids corresponding to dataset
+             final=False): # Final value to output
     if not self.initialized: self.initiate_output(constraints_val) 
     
     #output to log
@@ -140,17 +141,18 @@ class IO:
       out.write(f"\t{c:.6e}")
     out.write("\n")
     out.close()
-    
-    if (not self.output_number) and (not self.output_initial):
-      return
-    if (self.output_every == 0 or \
-       (it % self.output_every) != 0) and (self.output_number):
-      return
-    
-    if not self.output_number:
-      if not self.output_initial: 
-        self.output_number += 1
+
+    if not final:
+      if (not self.output_number) and (not self.output_initial):
         return
+      if (self.output_every == 0 or \
+         (it % self.output_every) != 0) and (self.output_number):
+        return
+
+      if not self.output_number:
+        if not self.output_initial:
+          self.output_number += 1
+          return
     
     #output field
     dict_var = {}
@@ -389,6 +391,7 @@ class IO_MESHIO:
       cell_data=cell_var
     )
     out = self.filename + '-' + str(n_output) + "." + self.fileformat
+    print(f"Output to {out}")
     mesh.write(out)
     return
   
