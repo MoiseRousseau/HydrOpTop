@@ -196,7 +196,7 @@ class Steady_State_Crafter:
                      density_parameter_bounds=[0.001, 1],
                      tolerance_constraints=0.005,
                      max_it=50,
-                     ftol=None,
+                     stop={},
                      options={}):
     self.first_cf = None
     self.iteration = 0
@@ -204,11 +204,12 @@ class Steady_State_Crafter:
     ### DEFAULT INPUTS
     if initial_guess is None:
       initial_guess = np.zeros(self.get_problem_size(), dtype='f8') + \
-                         density_parameter_bounds[0]
+                         np.mean(density_parameter_bounds)
     self.first_p = initial_guess.copy()
     ### OPTIMIZE
-    if optimizer == "nlopt-mma":
-      algorithm = nlopt.LD_MMA #use MMA algorithm
+    if "nlopt" in optimizer:
+      d_algo = { "nlopt-mma":nlopt.LD_MMA, "nlopt-ccsaq":nlopt.LD_CCSAQ }
+      algorithm = d_algo[optimizer]
       opt = nlopt.opt(algorithm, self.problem_size)
       if action == "minimize":
         opt.set_min_objective(self.nlopt_function_to_optimize) 
@@ -228,8 +229,10 @@ class Steady_State_Crafter:
                            density_parameter_bounds[1])
       #define stop criterion
       opt.set_maxeval(max_it)
-      if ftol is not None: 
-        opt.set_ftol_rel(ftol)
+      if stop:
+        if "ftol" in stop.keys(): opt.set_ftol_rel(stop["ftol"])
+        if "stopval" in stop.keys(): opt.set_ftol_rel(stop["stopval"])
+
       # adjust initial step size
       #opt.set_initial_step(20)
       #optimize
@@ -469,7 +472,7 @@ class Steady_State_Crafter:
     #in case of face output
     
     #initialize adjoint for objective function
-    #TODO: what happen for 2 variables butlowly or highly coupled ??
+    #TODO: what happen for 2 variables but lowly or highly coupled ??
     if self.obj.adjoint is None: #could have been set by user
       solved_variables_needed = []
       for var in self.obj.__get_variables_needed__():
