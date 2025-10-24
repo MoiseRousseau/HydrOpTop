@@ -1,6 +1,6 @@
 import time
 from scipy.sparse import coo_matrix, dia_matrix
-from .adjoint_solve import Adjoint_Solve
+from .adjoint_solve import Direct_Sparse_Linear_Solver, Iterative_Sparse_Linear_Solver
 import numpy as np
 
 
@@ -26,7 +26,7 @@ class Sensitivity_Steady_Simple:
     self.solver = solver
     self.assign_at_ids = p_ids #in solver format!
     
-    self.adjoint = Adjoint_Solve()
+    self.adjoint = Iterative_Sparse_Linear_Solver()
     
     self.dXi_dp = None
     self.dR_dXi = None

@@ -149,7 +149,7 @@ class Steady_State_Crafter:
         x.get_name():x.convert_p_to_mat_properties(p_bar) for x in self.mat_props
       },
       p_filtered=p_bar,
-      adj_obj=self.obj.adjoint.adjoint.last_l,
+      adj_obj=self.obj.adjoint.adjoint.l0,
       val_at=val_at,
       final=final,
     )
