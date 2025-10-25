@@ -1,88 +1,124 @@
 # This file is a part of the topology optimization program by Moise Rousseau
 
 import numpy as np
-import h5py
+from typing import Any, Dict, Optional
 
 
-class Base_Function:
-  """
-  Base function class which implement
-  """
-  def __init__(self):
-    self.name = "Base Function"
-    self.inputs = {}
-    self.initialized = False
-    self.adjoint = None #a variable to stored the adjoint when passed by the crafter
-    return
-  
-  def set_adjoint_problem(self,x):
-    self.adjoint = x
-    return
-  
-  def set_inputs(self, inputs):
+class BaseFunction:
     """
-    Method required by the problem crafter to pass the solver output
-    variables to the objective
-    Note that the inputs will be passed one time only (during the
-    initialization), and will after be changed in-place, so that function
-    will never be called again...
+    Base class for defining a cost or objective function in a numerical optimization
+    or simulation workflow.
+
+    This class provides an interface for:
+      - Setting and retrieving solver inputs
+      - Managing adjoint problems
+      - Mapping between parameter indices and cell identifiers
+      - Evaluating cost functions and their derivatives
     """
-    self.inputs = inputs
-    return
-  
-  def get_inputs(self):
-    """
-    Return the current input values
-    """
-    return self.inputs
-  
-  def set_p_to_cell_ids(self,p_ids):
-    """
-    Method that pass the correspondance between the index in p and the
-    cell ids in the simulation.
-    p_ids[X] = Y means the Xth cell parametrized corresponds to the cell index
-    Y in the solver
-    Also derive ids_p which is the reverse
-    """
-    self.p_ids = p_ids
-    self.ids_p = -np.ones(np.max(p_ids),dtype='i8') #-1 mean not optimized
-    self.ids_p[self.p_ids-1] = np.arange(len(self.p_ids))
-    return 
-    
-  ### COST FUNCTION ###
-  def evaluate(self, p):
-    """
-    Evaluate the cost function
-    Return a scalar
-    """
-    return 0.
-  
-  
-  ### PARTIAL DERIVATIVES ###
-  def d_objective_dY(self,p): 
-    """
-    Evaluate the derivative of the function according to the solved output variable.
-    (e.g. those in self.solved_variable_needed)
-    """
-    return 0.
-  
-  
-  def d_objective_dX(self,p):
-    """
-    Evaluate the derivative of the function according to the non-solved variable.
-    (e.g. those in self.input_variable_needed)
-    """
-    return [0.]
-  
-  
-  def d_objective_dp_partial(self,p): 
-    """
-    Evaluate the PARTIAL derivative of the function according to the density
-    parameter p.
-    """
-    return 0.
-    
-  ### REQUIRED FOR CRAFTING ###
-  def __get_variables_needed__(self): return self.variables_needed
-  def __get_name__(self): return self.name
-                      
+
+    def __init__(self) -> None:
+        self.name: str = "Base Function"
+        self.inputs: Dict[str, Any] = {}
+        self.initialized: bool = False
+        self.adjoint: Optional[Any] = None  # Adjoint variable (if provided by the problem crafter)
+        self.p_ids: Optional[np.ndarray] = None
+        self.ids_p: Optional[np.ndarray] = None
+        self.variables_needed: Optional[list[str]] = None
+
+    # -------------------------------------------------------------------------
+    # Adjoint / Input Handling
+    # -------------------------------------------------------------------------
+    def set_adjoint_problem(self, adjoint: Any) -> None:
+        """Attach an adjoint problem or variable to this function."""
+        self.adjoint = adjoint
+
+    def set_inputs(self, inputs: Dict[str, Any]) -> None:
+        """
+        Set the solver output variables required by this function.
+
+        Note:
+            This method is intended to be called once during initialization.
+            The `inputs` dictionary will then be updated in place, so
+            subsequent calls are unnecessary.
+        """
+        self.inputs = inputs
+
+    def get_inputs(self) -> Dict[str, Any]:
+        """Return the current input values."""
+        return self.inputs
+
+    # -------------------------------------------------------------------------
+    # Parameter Mapping
+    # -------------------------------------------------------------------------
+    def set_p_to_cell_ids(self, p_ids: np.ndarray) -> None:
+        """
+        Define the mapping between parameter indices and cell identifiers.
+
+        Args:
+            p_ids (np.ndarray): Array where `p_ids[i]` is the cell ID corresponding
+                to the i-th parameterized cell.
+
+        Creates:
+            - `self.p_ids`: forward mapping (parameter index → cell ID)
+            - `self.ids_p`: reverse mapping (cell ID → parameter index, -1 if not parameterized)
+        """
+        self.p_ids = np.asarray(p_ids, dtype=np.int64)
+        max_id = np.max(self.p_ids)
+        self.ids_p = -np.ones(max_id, dtype=np.int64)  #-1 mean not optimized
+        self.ids_p[self.p_ids - 1] = np.arange(len(self.p_ids))
+
+    # -------------------------------------------------------------------------
+    # Objective Evaluation
+    # -------------------------------------------------------------------------
+    def evaluate(self, p: np.ndarray) -> float:
+        """
+        Evaluate the cost or objective function.
+
+        Args:
+            p (np.ndarray): Current parameter vector.
+
+        Returns:
+            float: The scalar value of the cost function.
+        """
+        return 0.0
+
+    # -------------------------------------------------------------------------
+    # Derivatives
+    # -------------------------------------------------------------------------
+    def d_objective(self, var: str, p: np.ndarray) -> np.ndarray:
+        """
+        Compute the derivative of the objective with respect to a given variable.
+
+        Args:
+            var (str): Variable name.
+            p (np.ndarray): Current parameter vector.
+
+        Returns:
+            np.ndarray: Partial derivative with respect to the variable.
+        """
+        return np.zeros_like(p)
+
+    def d_objective_dp_partial(self, p: np.ndarray) -> np.ndarray:
+        """
+        Compute the explicit derivative of the objective with respect to
+        the parameter vector `p` (if it appears directly in the definition).
+
+        Args:
+            p (np.ndarray): Current parameter vector.
+
+        Returns:
+            np.ndarray: Partial derivative with respect to `p`.
+        """
+        return np.zeros_like(p)
+
+    # -------------------------------------------------------------------------
+    # Metadata Accessors
+    # -------------------------------------------------------------------------
+    def __get_variables_needed__(self) -> Optional[list[str]]:
+        """Return the list of variable names required for computation."""
+        return self.variables_needed
+
+    def __get_name__(self) -> str:
+        """Return the name of the function."""
+        return self.name
+
