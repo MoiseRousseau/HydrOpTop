@@ -120,7 +120,7 @@ class Iterative_Sparse_Linear_Solver:
             self.perm_rcm = reverse_cuthill_mckee(A, symmetric_mode=True)
         return self.perm_rcm
 
-    def permute_large_to_diagonal(self, A,)
+    def permute_large_to_diagonal(self, A):
         """
         Permute rows/columns of square sparse matrix A so that large entries
         are placed (as far as possible) on the diagonal.
@@ -213,7 +213,7 @@ class Iterative_Sparse_Linear_Solver:
                 A_perm = A[perm_r, :][:, perm_r]
                 b_perm = b[perm_r]
                 perm_c = perm_r
-                if self.l0 is not None: self.l0 = self.l0[perm]
+                if self.l0 is not None: self.l0 = self.l0[perm_r]
             elif self.perm_type == "ltd":
                 perm_r, perm_c = self.permute_large_to_diagonal(A)
                 A_perm = A[perm_r, :][:, perm_c]

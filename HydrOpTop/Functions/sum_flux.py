@@ -152,6 +152,7 @@ class Sum_Flux(Base_Function):
       raise NotImplementedError()
     elif var == "LIQUID_PRESSURE":
       k_con = self.interpole_at_face(self.k)[self.mask]
+      eg = DEFAULT_DENSITY * DEFAULT_GRAVITY
       deriv = self.sign * self.area_con * k_con / (self.distance_con * \
                                                                      DEFAULT_VISCOSITY)
       if self.option == "signed_reverse":

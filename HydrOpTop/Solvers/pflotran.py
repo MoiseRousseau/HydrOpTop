@@ -399,7 +399,11 @@ class PFLOTRAN(Base_Simulator):
                 out = np.zeros(self.n_cells)
                 vars_out[var] = out
         for var, out in vars_out.items():
-            self.get_output_variable(var, out, i_timestep)
+            if var == "CONNECTION_IDS":
+                vars_out[var] = self.get_internal_connections()
+            else:
+                self.get_output_variable(var, out, i_timestep)
+            
         return vars_out
 
 
@@ -425,8 +429,6 @@ class PFLOTRAN(Base_Simulator):
     elif "VOLUME" in var:
       out[:] = self.__get_mesh_volume__()
       return out
-    elif var == "CONNECTION_IDS":
-      return self.get_internal_connections()
 
     # Look for simulation variable
     # Correct output variable if not present
@@ -457,6 +459,9 @@ class PFLOTRAN(Base_Simulator):
     if out is None:
       out = temp
     else:
+      if len(temp) != len(out): #for face variable, resize this
+          print(f"Resize array for variable {var}")
+          out.resize(len(temp), refcheck=False) # in place resize so we keep the reference
       out[:] = temp
     src.close()
     return out

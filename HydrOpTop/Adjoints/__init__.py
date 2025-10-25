@@ -4,7 +4,6 @@ __all__ = [
     "Sensitivity_Steady_Simple",
     "No_Adjoint",
     #"Finite_Difference",
-    #"SPSA",
     #"Ensemble_Gradient",
 ]
 

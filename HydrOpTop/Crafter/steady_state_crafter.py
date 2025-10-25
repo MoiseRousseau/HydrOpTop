@@ -198,6 +198,7 @@ class Steady_State_Crafter:
                      density_parameter_bounds=[0.001, 1],
                      tolerance_constraints=0.005,
                      max_it=50,
+                     initial_step=0.2,
                      stop={},
                      options={}):
     self.iteration = 0
@@ -227,6 +228,7 @@ class Steady_State_Crafter:
                            density_parameter_bounds[0])
       opt.set_upper_bounds(np.zeros(self.get_problem_size(), dtype='f8') +
                            density_parameter_bounds[1])
+      opt.set_initial_step(initial_step)
       #define stop criterion
       opt.set_maxeval(max_it)
       if stop:
@@ -300,7 +302,8 @@ class Steady_State_Crafter:
                     ub=[density_parameter_bounds[1] for x in initial_guess],
                     cl=[0 for x in self.constraints],
                     cu=[1e40 for x in self.constraints])
-      nlp.add_option("tol", ftol)
+      if "ftol" in stop.keys():
+        nlp.add_option("tol", stop["ftol"])
       nlp.add_option("max_iter", max_it)
       nlp.add_option("print_level", 0)
       for key,val in options.items():
@@ -396,14 +399,16 @@ class Steady_State_Crafter:
   def scipy_function_to_optimize(self,p):
     self.scipy_run_sim(p)
     cf = self.obj.evaluate(self.last_p_bar)
-    self.last_cf = cf  
+    self.last_cf = cf
+    if self.best_p[0] is None:# or cf < self.best_p[0]:
+        self.best_p = (cf, p.copy())
     return cf
   
   def scipy_jac(self,p):
     self.scipy_run_sim(p)
     grad = self.evaluate_total_gradient(self.obj, self.last_p, self.last_p_bar)
-    self.last_grad[:] = grad
-    return grad
+    self.last_grad = grad
+    return -grad.T
   
   def scipy_constraint_val(self, constraint, p):
     self.scipy_run_sim(p)

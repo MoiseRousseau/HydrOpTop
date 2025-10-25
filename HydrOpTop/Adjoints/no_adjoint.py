@@ -1,13 +1,10 @@
-from .adjoint_solve import Adjoint_Solve
-
-
 class No_Adjoint:
   """
   A dummy adjoint class that solve no adjoint...
   """
   def __init__(self, parametrized_mat_props, p_ids):
     self.assign_at_ids = p_ids #in solver format!
-    self.adjoint = Adjoint_Solve()
+    self.adjoint = None
     self.initialized = False
     self.parametrized_mat_props = parametrized_mat_props
     
