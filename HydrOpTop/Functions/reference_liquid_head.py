@@ -7,10 +7,14 @@ class Reference_Liquid_Head(Base_Function):
   r"""
   Compute the difference between the head at the given cells and the head in the simulation.
   
+  Note the cell id are 1 based. First cell given is ID 1.
+  
   Required ``LIQUID_HEAD`` output.
   
   :param head: Reference head to compute the difference with
   :type head: iterable
+  :param weights: Weights associated with each observation
+  :type weights: iterable (same size as head)
   :param cell_ids: The corresponding cell ids of the head. If None, consider head[0] for cell id 1, head[1] for cell id 2, ...
   :type cell_ids: iterable
   :param observation_name: If observation points have name in the simulator, provide it here
@@ -22,6 +26,7 @@ class Reference_Liquid_Head(Base_Function):
     self,
     head,
     cell_ids=None,
+    weights=None,
     observation_name=None,
     norm = 1,
   ):
@@ -29,6 +34,7 @@ class Reference_Liquid_Head(Base_Function):
     
     self.set_error_norm(norm)
     self.ref_head = np.array(head)
+    self.weights = np.ones(len(head)) if weights is None else np.array(weights)
     self.cell_ids = np.array(cell_ids)
     self.observation_name = observation_name
     
@@ -57,11 +63,11 @@ class Reference_Liquid_Head(Base_Function):
       r = np.array([
         self.head[x] - h for x,h in zip(self.observation_name, self.ref_head)
       ])
-      return np.sum(r**self.norm)
+      return np.sum(self.weights * r**self.norm)
     if self.cell_ids is None: 
-      return np.sum((self.head-self.ref_head)**self.norm)
+      return np.sum(self.weights * (self.head-self.ref_head)**self.norm)
     else:
-      return np.sum((self.head[self.cell_ids-1]-self.ref_head)**self.norm)
+      return np.sum(self.weights * (self.head[self.cell_ids-1]-self.ref_head)**self.norm)
   
   
   ### PARTIAL DERIVATIVES ###
@@ -77,12 +83,12 @@ class Reference_Liquid_Head(Base_Function):
         r = np.array([
 	  head[x] - h for x,h in zip(self.observation_name, self.ref_head)
         ])
-        dobj = self.norm * r**(self.norm-1)
+        dobj = self.norm * self.weights * r**(self.norm-1)
       elif self.cell_ids is None:
-        dobj = self.norm * (head-self.ref_head)**(self.norm-1)
+        dobj = self.norm * self.weights * (head-self.ref_head)**(self.norm-1)
       else:
         dobj = np.zeros(len(head), dtype='f8')
-        dobj[self.cell_ids-1] = self.norm * (
+        dobj[self.cell_ids-1] = self.norm * self.weights * (
           head[self.cell_ids-1]-self.ref_head
         )**(self.norm-1)
     else:
