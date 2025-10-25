@@ -65,7 +65,6 @@ class Density_Filter(Base_Filter):
       R = 1.
     else:
       R = self.filter_radius
-    print("Build kDTree and compute mesh fixed radius neighbors")
     self.D_matrix = -find_neighbors_within_radius(X, R)
     self.D_matrix.data += R
     self.D_matrix.data = self.D_matrix.data ** self.distance_weighting_power

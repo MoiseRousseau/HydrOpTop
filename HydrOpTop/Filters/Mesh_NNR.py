@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.spatial import cKDTree
 from scipy.sparse import csr_matrix, dia_matrix
+import time
 
 
 # Using sparse_distance_matrix
@@ -26,6 +27,8 @@ def find_neighbors_within_radius2(mesh_centers, ball_radius):
     This version use the query_pairs of the KD tree.
     Approx 10 times faster than the previous version.
     """
+    print(f"Build kDTree ({len(mesh_centers)} elements) and compute mesh fixed radius neighbors")
+    tstart = time.time()
     N = len(mesh_centers)
     tree = cKDTree(mesh_centers)
     pairs = tree.query_pairs(ball_radius, output_type="ndarray")
@@ -36,6 +39,7 @@ def find_neighbors_within_radius2(mesh_centers, ball_radius):
     distance_matrix += distance_matrix.T
     # explicit 0 along the diagonal
     distance_matrix += dia_matrix((np.zeros(N)+1e-40,0), shape=(N,N))
+    print(f"Time to build distance matrix: {time.time() - tstart}")
     return distance_matrix
 
 
