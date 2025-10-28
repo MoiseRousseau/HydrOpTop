@@ -2,6 +2,7 @@
 
 import numpy as np
 from .Base_Function_class import Base_Function
+from .function_utils import df_dX
 
 class Reference_Liquid_Head(Base_Function):
   r"""
@@ -26,20 +27,36 @@ class Reference_Liquid_Head(Base_Function):
     self,
     head,
     cell_ids=None,
+    XYZ_coordinates=None,
+    time_obs=None,
     weights=None,
     observation_name=None,
+    outlier_weaken=False,
     norm = 1,
   ):
     super(Reference_Liquid_Head, self).__init__()
     
     self.set_error_norm(norm)
     self.ref_head = np.array(head)
-    self.weights = np.ones(len(head)) if weights is None else np.array(weights)
-    self.cell_ids = np.array(cell_ids)
+    self.weights = 1. if weights is None else np.array(weights)
+    self.cell_ids = np.asarray(cell_ids)
+    self.XYZ = np.asarray(XYZ_coordinates)
+    if self.cell_ids is None and self.XYZ is None:
+      raise ValueError("Both cell_ids and XYZ coordinates parameter cannot be null at the same time. If you passed it by name, please use solver function to get either cell_ids or coordinate and retry.")
+    if (self.cell_ids is None) == (self.XYZ is None):
+      print("Both cell_ids and coordinates passed, rely only on cell_ids...")
+    self.time = time_obs
     self.observation_name = observation_name
-    
+    self.outlier = outlier_weaken
+    self.h_interpolator = None
+
+    # for plotting
+    self.residuals = None
+
     #required for problem crafting
     self.variables_needed = ["LIQUID_HEAD"]
+    if self.XYZ is not None:
+      self.variables_needed = ["LIQUID_HEAD_INTERPOLATOR"]
     #if self.observation_name is not None:
     # 	self.solved_variables_needed = ["LIQUID_HEAD_AT_OBSERVATION"]
     self.name = "Reference Head"
@@ -53,45 +70,110 @@ class Reference_Liquid_Head(Base_Function):
 
   
   ### COST FUNCTION ###
+  def __evaluate_cell_ids__(self,p):
+    self.head = self.inputs["LIQUID_HEAD"]
+    if self.observation_name is not None:
+      self.residuals = np.array([
+        self.head[x] - h for x,h in zip(self.observation_name, self.ref_head)
+      ])
+    if self.cell_ids is None: 
+      self.residuals = self.head-self.ref_head
+    else:
+      self.residuals = self.head[self.cell_ids-1]-self.ref_head
+    return np.sum(self.weights * self.residuals**self.norm)
+    
+  def __evaluate_xyz__(self,p):
+    self.h_interpolator = self.inputs["LIQUID_HEAD_INTERPOLATOR"]
+    heads = self.h_interpolator(self.XYZ)
+    self.residuals = heads - self.ref_head
+    return np.sum(self.weights * self.residuals**self.norm)
+
   def evaluate(self, p):
     """
     Evaluate the cost function
     Return a scalar of dimension [L]
     """
-    self.head = self.inputs["LIQUID_HEAD"]
-    if self.observation_name is not None:
-      r = np.array([
-        self.head[x] - h for x,h in zip(self.observation_name, self.ref_head)
-      ])
-      return np.sum(self.weights * r**self.norm)
-    if self.cell_ids is None: 
-      return np.sum(self.weights * (self.head-self.ref_head)**self.norm)
+    if self.cell_ids:
+      res = self.__evaluate_cell_ids__(p)
     else:
-      return np.sum(self.weights * (self.head[self.cell_ids-1]-self.ref_head)**self.norm)
+      res = self.__evaluate_xyz__(p)
+    return res
   
   
   ### PARTIAL DERIVATIVES ###
-  def d_objective(self, var, p):
+  def __d_objective_dh_cell_ids__(self, p):
     """
     Given a variable, return the derivative of the cost function according to that variable.
     Use current simulation state
     """
     head = self.inputs["LIQUID_HEAD"]
-    if var == "LIQUID_HEAD":
-      # Derivative according to the head
-      if self.observation_name is not None:
-        r = np.array([
-	  head[x] - h for x,h in zip(self.observation_name, self.ref_head)
-        ])
-        dobj = self.norm * self.weights * r**(self.norm-1)
-      elif self.cell_ids is None:
-        dobj = self.norm * self.weights * (head-self.ref_head)**(self.norm-1)
-      else:
-        dobj = np.zeros(len(head), dtype='f8')
-        dobj[self.cell_ids-1] = self.norm * self.weights * (
-          head[self.cell_ids-1]-self.ref_head
-        )**(self.norm-1)
+    # Derivative according to the head
+    if self.observation_name is not None:
+      r = np.array([
+  head[x] - h for x,h in zip(self.observation_name, self.ref_head)
+      ])
+      dobj = self.norm * self.weights * r**(self.norm-1)
+    elif self.cell_ids is None:
+      dobj = self.norm * self.weights * (head-self.ref_head)**(self.norm-1)
+    else:
+      dobj = np.zeros(len(head), dtype='f8')
+      dobj[self.cell_ids-1] = self.norm * self.weights * (
+        head[self.cell_ids-1]-self.ref_head
+      )**(self.norm-1)
+    return dobj
+
+  def __d_objective_dh_xyz__(self, p):
+    """
+    Given a variable, return the derivative of the cost function according to that variable.
+    Use current simulation state
+    """
+    # update interpolator
+    self.h_interpolator = self.inputs["LIQUID_HEAD_INTERPOLATOR"]
+    heads = self.h_interpolator(self.XYZ)
+    residuals = heads - self.ref_head
+
+    pre = self.norm * self.weights * residuals**(self.norm-1)
+    dobj = np.sum([
+      pre[i] * df_dX(self.h_interpolator, xyz) for i,xyz in enumerate(self.XYZ)
+    ],axis=0)
+    return dobj
+
+
+  def d_objective(self, var, p):
+    """
+    Given a variable, return the derivative of the cost function according to that variable.
+    Use current simulation state
+    """
+    if self.cell_ids and var == "LIQUID_HEAD":
+      res = self.__d_objective_dh_cell_ids__(p)
+    elif var == "LIQUID_HEAD_INTERPOLATOR":
+      res = self.__d_objective_dh_xyz__(p)
     else:
       # The function depends of no other variables
-      dobj = np.zeros(len(head), dtype='f8')
-    return dobj
+      res = np.zeros_like(p, dtype='f8')
+    return res
+
+
+  def plot_scatter(self):
+    """
+    Draw a scatter plot of measured vs simulated head
+    """
+    import matplotlib.pyplot as plt
+    fig,ax = plt.subplots()
+    predicted_head = self.ref_head - self.residuals
+    ax.scatter(
+      self.ref_head, predicted_head,
+      c='b'
+    )
+    hmin = np.min([self.ref_head, predicted_head])
+    hmax = np.max([self.ref_head, predicted_head])
+    a = 0.1
+    range = hmax - hmin
+    ax.plot([[hmin - range*a, hmax + range*a]],[hmin - range*a, hmax + range*a], c='k')
+    ax.grid()
+    ax.set_xlabel("Measured head")
+    ax.set_ylabel("Predicted head")
+    ax.set_xlim([[hmin - range*a, hmax + range*a]])
+    ax.set_ylim([[hmin - range*a, hmax + range*a]])
+    plt.tight_layout()
+    plt.show()

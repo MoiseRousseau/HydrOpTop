@@ -1,6 +1,7 @@
 import numpy as np
+from .Base_Material_class import Base_Material
 
-class Log_SIMP:
+class Log_SIMP(Base_Material):
   r"""
   Description:
     SIMP stands for Standard Isotropic Material Parametrization. It applies the 
@@ -26,22 +27,18 @@ class Log_SIMP:
   
   """
   def __init__(self, cell_ids_to_parametrize,
-                     property_name, bounds, power=3, reverse=False):
+                     property_name, bounds, power=1, reverse=False):
+    super(Log_SIMP, self).__init__()
     if isinstance(cell_ids_to_parametrize, str) and \
-             cell_ids_to_parametrize.lower() == "all":
+             cell_ids_to_parametrize.lower() == "__all__":
       self.cell_ids = None
     else:
       self.cell_ids = np.array(cell_ids_to_parametrize)
     self.min_, self.max_ = bounds
     self.reverse = reverse
     self.power = power
-    self.name= property_name
+    self.name = property_name
     return
-  
-  
-  def get_cell_ids_to_parametrize(self):
-    return self.cell_ids
-  
   
   def convert_p_to_mat_properties(self, p, out=None):
     if out is None: out = np.zeros(len(p),dtype='f8')
@@ -80,8 +77,3 @@ class Log_SIMP:
       print("Min and max permeability value not in the range of material \
              properties")
       return None
-  
-  def get_name(self):
-    return self.name
-  
-

@@ -39,10 +39,8 @@ class Sensitivity_Steady_Simple:
     return
     
   def update_mat_derivative(self, p):
-    for i,mat_prop in enumerate(self.parametrized_mat_props):
-      mat_prop.d_mat_properties(
-        p, self.dXi_dp[mat_prop.get_name()]
-      )
+    for i,m in enumerate(self.parametrized_mat_props):
+      self.dXi_dp[m.get_name()][m.indexes] = m.d_mat_properties(p[m.indexes])
     return
   
   def update_residual_derivatives(self):
@@ -110,16 +108,18 @@ class Sensitivity_Steady_Simple:
     return S
   
   
-  def __initialize_adjoint__(self,p): 
-    self.dXi_dp = {
-      mat_prop.get_name():mat_prop.d_mat_properties(p) for mat_prop in self.parametrized_mat_props
-    } # dim = [mat_prop] * L * T2 / M
-    self.n_parametrized_props = len(self.dXi_dp)
-      
+  def __initialize_adjoint__(self,p):
+    self.dXi_dp = {}
+    mat_prop_unique = set([m.get_name() for m in self.parametrized_mat_props])
+    for mu in mat_prop_unique:
+      dXi_dp = np.zeros_like(p)
+      for m in self.parametrized_mat_props:
+        if m.get_name() != mu: continue
+        dXi_dp[m.indexes] = m.d_mat_properties(p[m.indexes])
+      self.dXi_dp[mu] = dXi_dp
+
     self.dR_dXi = {
-      mat_prop.get_name() : self.solver.get_sensitivity(
-        mat_prop.get_name()
-      ) for mat_prop in self.parametrized_mat_props
+      mu : self.solver.get_sensitivity(mu) for mu in mat_prop_unique
     }
 
     self.dR_dYi = {
@@ -128,6 +128,7 @@ class Sensitivity_Steady_Simple:
       ) for solved_var in self.solved_vars
     }
     
+    self.n_parametrized_props = len(self.dXi_dp)
     self.initialized = True
     return
     

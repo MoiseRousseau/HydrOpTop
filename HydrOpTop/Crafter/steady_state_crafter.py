@@ -1,5 +1,5 @@
-import h5py
 import numpy as np
+import scipy.sparse as sp
 import nlopt
 import functools
 
@@ -54,7 +54,7 @@ class Steady_State_Crafter:
     self.first_p = None
     
     self.__initialize_IO_array__()
-    self.__initialize_filter__()
+    #self.__initialize_filter__()
     return
   
   def get_problem_size(self): 
@@ -92,11 +92,13 @@ class Steady_State_Crafter:
   def filter_density(self, p):
     if not self.filters:
       return p
-    p_bar = p.copy()
+    # p is a vector of input dim, with both reduced dim
+    p_bar = np.zeros_like(self.last_p_bar)
+    p_bar[self.input_cells] = p
     for filter_ in self.filters: #apply filter consecutively
       # Filter does not need to be updated
       #self.initialize_function_vars(filter_) #update filter var
-      p_bar = filter_.get_filtered_density(p_bar)
+      p_bar[filter_.output_indexes] = filter_.get_filtered_density(p_bar[filter_.input_indexes])
     return p_bar
 
   def evaluate_total_gradient(self, func, p, p_bar=None):
@@ -110,10 +112,11 @@ class Steady_State_Crafter:
     dobj_dY = {}
     dobj_dX = {}
     for var in func.__get_variables_needed__():
-      if var in self.solver.solved_variables:
-        dobj_dY[var] = func.d_objective(var, p_)
-      elif var in [x.get_name() for x in self.mat_props]:
-        dobj_dX[var] = func.d_objective(var, p_)
+      var_ = var.replace("_INTERPOLATOR","")
+      if var_ in self.solver.solved_variables:
+        dobj_dY[var_] = func.d_objective(var, p_)
+      elif var_ in [x.get_name() for x in self.mat_props]:
+        dobj_dX[var_] = func.d_objective(var, p_)
     dobj_dp_partial = func.d_objective_dp_partial(p_)
     
     grad = func.adjoint.compute_sensitivity(
@@ -121,14 +124,32 @@ class Steady_State_Crafter:
     ) + dobj_dp_partial # was input_variables_needed
     
     if self.filters:
-      p_ = p
-      for i,filter_ in enumerate(self.filters):
-        if not i:
-          grad_filter = filter_.get_filter_derivative(p_)
-        else:
-          grad_filter = filter_.get_filter_derivative(p_).dot(grad_filter)
-        p_ = filter_.get_filtered_density(p_)
-      grad = grad_filter.transpose().dot(grad)
+      # Compute d_p_bar / d_p
+      p_bar = np.zeros_like(self.last_p_bar)
+      p_bar[self.input_cells] = p
+      N = len(p_bar)
+      Jf = sp.diags(np.ones(N),format="csr")
+      for i,f in enumerate(self.filters):
+        # We are in simulation space here
+        # and filter acts as a bijection, we take the column we want at the end
+        Jp = f.get_filter_derivative(p_bar[f.input_indexes])
+        global_row = f.output_indexes[Jp.coords[0]]
+        global_col = f.output_indexes[Jp.coords[1]]
+        # add 1 to indexes unchanged by the filter
+        uc = np.nonzero(~np.isin(np.arange(0,N),f.output_indexes))[0]
+        global_row = np.concat([global_row,uc])
+        global_col = np.concat([global_col,uc])
+        data = np.concat([Jp.data,np.ones(len(uc))])
+        J = sp.coo_matrix(
+          (data,(global_row,global_col)), shape=(N,N)
+        )
+        # Update global filter derivative
+        Jf = J.dot(Jf)
+        # Update filter state
+        p_bar[f.output_indexes] = f.get_filtered_density(
+          p_[f.input_indexes]
+        )
+      grad = -Jf[:,self.input_cells].transpose().dot(grad)
     return grad
   
   
@@ -145,15 +166,28 @@ class Steady_State_Crafter:
       p_raw=p, #raw density parameter (not filtered)
       grad_cf=self.last_grad, # d(cost function) / d p
       grad_constraints=self.last_grad_constraints, 
-      mat_props={
-        x.get_name():x.convert_p_to_mat_properties(p_bar) for x in self.mat_props
-      },
+      mat_props=self.get_material_properties_from_p(p_bar),
       p_filtered=p_bar,
       adj_obj=self.obj.adjoint.adjoint.l0,
       val_at=val_at,
       final=final,
     )
     return
+
+
+  def get_material_properties_from_p(self, p_):
+    """
+    Return material properties corresponding to the given value of density parameter
+    """
+    mat_prop_unique = set([m.get_name() for m in self.mat_props])
+    ret = {}
+    for mu in mat_prop_unique:
+      X = np.zeros_like(p_)
+      for mat_prop in self.mat_props:
+        if mat_prop.get_name() != mu: continue
+        X[mat_prop.indexes] = mat_prop.convert_p_to_mat_properties(p_[mat_prop.indexes])
+      ret[mu] = X
+    return ret
     
   
   ### PRE-EVALUATION ###
@@ -165,10 +199,11 @@ class Steady_State_Crafter:
     ### FILTERING
     p_bar = self.filter_density(p)
     ### UPDATE MAT PROPERTIES
-    for mat_prop in self.mat_props:
-      X = mat_prop.convert_p_to_mat_properties(p_bar)
-      self.solver.create_cell_indexed_dataset(X, mat_prop.get_name(),
-                    X_ids=mat_prop.get_cell_ids_to_parametrize(), resize_to=False)
+    dict_mat = self.get_material_properties_from_p(p_bar)
+    for name,val in dict_mat.items():
+      self.solver.create_cell_indexed_dataset(
+        val, name, self.p_ids, resize_to=False
+      )
     ### RUN SOLVER
     ret_code = self.solver.run()
     if ret_code: 
@@ -327,9 +362,7 @@ class Steady_State_Crafter:
     out.fx = self.last_cf
     out.cx = self.last_constraints
     out.func_eval = self.func_eval
-    out.mat_props = {
-      x.get_name():x.convert_p_to_mat_properties(self.last_p_bar) for x in self.mat_props
-    }
+    out.mat_props = self.get_material_properties_from_p(self.last_p_bar)
     return out
     
   
@@ -443,31 +476,46 @@ class Steady_State_Crafter:
   ### INITIALIZATION ###
   def __initialize_IO_array__(self):
     print("Initialization...")
-    #verify if each cells to parametrize are the same
-    C = self.mat_props[0].get_cell_ids_to_parametrize()
-    input_dim = len(C) if C is not None else None
-    for f in self.filters:
-      if isinstance(f,Pilot_Points):
-        input_dim = len(f.control_points)
+    # Get all the cell which are parametrized
+    parameterized_cells = set()
+    for x in self.mat_props:
+      cids = x.get_cell_ids_to_parametrize()
+      if isinstance(cids,str) and cids == "__all__":
+        parameterized_cells = set(self.solver.get_region_ids("__all__"))
         break
+      parameterized_cells = parameterized_cells.union(cids)
+    self.p_ids = np.array(list(parameterized_cells)) #from 0 based indexing to solver indexing (1 based)
+    self.p_bar = np.zeros(len(self.p_ids))
+    # Assign which mat prop should work on which p indexes
+    for m in self.mat_props:
+      m.indexes = np.nonzero(np.isin(self.p_ids, m.cell_ids))[0]
     
-    if len(self.mat_props) > 1:
-      for x in self.mat_props:
-        if x.get_cell_ids_to_parametrize() != C: 
-          print("Different cell ids to optimize")
-          print("HydrOpTop require the different mat properties to parametrize \
-                 the same cell ids")
-          exit(1)
+    # Filter initialisation
+    # During filtering, the filter will received an array of size len(input_ids) and an array len(output_ids) to populate
+    # At the end, the output array is the filtered p with correspondance p to cell ids (self.p_ids)
+    # Here we determine which filter write where in this output array
+    input_cell = set()
+    output_cell = set()
+    for f in self.filters:
+      input_cell = input_cell.union([x for x in f.input_ids if x >= 0])
+      output_cell = output_cell.union(f.output_ids)
+    not_filtered_cell = parameterized_cells.difference(output_cell)
+    input_dim = len(not_filtered_cell) + len(input_cell)
+    # Now we have input dimension, let tell to the filter where to write
+    for f in self.filters:
+      f.input_indexes = np.nonzero(np.isin(self.p_ids, f.input_ids))[0]
+      f.output_indexes = np.nonzero(np.isin(self.p_ids, f.output_ids))[0]
+    # Now store correspondance between input parameter p and the location to write in p_bar
+    self.input_cells = np.nonzero(np.isin(
+      self.p_ids, list(input_cell.union(not_filtered_cell))
+    ))[0]
+    
     #create correspondance and problem size
-    if input_dim is None: #i.e. parametrize all cell in the simulation
-      input_dim = self.solver.get_grid_size()
     self.problem_size = input_dim
-    self.p_ids = C #from 0 based indexing to solver indexing (1 based)
-    if self.p_ids is None:
-      self.p_ids = self.solver.get_region_ids("__all__")
+    #self.p = np.zeros(input_dim, dtype='f8')
     self.last_p = np.zeros(input_dim,dtype='f8')
     self.last_grad = np.zeros(input_dim,dtype='f8')
-    self.last_p_bar = np.zeros(len(self.p_ids),dtype='f8')
+    self.last_p_bar = np.zeros_like(self.p_ids,dtype='f8')
     if self.constraints:
       pass
     
@@ -477,11 +525,13 @@ class Steady_State_Crafter:
     
     #initialize adjoint for objective function
     #TODO: what happen for 2 variables but lowly or highly coupled ??
+    #TODO: adjoint should not be an attribute of the objective function
     if self.obj.adjoint is None: #could have been set by user
       solved_variables_needed = []
       for var in self.obj.__get_variables_needed__():
-        if var in self.solver.solved_variables:
-          solved_variables_needed.append(var)
+        var_ = var.replace("_INTERPOLATOR","")
+        if var_ in self.solver.solved_variables:
+          solved_variables_needed.append(var_)
       if solved_variables_needed:
         adjoint = Sensitivity_Steady_Simple(
           solved_variables_needed,
@@ -504,8 +554,9 @@ class Steady_State_Crafter:
       if constraint.adjoint is None:
         solved_variables_needed = []
         for var in constraint.__get_variables_needed__():
-          if var in self.solver.solved_variables:
-            solved_variables_needed.append(var)
+          var_ = var.replace("_INTERPOLATOR","")
+          if var_ in self.solver.solved_variables:
+            solved_variables_needed.append(var_)
         if len(solved_variables_needed) == 0:
           adjoint = No_Adjoint(self.mat_props, self.p_ids)
         else:

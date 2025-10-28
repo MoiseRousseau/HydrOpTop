@@ -1,51 +1,58 @@
 import numpy as np
 
 class Base_Filter:
-  p_ids = None
-  name = ""
-  adjoint = None
-  input_variables_needed = []
   
-  def set_p_to_cell_ids(self, p_ids):
-    self.p_ids = p_ids
-    return
+    def __init__(self):
+        self.p_ids = None
+        self.name = "Base Filter"
+        self.input_ids = None # The input cell_id (in simulation) to apply filter on
+        self.output_ids = None # The output cell_id (in simulation)  that the filter compute values
+        self.input_indexes = None # The input index to take p from
+        self.output_indexes = None # The output index to write p
+        self.adjoint = None
+        self.input_variables_needed = []
   
-  def set_inputs(self, inputs):
-    self.inputs = inputs
-    return
+    def set_inputs(self, inputs):
+        self.inputs = inputs
+        return
   
-  def get_filtered_density(self, p):
-    """
-    TO DEFINE
-    """
-    return
+    def get_filtered_density(self, p):
+        """
+        TO DEFINE
+        """
+        return
 
-  def get_filter_derivative(self, p, eps=1e-6):
-    """
-    Compute derivative of p_bar relative to p with centered finite difference.
+    def get_filter_derivative(self, p, eps=1e-6):
+        """
+        Compute derivative of p_bar relative to p with centered finite difference.
 
-    :param p: Density parameter p
-    :param eps: Absolute step for finite difference calculation
-    """
-    J = np.zeros([len(self.p_ids),len(p)], dtype = np.double)
+        Return a matrix with n_rows = output_dim, n_cols = input_dim
 
-    for i in range(len(p)):
-        x1 = p.copy()
-        x2 = p.copy()
+        This naive version use a finite difference approach and a dense jacobian.
 
-        x1[i] += eps
-        x2[i] -= eps
+        :param p: Density parameter p
+        :param eps: Absolute step for finite difference calculation
 
-        f1 = self.get_filtered_density(x1)
-        f2 = self.get_filtered_density(x2)
+        """
+        J = np.zeros([len(self.output_ids),len(p)], dtype = np.double)
 
-        J[:,i] = (f1 - f2) / (2 * eps)
+        for i in range(len(p)):
+            x1 = p.copy()
+            x2 = p.copy()
 
-    return J
+            x1[i] += eps
+            x2[i] -= eps
+
+            f1 = self.get_filtered_density(x1)
+            f2 = self.get_filtered_density(x2)
+
+            J[:,i] = (f1 - f2) / (2 * eps)
+
+        return J
   
-  def __get_variables_needed__(self):
-    return self.input_variables_needed
-  def __get_name__(self):
-    return self.name
+    def __get_variables_needed__(self):
+        return self.input_variables_needed
+    def __get_name__(self):
+        return self.name
   
 

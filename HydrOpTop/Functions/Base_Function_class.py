@@ -4,7 +4,7 @@ import numpy as np
 from typing import Any, Dict, Optional
 
 
-class BaseFunction:
+class Base_Function:
     """
     Base class for defining a cost or objective function in a numerical optimization
     or simulation workflow.

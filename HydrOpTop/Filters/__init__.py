@@ -7,6 +7,7 @@
 import importlib
 
 __all__ = [
+    "Zone_Homogeneous",
     "Density_Filter",
     "Heaviside_Filter",
     "No_Filter",
