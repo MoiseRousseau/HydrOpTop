@@ -177,3 +177,11 @@ class Reference_Liquid_Head(Base_Function):
     ax.set_ylim([hmin - range*a, hmax + range*a])
     plt.tight_layout()
     plt.show()
+    return
+
+  @classmethod
+  def sample_instance(cls):
+    res = cls(head=[11.2,43.2,56.4,29.4], cell_ids=[2,4,5,10])
+    res.set_inputs({"LIQUID_HEAD":np.random.rand(20)*100})
+    res.input_indexes = np.arange(20)[res.cell_ids]
+    return res
