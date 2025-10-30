@@ -71,24 +71,32 @@ def get_classes_from_module(module_name, base_class_name="Base_Function"):
     return concrete_classes
 
 
-@pytest.mark.parametrize("cls", list(get_classes_from_module(MODULE)))
-def test_derivative_consistency(cls):
-    """Check that analytical derivative matches finite difference."""
-
-    # --- try to instantiate ---
-    try:
-        instance = cls()
-    except Exception:
-        # if class provides a 'sample_instance' or 'make_test_instance' helper, use it
-        factory = None
+def collect_test_cases():
+    """Yield (cls, instance) tuples for all sample inputs of each class."""
+    for cls in get_classes_from_module(MODULE):
+        # --- instantiate the class or multiple instances ---
+        instances = []
         for name in ("sample_instance", "make_test_instance", "example"):
             if hasattr(cls, name) and callable(getattr(cls, name)):
-                factory = getattr(cls, name)
+                out = getattr(cls, name)()
+                if isinstance(out, (list, tuple)):
+                    instances.extend(out)
+                else:
+                    instances.append(out)
                 break
-        if factory:
-            instance = factory()
-        else:
-            pytest.skip(f"{cls.__name__}: cannot instantiate automatically")
+        try:
+            instances.append(cls())
+        except Exception:
+            pass
+
+        # --- now for each instance, collect input samples ---
+        for inst in instances:
+            yield cls, inst
+
+
+@pytest.mark.parametrize("cls,instance", list(collect_test_cases()))
+def test_derivative_consistency(cls,instance):
+    """Check that analytical derivative matches finite difference."""
 
     # --- check methods ---
     if not hasattr(instance, "evaluate") or not hasattr(instance, "d_objective"):

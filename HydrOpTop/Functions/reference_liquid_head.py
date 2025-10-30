@@ -181,7 +181,18 @@ class Reference_Liquid_Head(Base_Function):
 
   @classmethod
   def sample_instance(cls):
-    res = cls(head=[11.2,43.2,56.4,29.4], cell_ids=[2,4,5,10])
-    res.set_inputs({"LIQUID_HEAD":np.random.rand(20)*100})
-    res.input_indexes = np.arange(20)[res.cell_ids]
-    return res
+    # sample cell_ids
+    res1 = cls(head=[11.2,43.2,56.4,29.4], cell_ids=[2,4,5,10])
+    res1.set_inputs({"LIQUID_HEAD":np.random.rand(20)*100})
+    res1.input_indexes = np.arange(20)[res1.cell_ids]
+    # sample xyz
+    from scipy.interpolate import LinearNDInterpolator
+    res2 = cls(
+      head=[11.2,43.2,56.4,29.4],
+      XYZ_coordinates=np.random.rand(4,3), 
+    )
+    xyz = np.random.rand(20,3)*2-1
+    interp = LinearNDInterpolator(xyz,np.random.rand(20)*100)
+    res2.set_inputs({"LIQUID_HEAD_INTERPOLATOR":interp})
+    res2.input_indexes = np.arange(20)[res2.cell_ids]
+    return [res1,res2]
