@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.sparse import coo_matrix
 
 class Base_Filter:
   
@@ -22,7 +23,7 @@ class Base_Filter:
         """
         return
 
-    def get_filter_derivative(self, p, eps=1e-6):
+    def get_filter_derivative(self, p, eps=1e-6, drop_tol=1e-4):
         """
         Compute derivative of p_bar relative to p with centered finite difference.
 
@@ -34,7 +35,10 @@ class Base_Filter:
         :param eps: Absolute step for finite difference calculation
 
         """
-        J = np.zeros([len(self.output_ids),len(p)], dtype = np.double)
+        print("Compute filter derivative with finite difference method...")
+        data = []
+        rows = []
+        cols = []
 
         for i in range(len(p)):
             x1 = p.copy()
@@ -46,10 +50,19 @@ class Base_Filter:
             f1 = self.get_filtered_density(x1)
             f2 = self.get_filtered_density(x2)
 
-            J[:,i] = (f1 - f2) / (2 * eps)
+            df = (f1 - f2) / (2 * eps)
 
+            # Only keep entries above drop_tol
+            nz_idx = np.abs(df) > drop_tol
+            data.extend(df[nz_idx])
+            rows.extend(np.where(nz_idx)[0])
+            cols.extend([i]*np.sum(nz_idx))
+
+        # Construct COO sparse matrix
+        J = coo_matrix((data, (rows, cols)), shape=(len(self.output_ids), len(p)), dtype=np.double)
         return J
-  
+
+
     def __get_variables_needed__(self):
         return self.input_variables_needed
     def __get_name__(self):

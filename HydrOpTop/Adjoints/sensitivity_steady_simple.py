@@ -49,10 +49,10 @@ class Sensitivity_Steady_Simple:
         solved_var,
         coo_mat=self.dR_dYi[solved_var]
       )
-    for i,mat_prop in enumerate(self.parametrized_mat_props):
+    mat_prop_unique = set([m.get_name() for m in self.parametrized_mat_props])
+    for i,mu in enumerate(mat_prop_unique):
       self.solver.get_sensitivity(
-        mat_prop.get_name(),
-        coo_mat=self.dR_dXi[mat_prop.get_name()]
+        mu, coo_mat=self.dR_dXi[mu]
       )
     return 
   

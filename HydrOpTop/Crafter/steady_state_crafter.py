@@ -54,7 +54,7 @@ class Steady_State_Crafter:
     self.first_p = None
     
     self.__initialize_IO_array__()
-    #self.__initialize_filter__()
+    self.__initialize_filter__()
     return
   
   def get_problem_size(self): 
@@ -202,7 +202,7 @@ class Steady_State_Crafter:
     dict_mat = self.get_material_properties_from_p(p_bar)
     for name,val in dict_mat.items():
       self.solver.create_cell_indexed_dataset(
-        val, name, self.p_ids, resize_to=False
+        val, name, X_ids=self.p_ids, resize_to=False
       )
     ### RUN SOLVER
     ret_code = self.solver.run()
@@ -606,7 +606,7 @@ class Steady_State_Crafter:
     
     for filter_ in self.filters:
       self.initialize_function_vars(filter_)
-      filter_.set_p_to_cell_ids(self.p_ids)
+      #filter_.set_p_to_cell_ids(self.p_ids)
     self.filters_initialized = True
     return
     

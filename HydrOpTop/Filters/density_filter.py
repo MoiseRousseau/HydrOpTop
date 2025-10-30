@@ -30,8 +30,12 @@ class Density_Filter(Base_Filter):
   Required solver outputs:
   
   """
-  def __init__(self, filter_radius=1., distance_weighting_power=1):
-    self.filter_radius = filter_radius
+  def __init__(self, cell_ids, radius=1., distance_weighting_power=1):
+    super(Density_Filter, self).__init__()
+    self.cell_ids = np.asarray(cell_ids)
+    self.input_ids = self.cell_ids
+    self.output_ids = self.cell_ids
+    self.filter_radius = radius
     if distance_weighting_power <= 0.: 
       print("distance_weighting_power argument must be strictly positive")
       raise ValueError
@@ -54,12 +58,8 @@ class Density_Filter(Base_Filter):
   
   
   def initialize(self):
-    if self.p_ids is not None:
-      V = self.inputs["VOLUME"][self.p_ids-1] #just need those in the optimized domain
-      X = self.inputs["ELEMENT_CENTER"][self.p_ids-1,:]
-    else:
-      V = self.inputs["VOLUME"]
-      X = self.inputs["ELEMENT_CENTER"]
+    V = self.inputs["VOLUME"][self.cell_ids-1] #just need those in the optimized domain
+    X = self.inputs["ELEMENT_CENTER"][self.cell_ids-1,:]
     if isinstance(self.filter_radius, list): #anisotropic
       for i in range(3): X[:,i] /= self.filter_radius[i]
       R = 1.

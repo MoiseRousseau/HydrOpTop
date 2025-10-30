@@ -39,8 +39,8 @@ class Reference_Liquid_Head(Base_Function):
     self.set_error_norm(norm)
     self.ref_head = np.array(head)
     self.weights = 1. if weights is None else np.array(weights)
-    self.cell_ids = np.asarray(cell_ids)
-    self.XYZ = np.asarray(XYZ_coordinates)
+    self.cell_ids = np.asarray(cell_ids) if cell_ids is not None else None
+    self.XYZ = np.asarray(XYZ_coordinates) if XYZ_coordinates is not None else None
     if self.cell_ids is None and self.XYZ is None:
       raise ValueError("Both cell_ids and XYZ coordinates parameter cannot be null at the same time. If you passed it by name, please use solver function to get either cell_ids or coordinate and retry.")
     if (self.cell_ids is None) == (self.XYZ is None):
@@ -55,7 +55,7 @@ class Reference_Liquid_Head(Base_Function):
 
     #required for problem crafting
     self.variables_needed = ["LIQUID_HEAD"]
-    if self.XYZ is not None:
+    if self.XYZ is not None and self.cell_ids is None:
       self.variables_needed = ["LIQUID_HEAD_INTERPOLATOR"]
     #if self.observation_name is not None:
     # 	self.solved_variables_needed = ["LIQUID_HEAD_AT_OBSERVATION"]
@@ -93,7 +93,7 @@ class Reference_Liquid_Head(Base_Function):
     Evaluate the cost function
     Return a scalar of dimension [L]
     """
-    if self.cell_ids:
+    if self.cell_ids is not None:
       res = self.__evaluate_cell_ids__(p)
     else:
       res = self.__evaluate_xyz__(p)
@@ -144,7 +144,7 @@ class Reference_Liquid_Head(Base_Function):
     Given a variable, return the derivative of the cost function according to that variable.
     Use current simulation state
     """
-    if self.cell_ids and var == "LIQUID_HEAD":
+    if self.cell_ids is not None and var == "LIQUID_HEAD":
       res = self.__d_objective_dh_cell_ids__(p)
     elif var == "LIQUID_HEAD_INTERPOLATOR":
       res = self.__d_objective_dh_xyz__(p)
@@ -169,11 +169,11 @@ class Reference_Liquid_Head(Base_Function):
     hmax = np.max([self.ref_head, predicted_head])
     a = 0.1
     range = hmax - hmin
-    ax.plot([[hmin - range*a, hmax + range*a]],[hmin - range*a, hmax + range*a], c='k')
+    ax.plot([hmin - range*a, hmax + range*a],[hmin - range*a, hmax + range*a], c='k')
     ax.grid()
     ax.set_xlabel("Measured head")
     ax.set_ylabel("Predicted head")
-    ax.set_xlim([[hmin - range*a, hmax + range*a]])
-    ax.set_ylim([[hmin - range*a, hmax + range*a]])
+    ax.set_xlim([hmin - range*a, hmax + range*a])
+    ax.set_ylim([hmin - range*a, hmax + range*a])
     plt.tight_layout()
     plt.show()
