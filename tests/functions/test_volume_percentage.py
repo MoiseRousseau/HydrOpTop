@@ -19,13 +19,13 @@ class Test_Common_Function:
   sim_exp_grid.run()
   
   pit_ids = sim_exp_grid.get_region_ids("pit")
-  obj = Volume_Percentage(pit_ids, 0.15)
+  obj = Volume_Percentage(pit_ids)
   obj.set_inputs([sim_exp_grid.get_output_variable("VOLUME")])
   
   def test_value(self):
     print(self.obj.V)
     p = np.zeros(len(self.pit_ids), dtype='f8')+0.14
-    assert abs(self.obj.evaluate(p)+0.01) < 1e-9
+    assert abs(self.obj.evaluate(p)-0.14) < 1e-9
   
   def test_derivative_dp_partial(self):
     p = np.random.random(len(self.pit_ids))

@@ -2,10 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class Base_Material:
+    skip_test = False
     def __init__(self):
         self.indexes = None
-        self.name = None
-        self.cell_ids = None
+        self.name = "PROPERTIES"
+        self.cell_ids = "__all__"
         return
     
     def get_cell_ids_to_parametrize(self):
@@ -14,13 +15,14 @@ class Base_Material:
     def get_name(self):
         return self.name
     
-    def convert_p_to_mat_properties(self, p, out=None):
+    def convert_p_to_mat_properties(self, p):
         raise NotImplementedError()
     
-    def d_mat_properties(self, p, out=None):
-        # Do by finite difference
-        raise NotImplementedError()
-        return
+    def d_mat_properties(self, p, eps=1e-6):
+        x1 = p.copy() + eps
+        x2 = p.copy() - eps
+        grad = (self.convert_p_to_mat_properties(x1) - self.convert_p_to_mat_properties(x2)) / (2 * eps)
+        return grad
     
     def convert_mat_properties_to_p(self, mat_prop_val):
         # Do by root finding

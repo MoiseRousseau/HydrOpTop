@@ -18,12 +18,14 @@ class Base_Function:
 
     def __init__(self) -> None:
         self.name: str = "Base Function"
+        self.cell_ids: Optional[np.ndarray] = None
         self.inputs: Dict[str, Any] = {}
         self.initialized: bool = False
         self.adjoint: Optional[Any] = None  # Adjoint variable (if provided by the problem crafter)
         self.p_ids: Optional[np.ndarray] = None
         self.ids_p: Optional[np.ndarray] = None
         self.variables_needed: Optional[list[str]] = None
+        self.indexes = None #Define the required cell_ids data
 
     # -------------------------------------------------------------------------
     # Adjoint / Input Handling
@@ -96,7 +98,20 @@ class Base_Function:
         Returns:
             np.ndarray: Partial derivative with respect to the variable.
         """
-        return np.zeros_like(p)
+        eps = 1e-6
+        if var in self.variables_needed:
+            # Do finite difference
+            res = np.zeros_like(self.inputs[var])
+            v = self.inputs[var].copy()
+            for i in range(len(res)):
+                v[i] += eps
+                f1 = self.evaluate(p)
+                v[i] -= 2*eps
+                f2 = self.evaluate(p)
+                res[i] = (f2 - f1) / (2 * eps)
+        else:
+            res = np.zeros_like(p)
+        return res
 
     def d_objective_dp_partial(self, p: np.ndarray) -> np.ndarray:
         """

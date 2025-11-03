@@ -49,12 +49,11 @@ class Log_SIMP(Base_Material):
     return out
   
   
-  def d_mat_properties(self, p, out=None):
+  def d_mat_properties(self, p, eps=1e-6):
     """
     Return the derivative of the material properties according to 
     material parameter p.
     """
-    if out is None: out = np.zeros(len(p),dtype='f8')
     if self.reverse: 
       factor = -1.
       p_ = 1-p
@@ -63,7 +62,7 @@ class Log_SIMP(Base_Material):
       p_ = p
     pre = np.log(10) * np.log10(self.max_/self.min_) * \
                                  self.convert_p_to_mat_properties(p)
-    out[:] = factor * self.power * pre * p_**(self.power-1)
+    out = factor * self.power * pre * p_**(self.power-1)
     return out
   
       
@@ -77,3 +76,15 @@ class Log_SIMP(Base_Material):
       print("Min and max permeability value not in the range of material \
              properties")
       return None
+
+  @classmethod
+  def sample_instance(cls):
+    insts = []
+    N = 5
+    cell_ids = np.arange(N)
+    # create test
+    instance = cls(cell_ids, property_name="TEST", bounds=[0.1,1], reverse=False)
+    insts.append(instance)
+    instance = cls(cell_ids, property_name="TEST", bounds=[0.1,1], reverse=True)
+    insts.append(instance)
+    return insts

@@ -2,6 +2,8 @@ import numpy as np
 from scipy.sparse import coo_matrix
 
 class Base_Filter:
+    
+    skip_test = False
   
     def __init__(self):
         self.p_ids = None
@@ -11,7 +13,8 @@ class Base_Filter:
         self.input_indexes = None # The input index to take p from
         self.output_indexes = None # The output index to write p
         self.adjoint = None
-        self.input_variables_needed = []
+        self.variables_needed = []
+        self.inputs = {}
   
     def set_inputs(self, inputs):
         self.inputs = inputs
@@ -21,7 +24,7 @@ class Base_Filter:
         """
         TO DEFINE
         """
-        return
+        return 1.
 
     def get_filter_derivative(self, p, eps=1e-6, drop_tol=1e-4):
         """
@@ -62,9 +65,24 @@ class Base_Filter:
         J = coo_matrix((data, (rows, cols)), shape=(len(self.output_ids), len(p)), dtype=np.double)
         return J
 
+    def plot_filtered_density(self, ax=None, show=True):
+        try:
+            import matplotlib.pyplot as plt
+        except:
+            raise ImportError("Please install Matplotlib to plot filter curve")
+        x = np.linspace(0,1,1000)
+        y = self.get_filtered_density(x)
+        if ax is None: fig,ax = plt.subplots()
+        ax.plot(x,y,'b',label="Filtered parameter")
+        ax.set_xlabel("Input Parameter")
+        ax.set_ylabel("Filtered Parameter")
+        ax.grid()
+        if show: plt.show()
+        return
+
 
     def __get_variables_needed__(self):
-        return self.input_variables_needed
+        return self.variables_needed
     def __get_name__(self):
         return self.name
   

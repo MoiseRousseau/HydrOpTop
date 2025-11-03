@@ -30,7 +30,7 @@ class Density_Filter(Base_Filter):
   Required solver outputs:
   
   """
-  def __init__(self, cell_ids, radius=1., distance_weighting_power=1):
+  def __init__(self, cell_ids, radius=1., distance_weighting_power=1.):
     super(Density_Filter, self).__init__()
     self.cell_ids = np.asarray(cell_ids)
     self.input_ids = self.cell_ids
@@ -88,4 +88,21 @@ class Density_Filter(Base_Filter):
     if not self.initialized: self.initialize()
     out = self.D_matrix
     return out
+
+  @classmethod
+  def sample_instance(cls):
+    insts = []
+    N = 100
+    cell_ids = np.arange(N)
+    # create test
+    for p in [0.5, 1., 2.]:
+      instance = cls(cell_ids, radius=0.1, distance_weighting_power=p)
+      instance.inputs = {
+        "ELEMENT_CENTER":np.random.random((N,2)),
+        "VOLUME":np.random.random(N)
+      }
+      instance.input_indexes = cell_ids
+      instance.output_indexes = cell_ids
+      insts.append(instance)
+    return insts
 

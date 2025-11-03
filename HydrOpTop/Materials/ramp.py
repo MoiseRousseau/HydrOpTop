@@ -1,6 +1,7 @@
 import numpy as np
+from .Base_Material_class import Base_Material
 
-class RAMP:
+class RAMP(Base_Material):
   r"""
   Description:
     RAMP stands for Rational Approximation of of Material Properties. It applies the 
@@ -39,10 +40,6 @@ class RAMP:
     return
   
   
-  def get_cell_ids_to_parametrize(self):
-    return self.cell_ids
-  
-  
   def convert_p_to_mat_properties(self, p, out=None):
     if out is None: out = np.zeros(len(p),dtype='f8')
     if self.reverse: p_ = 1-p
@@ -63,13 +60,3 @@ class RAMP:
     pre = (self.max_-self.min_)
     out[:] = factor * pre * ( (1 + self.power * (1-p_)) + p_ * self.power) / (1 + self.power * (1-p_))**2
     return out
-  
-  
-  def convert_mat_properties_to_p(self, mat_prop_val):
-    #TODO
-    return None
-  
-  
-  def get_name(self):
-    return self.name
-

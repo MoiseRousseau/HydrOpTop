@@ -30,11 +30,24 @@ class Zone_Homogeneous(Base_Filter):
         So dp_bar / dp at i 
         """
         n = len(self.cell_ids)
-        row = np.zeros(n) #we tied it the first cell, so row=0
-        col = np.arange(0,n)
+        col = np.zeros(n) #we tied it the first cell, so col=0
+        row = np.arange(0,n)
         J = sp.coo_array(
             ( np.ones(n) , (row,col) ),
-            shape=(n,n),
+            shape=(n,1),
             dtype=np.double,
         )
         return J
+
+
+    @classmethod
+    def sample_instance(cls):
+        insts = []
+        N = 10
+        cell_ids = np.arange(N)
+        # create test
+        instance = cls(cell_ids)
+        instance.input_indexes = [0]
+        instance.output_indexes = np.arange(len(cell_ids))
+        insts.append(instance)
+        return insts

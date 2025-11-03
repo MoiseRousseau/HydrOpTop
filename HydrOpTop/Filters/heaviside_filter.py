@@ -24,7 +24,9 @@ class Heaviside_Filter(Base_Filter):
   Required solver output:
 
   """
-  def __init__(self, cutoff=0.5, steepness = 5):
+  def __init__(self, cell_ids, cutoff=0.5, steepness = 5):
+    self.input_ids = cell_ids
+    self.output_ids = cell_ids
     self.cutoff = cutoff
     self.stepness = steepness
     self.initialized = False
@@ -66,3 +68,14 @@ class Heaviside_Filter(Base_Filter):
     self.base_density_filter = save
     return
 
+  @classmethod
+  def sample_instance(cls):
+    insts = []
+    N = 5
+    cell_ids = np.arange(N)
+    # create test
+    instance = cls(cell_ids)
+    instance.input_indexes = cell_ids
+    instance.output_indexes = cell_ids
+    insts.append(instance)
+    return insts

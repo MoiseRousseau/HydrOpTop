@@ -1,6 +1,7 @@
 import numpy as np
+from .Base_Material_class import Base_Material
 
-class SIMP:
+class SIMP(Base_Material):
   r"""
   Description:
     SIMP stands for Standard Isotropic Material Parametrization. It applies the 
@@ -37,12 +38,8 @@ class SIMP:
     self.power = power
     self.name= property_name
     return
-  
-  
-  def get_cell_ids_to_parametrize(self):
-    return self.cell_ids
-  
-  
+
+
   def convert_p_to_mat_properties(self, p, out=None):
     if out is None: out = np.zeros(len(p),dtype='f8')
     if self.reverse: p_ = 1-p
@@ -50,7 +47,7 @@ class SIMP:
     out[:] = self.min_ + (self.max_-self.min_) * p_**self.power
     return out
   
-  
+
   def d_mat_properties(self, p, out=None):
     """
     Return the derivative of the material properties according to 
@@ -78,8 +75,3 @@ class SIMP:
       print("Min and max permeability value not in the range of material \
              properties")
       return None
-  
-  
-  def get_name(self):
-    return self.name
-

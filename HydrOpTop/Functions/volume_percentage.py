@@ -94,3 +94,13 @@ class Volume_Percentage(Base_Function):
       self.V_tot = np.sum(self.inputs["VOLUME"][self.ids_to_consider-1])
     return
 
+  @classmethod
+  def sample_instance(cls):
+    res1 = cls(ids_to_sum_volume=[2,4,3,8],volume_of_p0=False)
+    res1.set_inputs({"VOLUME":np.random.rand(20)[res1.cell_ids]*100})
+    res1.deriv_var_to_skip = ["VOLUME"]
+    # with volume of p0
+    res2 = cls(ids_to_sum_volume=[2,4,3,8],volume_of_p0=True)
+    res2.set_inputs({"VOLUME":np.random.rand(20)[res2.cell_ids]*100})
+    res2.deriv_var_to_skip = ["VOLUME"]
+    return [res1,res2]

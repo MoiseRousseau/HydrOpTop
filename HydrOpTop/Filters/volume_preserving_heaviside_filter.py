@@ -34,10 +34,14 @@ class Volume_Preserving_Heaviside_Filter(Base_Filter):
   for more detail (https://link.springer.com/article/10.1007/s00158-009-0452-7)
   
   """
-  def __init__(self, cutoff=0.5, steepness = 5, vol_constraint=None):
+  def __init__(self, cell_ids, cutoff=0.5, steepness = 5, vol_constraint=None):
+    self.input_ids = cell_ids
+    self.output_ids = cell_ids
     self.cutoff = cutoff
     self.stepness = steepness
     self.vol_constraint = vol_constraint
+    if self.vol_constraint is not None and not isinstance(self.vol_constraint, Volume_Percentage):
+      raise TypeError("Error, constraint must be of type Volume_Percentage")
     self.last_p = None
     return
   
@@ -72,9 +76,6 @@ class Volume_Preserving_Heaviside_Filter(Base_Filter):
   def update_stepness(self, stepness, ref_vol=None, autocorrect=True):
     print('\nUpdate Volume Preserving Heaviside Filter')
     print(f"Update from {self.stepness} to {stepness}")
-    if not isinstance(self.vol_constraint, Volume_Percentage):
-      print("Error, constraint must be of type Volume_Percentage")
-      raise TypeError
     if ref_vol is None: 
       ref_vol = self.vol_constraint.evaluate(self.get_filtered_density(self.last_p))
       if ref_vol > 0.:
@@ -95,22 +96,17 @@ class Volume_Preserving_Heaviside_Filter(Base_Filter):
     print(f"Old cutoff: {old_cutoff}")
     print(f"New cutoff: {self.cutoff}")
     return
-    
-  
-  def plot_filtered_density(self):
-    try:
-      import matplotlib.pyplot as plt
-    except:
-      print("Matplotlib is not available on your installation")
-      print("Please try 'pip3 install matplotlib' and restart the optimization")
-    x = np.linspace(0,1,1000)
-    y = self.get_filtered_density(x)
-    fig,ax = plt.subplots()
-    ax.plot(x,y,'b',label="Filtered parameter")
-    ax.set_xlabel("Input Parameter")
-    ax.set_ylabel("Filtered Parameter")
-    ax.grid()
-    plt.show()
-    return
+
+  @classmethod
+  def sample_instance(cls):
+    insts = []
+    N = 5
+    cell_ids = np.arange(N)
+    # create test
+    instance = cls(cell_ids)
+    instance.input_indexes = cell_ids
+    instance.output_indexes = cell_ids
+    insts.append(instance)
+    return insts
   
 

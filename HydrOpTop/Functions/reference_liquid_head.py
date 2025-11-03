@@ -179,20 +179,21 @@ class Reference_Liquid_Head(Base_Function):
     plt.show()
     return
 
+
   @classmethod
   def sample_instance(cls):
     # sample cell_ids
     res1 = cls(head=[11.2,43.2,56.4,29.4], cell_ids=[2,4,5,10])
-    res1.set_inputs({"LIQUID_HEAD":np.random.rand(20)*100})
-    res1.input_indexes = np.arange(20)[res1.cell_ids]
+    res1.set_inputs({"LIQUID_HEAD":np.random.rand(20)[res1.cell_ids]*100})
     # sample xyz
     from scipy.interpolate import LinearNDInterpolator
     res2 = cls(
       head=[11.2,43.2,56.4,29.4],
-      XYZ_coordinates=np.random.rand(4,3), 
+      XYZ_coordinates=np.random.rand(4,3),
     )
-    xyz = np.random.rand(20,3)*2-1
-    interp = LinearNDInterpolator(xyz,np.random.rand(20)*100)
-    res2.set_inputs({"LIQUID_HEAD_INTERPOLATOR":interp})
-    res2.input_indexes = np.arange(20)[res2.cell_ids]
+    res2.set_inputs({
+      "LIQUID_HEAD_AT_VERTICE":np.random.rand(20)*100,
+      "MESH_VERTICE_XYZ": np.random.rand(20,3)*3-1
+    })
+    res2.deriv_var_to_skip = ["MESH_VERTICE_XYZ"]
     return [res1,res2]
