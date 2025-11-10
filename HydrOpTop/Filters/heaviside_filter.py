@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import dia_matrix
+from scipy.sparse import coo_matrix
 from .Base_Filter_class import Base_Filter
 
 class Heaviside_Filter(Base_Filter):
@@ -25,6 +25,7 @@ class Heaviside_Filter(Base_Filter):
 
   """
   def __init__(self, cell_ids, cutoff=0.5, steepness = 5):
+    super(Heaviside_Filter, self).__init__()
     self.input_ids = cell_ids
     self.output_ids = cell_ids
     self.cutoff = cutoff
@@ -43,7 +44,8 @@ class Heaviside_Filter(Base_Filter):
     d_p_filtered = 1 - np.tanh(self.stepness*(p-self.cutoff))**2
     a = np.tanh(self.stepness*self.cutoff)
     d_p_filtered *= self.stepness / (a + np.tanh(self.stepness*(1-self.cutoff)))
-    return dia_matrix((d_p_filtered,[0]), shape=(len(p),len(p)))
+    n = np.arange(len(d_p_filtered))
+    return coo_matrix((d_p_filtered,(n,n)))
   
   def plot_filtered_density(self):
     r"""

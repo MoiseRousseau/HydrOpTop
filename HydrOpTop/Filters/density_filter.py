@@ -32,7 +32,10 @@ class Density_Filter(Base_Filter):
   """
   def __init__(self, cell_ids, radius=1., distance_weighting_power=1.):
     super(Density_Filter, self).__init__()
-    self.cell_ids = np.asarray(cell_ids)
+    if isinstance(cell_ids,str) and cell_ids == "__all__":
+      self.cell_ids = None
+    else:
+      self.cell_ids = cell_ids
     self.input_ids = self.cell_ids
     self.output_ids = self.cell_ids
     self.filter_radius = radius
@@ -45,8 +48,8 @@ class Density_Filter(Base_Filter):
     self.neighbors = None
     self.initialized = False
     
-    self.input_variables_needed = ["ELEMENT_CENTER_X", "ELEMENT_CENTER_Y",
-                                   "ELEMENT_CENTER_Z", "VOLUME"]
+    self.variables_needed = ["ELEMENT_CENTER_X", "ELEMENT_CENTER_Y",
+                            "ELEMENT_CENTER_Z", "VOLUME"]
     return
   
   def set_inputs(self, inputs):
@@ -58,8 +61,8 @@ class Density_Filter(Base_Filter):
   
   
   def initialize(self):
-    V = self.inputs["VOLUME"][self.cell_ids-1] #just need those in the optimized domain
-    X = self.inputs["ELEMENT_CENTER"][self.cell_ids-1,:]
+    V = self.inputs["VOLUME"] #just need those in the optimized domain
+    X = self.inputs["ELEMENT_CENTER"]
     if isinstance(self.filter_radius, list): #anisotropic
       for i in range(3): X[:,i] /= self.filter_radius[i]
       R = 1.
