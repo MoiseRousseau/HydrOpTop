@@ -30,7 +30,7 @@ class Direct_Sparse_Linear_Solver:
         if self.solve_func is None:
             raise RuntimeError(f"Direct solver not recognized, try one of {[x for x in self.solve_funcs.keys()]}")
         return
-        
+
     def __sp_solve__(self, A, b):
         """
         A simple wrapper around SciPy spsolve routine
@@ -65,10 +65,20 @@ class Direct_Sparse_Linear_Solver:
         x = pypardiso.spsolve(A,b)
         return x
     
+    def jacobi_row_scaling(self, A, b, power=0.5):
+        scale = np.power(np.abs(A.diagonal()), power)
+        scale[scale == 0] = 1.0
+        D_inv = sp.diags(1.0 / scale)
+        A_s = D_inv @ A @ D_inv
+        b_s = D_inv @ b
+        return A_s, b_s, D_inv
+
     def solve(self, A, b):
         print(f"Solve adjoint equation using {self.algo} solver")
         t_start = time.time()
-        l = self.solve_func(A,b)
+        A_scaled, b_scaled, D_inv = self.jacobi_row_scaling(A, b, power=0.5)
+        l_scaled = self.solve_func(A_scaled,b_scaled)
+        l = D_inv @ l_scaled
         print(f"Time to solve adjoint: {(time.time() - t_start)} s")
         return l
 
