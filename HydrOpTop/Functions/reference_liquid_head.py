@@ -3,6 +3,7 @@
 import numpy as np
 from .Base_Function_class import Base_Function
 from .function_utils import df_dX
+from scipy.interpolate import LinearNDInterpolator
 
 class Reference_Liquid_Head(Base_Function):
   r"""
@@ -40,11 +41,14 @@ class Reference_Liquid_Head(Base_Function):
     self.ref_head = np.array(head)
     self.weights = 1. if weights is None else np.array(weights)
     self.cell_ids = np.asarray(cell_ids) if cell_ids is not None else None
-    self.XYZ = np.asarray(XYZ_coordinates) if XYZ_coordinates is not None else None
+    self.XYZ = None
+    if self.cell_ids is None:
+      self.XYZ = np.asarray(XYZ_coordinates) if XYZ_coordinates is not None else None
     if self.cell_ids is None and self.XYZ is None:
       raise ValueError("Both cell_ids and XYZ coordinates parameter cannot be null at the same time. If you passed it by name, please use solver function to get either cell_ids or coordinate and retry.")
     if (self.cell_ids is None) == (self.XYZ is None):
       print("Both cell_ids and coordinates passed, rely only on cell_ids...")
+      self.XYZ = None
     self.time = time_obs
     self.observation_name = observation_name
     self.outlier = outlier_weaken
@@ -55,11 +59,19 @@ class Reference_Liquid_Head(Base_Function):
 
     #required for problem crafting
     self.variables_needed = ["LIQUID_HEAD"]
-    if self.XYZ is not None and self.cell_ids is None:
-      self.variables_needed = ["LIQUID_HEAD_INTERPOLATOR"]
-    #if self.observation_name is not None:
-    # 	self.solved_variables_needed = ["LIQUID_HEAD_AT_OBSERVATION"]
+    if self.XYZ is not None:
+      # We need to construct an interpolator
+      # Ask for coordinate of the head and the head
+      self.variables_needed = [
+        "MESH_VERTICE_XYZ",
+        "LIQUID_HEAD_AT_VERTICE"
+      ]
+    if self.cell_ids is not None:
+      self.indexes = self.cell_ids
+    else:
+      self.indexes = None #mean need all data from simulator
     self.name = "Reference Head"
+    self.initialized = False
     return
   
   def set_error_norm(self, x):
@@ -72,18 +84,11 @@ class Reference_Liquid_Head(Base_Function):
   ### COST FUNCTION ###
   def __evaluate_cell_ids__(self,p):
     self.head = self.inputs["LIQUID_HEAD"]
-    if self.observation_name is not None:
-      self.residuals = np.array([
-        self.head[x] - h for x,h in zip(self.observation_name, self.ref_head)
-      ])
-    if self.cell_ids is None: 
-      self.residuals = self.head-self.ref_head
-    else:
-      self.residuals = self.head[self.cell_ids-1]-self.ref_head
+    self.residuals = self.head-self.ref_head
     return np.sum(self.weights * self.residuals**self.norm)
     
   def __evaluate_xyz__(self,p):
-    self.h_interpolator = self.inputs["LIQUID_HEAD_INTERPOLATOR"]
+    self.h_interpolator.values[:,0] = self.inputs["LIQUID_HEAD_AT_VERTICE"]
     heads = self.h_interpolator(self.XYZ)
     self.residuals = heads - self.ref_head
     return np.sum(self.weights * self.residuals**self.norm)
@@ -93,6 +98,7 @@ class Reference_Liquid_Head(Base_Function):
     Evaluate the cost function
     Return a scalar of dimension [L]
     """
+    if not self.initialized: self.initialize()
     if self.cell_ids is not None:
       res = self.__evaluate_cell_ids__(p)
     else:
@@ -113,13 +119,7 @@ class Reference_Liquid_Head(Base_Function):
   head[x] - h for x,h in zip(self.observation_name, self.ref_head)
       ])
       dobj = self.norm * self.weights * r**(self.norm-1)
-    elif self.cell_ids is None:
-      dobj = self.norm * self.weights * (head-self.ref_head)**(self.norm-1)
-    else:
-      dobj = np.zeros(len(head), dtype='f8')
-      dobj[self.cell_ids-1] = self.norm * self.weights * (
-        head[self.cell_ids-1]-self.ref_head
-      )**(self.norm-1)
+    dobj = self.norm * self.weights * (head-self.ref_head)**(self.norm-1)
     return dobj
 
   def __d_objective_dh_xyz__(self, p):
@@ -128,7 +128,7 @@ class Reference_Liquid_Head(Base_Function):
     Use current simulation state
     """
     # update interpolator
-    self.h_interpolator = self.inputs["LIQUID_HEAD_INTERPOLATOR"]
+    self.h_interpolator.values[:,0] = self.inputs["LIQUID_HEAD_AT_VERTICE"]
     heads = self.h_interpolator(self.XYZ)
     residuals = heads - self.ref_head
 
@@ -144,14 +144,23 @@ class Reference_Liquid_Head(Base_Function):
     Given a variable, return the derivative of the cost function according to that variable.
     Use current simulation state
     """
+    if not self.initialized: self.initialize()
     if self.cell_ids is not None and var == "LIQUID_HEAD":
       res = self.__d_objective_dh_cell_ids__(p)
-    elif var == "LIQUID_HEAD_INTERPOLATOR":
+    elif var == "LIQUID_HEAD_AT_VERTICE":
       res = self.__d_objective_dh_xyz__(p)
     else:
       # The function depends of no other variables
       res = np.zeros_like(p, dtype='f8')
     return res
+
+  def initialize(self):
+    self.initialized = True
+    if self.XYZ is None:
+      return
+    xyz = self.inputs[f"MESH_VERTICE_XYZ"]
+    self.h_interpolator = LinearNDInterpolator(xyz, self.inputs[f"LIQUID_HEAD_AT_VERTICE"])
+    return
 
 
   def plot_scatter(self):

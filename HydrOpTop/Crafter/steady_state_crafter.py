@@ -19,21 +19,23 @@ class Steady_State_Crafter:
   - constraints: a list of constraints (Function class instances
   - filter: the filter to be used to relate the density to a filtered density
             (a fitler class instance) (None by default).
+  - adjoint: a linear solver object that solve the adjoint equation
   """
-  def __init__(self, objective, solver, mat_props, constraints=[], filters=[], io=None):
+  def __init__(self, objective, solver, mat_props, constraints=[], filters=[], deriv=None, deriv_args={}, io=None):
     self.__print_information__()
     self.mat_props = mat_props
     self.solver = solver
     self.obj = objective
     self.constraints = constraints
     self.filters = filters
+    self.adjoint = deriv
+    self.adjoint_args = deriv_args
     if io is None:
       self.IO = IO()
     else:
       self.IO = io
     
     #self.Xi = None #store material properties (solver inputs)
-    self.Yi = None #store solver outputs
     self.filter_i = None #filter inputs
     self.p_ids = None #correspondance between p index and cell ids in the solver
                       #i.e. p[0] parametrize cell X, p[1] cell Y, ...
@@ -52,6 +54,9 @@ class Steady_State_Crafter:
     self.last_grad = None
     self.last_p_bar = None
     self.first_p = None
+
+    if self.adjoint is None:
+      pass
     
     self.__initialize_IO_array__()
     self.__initialize_filter__()
@@ -67,27 +72,18 @@ class Steady_State_Crafter:
   def create_random_density_parameter_vector(self, bounds):
     m, M = bounds
     return (M - m) * np.random.random(self.problem_size) + m
-    
-  def simulation_ids_to_p(self, ids):
-    """
-    Return the correspondance between the given ids and the index in the
-    density parameter created with the routine create_density_parameter_vector()
-    """
-    if self.ids_p is None:
-      self.ids_p = -np.ones(self.solver.get_grid_size(), dtype='i8')
-      self.ids_p[self.p_ids-1] = np.arange(len(self.p_ids))
-    return self.ids_p[ids-1]
   
-  
-  def initialize_function_vars(self, func):
-    func_var = {var:None for var in func.__get_variables_needed__()}
+  def update_function_vars(self):
+    # Cache the solver var not to open output file repetively
+    all_var_needed = set(self.obj.variables_needed)
+    for c in self.constraints:
+      all_var_needed = all_var_needed.union(c.variables_needed)
+    func_var = {var:None for var in all_var_needed}
     self.solver.get_output_variables(func_var)
-    func.set_inputs(func_var)
+    self.obj.set_inputs({k:v[self.obj.indexes] for k,v in func_var.items() if k in self.obj.variables_needed})
+    for c in self.constraints:
+      c.set_inputs({k:v[c.indexes] for k,v in func_var.items() if k in c.variables_needed})
     return func_var
-    
-  def update_function_vars(self, func, func_var):
-    self.solver.get_output_variables(func_var, -1)
-    return
 
   def filter_density(self, p):
     if not self.filters:
@@ -97,59 +93,77 @@ class Steady_State_Crafter:
     p_bar[self.input_cells] = p
     for filter_ in self.filters: #apply filter consecutively
       # Filter does not need to be updated
-      #self.initialize_function_vars(filter_) #update filter var
+      #self.update_function_vars() #update filter var
       p_bar[filter_.output_indexes] = filter_.get_filtered_density(p_bar[filter_.input_indexes])
     return p_bar
+  
+  def evaluate_objective(self, p):
+    """
+    Evaluate objective
+    """
+    ids_to_p_index = self.ids_p[self.obj.indexes]
+    p_ = np.where(ids_to_p_index == -1, np.nan, p[ids_to_p_index])
+    cf = self.obj.evaluate(p_)
+    if np.isnan(cf):
+      raise RuntimeError("Objective function is NaN. Check if you defined it where some variable are not defined")
+    return cf
 
-  def evaluate_total_gradient(self, func, p, p_bar=None):
-    if self.filters:
-      if p_bar is None:
-        p_bar = self.filter_density(p)
-      p_ = p_bar
-    else:
-      p_ = p
-    # derivative according to solved var
-    dobj_dY = {}
-    dobj_dX = {}
-    for var in func.__get_variables_needed__():
-      var_ = var.replace("_INTERPOLATOR","")
-      if var_ in self.solver.solved_variables:
-        dobj_dY[var_] = func.d_objective(var, p_)
-      elif var_ in [x.get_name() for x in self.mat_props]:
-        dobj_dX[var_] = func.d_objective(var, p_)
-    dobj_dp_partial = func.d_objective_dp_partial(p_)
-    
-    grad = func.adjoint.compute_sensitivity(
-      p_, dobj_dY, dobj_dX,
-    ) + dobj_dp_partial # was input_variables_needed
-    
-    if self.filters:
-      # Compute d_p_bar / d_p
-      p_bar = np.zeros_like(self.last_p_bar)
-      p_bar[self.input_cells] = p
-      N = len(p_bar)
-      Jf = sp.diags(np.ones(N),format="csr")
-      for i,f in enumerate(self.filters):
-        # We are in simulation space here
-        # and filter acts as a bijection, we take the column we want at the end
-        Jp = f.get_filter_derivative(p_bar[f.input_indexes])
-        global_row = f.output_indexes[Jp.coords[0]]
-        global_col = f.output_indexes[Jp.coords[1]]
-        # add 1 to indexes unchanged by the filter
-        uc = np.nonzero(~np.isin(np.arange(0,N),f.output_indexes))[0]
-        global_row = np.concat([global_row,uc])
-        global_col = np.concat([global_col,uc])
-        data = np.concat([Jp.data,np.ones(len(uc))])
-        J = sp.coo_matrix(
-          (data,(global_row,global_col)), shape=(N,N)
-        )
-        # Update global filter derivative
-        Jf = J.dot(Jf)
-        # Update filter state
-        p_bar[f.output_indexes] = f.get_filtered_density(
-          p_[f.input_indexes]
-        )
-      grad = -Jf[:,self.input_cells].transpose().dot(grad)
+  def evaluate_total_gradient(self, func, p, p_bar=None, cf=None):
+    if isinstance(func.adjoint, Sensitivity_Steady_Simple):
+      if self.filters:
+        if p_bar is None:
+          p_bar = self.filter_density(p)
+        p_ = p_bar
+      else:
+        p_ = p
+      # derivative according to solved var
+      dobj_dY = {}
+      dobj_dX = {}
+      for var in func.__get_variables_needed__():
+        var_ = var.replace("_INTERPOLATOR","")
+        if var_ in self.solver.solved_variables:
+          dobj_dY[var_] = np.zeros(self.solver.get_system_size())
+          dobj_dY[var_][func.indexes] = func.d_objective(var, p_)
+        elif var_ in [x.get_name() for x in self.mat_props]:
+          dobj_dX[var_] = np.zeros(self.solver.get_grid_size())
+          dobj_dX[var_][func.indexes] = func.d_objective(var, p_)
+      dobj_dp_partial = func.d_objective_dp_partial(p_)
+      
+      grad = func.adjoint.compute_sensitivity(
+        p_, dobj_dY, dobj_dX,
+      ) + dobj_dp_partial # was input_variables_needed
+      
+      if self.filters:
+        # Compute d_p_bar / d_p
+        p_bar = np.zeros_like(self.last_p_bar)
+        p_bar[self.input_cells] = p
+        N = len(p_bar)
+        Jf = sp.diags(np.ones(N),format="csr")
+        for i,f in enumerate(self.filters):
+          # We are in simulation space here
+          # and filter acts as a bijection, we take the column we want at the end
+          Jp = f.get_filter_derivative(p_bar[f.input_indexes])
+          global_row = f.output_indexes[Jp.coords[0]]
+          global_col = f.input_indexes[Jp.coords[1]]
+          # add 1 to indexes unchanged by the filter
+          uc = np.nonzero(~np.isin(np.arange(0,N),f.output_indexes))[0]
+          global_row = np.concat([global_row,uc])
+          global_col = np.concat([global_col,uc])
+          data = np.concat([Jp.data,np.ones(len(uc))])
+          J = sp.coo_matrix(
+            (data,(global_row,global_col)), shape=(N,N)
+          )
+          # Update global filter derivative
+          Jf = J.dot(Jf)
+          # Update filter state
+          p_bar[f.output_indexes] = f.get_filtered_density(
+            p_[f.input_indexes]
+          )
+        grad = Jf[:,self.input_cells].transpose().dot(grad)
+    elif isinstance(func.adjoint, Sensitivity_Finite_Difference):
+      if cf is not None:
+        func.adjoint.set_current_obj_val(cf) 
+      grad = func.adjoint.compute_sensitivity(p)
     return grad
   
   
@@ -168,7 +182,7 @@ class Steady_State_Crafter:
       grad_constraints=self.last_grad_constraints, 
       mat_props=self.get_material_properties_from_p(p_bar),
       p_filtered=p_bar,
-      adj_obj=self.obj.adjoint.adjoint.l0,
+      adj_obj=self.obj.adjoint.l0,
       val_at=val_at,
       final=final,
     )
@@ -209,20 +223,7 @@ class Steady_State_Crafter:
     if ret_code: 
       exit(ret_code)
     ### UPDATE FUNCTION VARIABLES ###
-    # Objective
-    if self.Yi is None:
-      self.Yi = self.initialize_function_vars(self.obj)
-    else:
-      self.update_function_vars(self.obj, self.Yi)
-    # constraints
-    if self.constraint_inputs_arrays is None: #need to initialize
-      self.constraint_inputs_arrays = []
-      for constraint in self.constraints:
-        temp = self.initialize_function_vars(constraint[0])
-        self.constraint_inputs_arrays.append(temp)
-    else:
-      for i,constraint in enumerate(self.constraints):
-        self.update_function_vars(constraint[0], self.constraint_inputs_arrays[i])
+    self.update_function_vars()
     return p_bar
   
   
@@ -233,7 +234,7 @@ class Steady_State_Crafter:
                      density_parameter_bounds=[0.001, 1],
                      tolerance_constraints=0.005,
                      max_it=50,
-                     initial_step=0.2,
+                     initial_step=None,
                      stop={},
                      options={}):
     self.iteration = 0
@@ -245,7 +246,13 @@ class Steady_State_Crafter:
     self.first_p = initial_guess.copy()
     ### OPTIMIZE
     if "nlopt" in optimizer:
-      d_algo = { "nlopt-mma":nlopt.LD_MMA, "nlopt-ccsaq":nlopt.LD_CCSAQ }
+      d_algo = {
+        "nlopt-mma":nlopt.LD_MMA,
+        "nlopt-ccsaq":nlopt.LD_CCSAQ,
+        "nlopt-slsqp":nlopt.LD_SLSQP,
+        "nlopt-ptn": nlopt.LD_TNEWTON_PRECOND,
+        "nlopt-lbfgs": nlopt.LD_LBFGS,
+      }
       algorithm = d_algo[optimizer]
       opt = nlopt.opt(algorithm, self.problem_size)
       if action == "minimize":
@@ -263,7 +270,9 @@ class Steady_State_Crafter:
                            density_parameter_bounds[0])
       opt.set_upper_bounds(np.zeros(self.get_problem_size(), dtype='f8') +
                            density_parameter_bounds[1])
-      opt.set_initial_step(initial_step)
+      #opt.set_param("inner_maxeval", 50)
+      if initial_step is not None:
+        opt.set_initial_step(initial_step)
       #define stop criterion
       opt.set_maxeval(max_it)
       if stop:
@@ -292,14 +301,29 @@ class Steady_State_Crafter:
         consts.append(const)
       p_opt = minimize(
          self.scipy_function_to_optimize, 
-         method=algo,
+         method="Newton-CG",#algo,
          jac=self.scipy_jac, 
          x0=initial_guess,
          bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0),
          constraints=consts, 
-         tol=ftol,
+         tol=stop["ftol_rel"],
          options=options,
          callback=self.scipy_callback
+      )
+    
+    elif optimizer == "scipy-trf":
+      from scipy.optimize import least_squares
+      p_opt = least_squares(
+        self.scipy_function_to_optimize,
+        x0=initial_guess,
+        jac=self.scipy_jac,
+        bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0).T,
+        ftol=stop["ftol"],
+        method="trf",
+        loss="soft_l1",
+        max_nfev=max_it,
+        #callback=self.scipy_callback,
+        verbose=2,
       )
       
     
@@ -360,7 +384,9 @@ class Steady_State_Crafter:
     if self.filters: 
       out.p_opt_filtered = self.filter_density(p_opt)
     out.fx = self.last_cf
+    out.grad_fx = self.last_grad
     out.cx = self.last_constraints
+    out.grad_cx = self.last_grad_constraints
     out.func_eval = self.func_eval
     out.mat_props = self.get_material_properties_from_p(self.last_p_bar)
     return out
@@ -376,21 +402,21 @@ class Steady_State_Crafter:
     ### PRE-EVALUATION
     p_bar = self.pre_evaluation_objective(p)
     ### OBJECTIVE EVALUATION AND DERIVATIVE
-    cf = self.obj.evaluate(p_bar)
-    if grad.size > 0:
-      grad[:] = self.evaluate_total_gradient(self.obj, p, p_bar)
-    #save for output at next iteration
+    cf = self.evaluate_objective(p_bar)
     self.last_cf = cf
-    self.last_grad[:] = grad
+    print(f"Current {self.obj.name} (cost function): {cf:.6e}")
+    # Derivative
+    if grad.size > 0:
+      grad[:] = self.evaluate_total_gradient(self.obj, p, p_bar, cf)
+      self.last_grad[:] = grad
+      print(f"Min gradient: {np.min(grad):.6e} at cell id {np.argmin(grad)+1}")
+      print(f"Max gradient: {np.max(grad):.6e} at cell id {np.argmax(grad)+1}")
     self.last_p[:] = p
     if self.filters:
       self.last_p_bar[:] = p_bar
     # Store the best iterate
     if self.best_p[0] is None or cf < self.best_p[0]:
         self.best_p = (cf, p.copy())
-    print(f"Current {self.obj.name} (cost function): {cf:.6e}")
-    print(f"Min gradient: {np.min(grad):.6e} at cell id {np.argmin(grad)+1}")
-    print(f"Max gradient: {np.max(grad):.6e} at cell id {np.argmax(grad)+1}")
     self.output_to_user()
     return cf
     
@@ -431,7 +457,7 @@ class Steady_State_Crafter:
   
   def scipy_function_to_optimize(self,p):
     self.scipy_run_sim(p)
-    cf = self.obj.evaluate(self.last_p_bar)
+    cf = self.evaluate_objective(self.last_p_bar)
     self.last_cf = cf
     if self.best_p[0] is None:# or cf < self.best_p[0]:
         self.best_p = (cf, p.copy())
@@ -458,12 +484,15 @@ class Steady_State_Crafter:
     self.last_grad_constraints[constraint[0].name] = grad.copy()
     return grad
   
-  def scipy_callback(self):
+  def scipy_callback(self, x, res=None):
     #self.output_to_user()
+    if res is None:
+      print(f"Current {self.obj.name} (cost function): {self.last_cf:.6e}")
+      return
     self.iteration += 1
-    print(f"\nIteration {self.iteration}")
-    print(f"Solver call: {self.func_eval}")
-    print(f"Current {self.obj.name} (cost function): {cf:.6e}")
+    print(f"\nIteration {res.nit}")
+    print(f"Solver / Gradient / Hessian call: {res.nfev} / {res.njev} / {res.nhev}")
+    print(f"Current {self.obj.name} (cost function): {res.fun:.6e}")
     for name,val in self.last_constraints.items():
       print(f"Current {name} (constraint): {val:.6e}")
     return
@@ -480,11 +509,14 @@ class Steady_State_Crafter:
     parameterized_cells = set()
     for x in self.mat_props:
       cids = x.get_cell_ids_to_parametrize()
-      if isinstance(cids,str) and cids == "__all__":
+      if cids is None: # Mean all cells
         parameterized_cells = set(self.solver.get_region_ids("__all__"))
         break
       parameterized_cells = parameterized_cells.union(cids)
-    self.p_ids = np.array(list(parameterized_cells)) #from 0 based indexing to solver indexing (1 based)
+    self.p_ids = np.array(list(parameterized_cells)) # Correspondance between p and id in simulation
+    self.ids_p = -np.ones(self.solver.get_grid_size()+1, dtype='i8') #+1 because it can be 0 or 1 based
+    self.ids_p[self.p_ids] = np.arange(len(self.p_ids)) #now we can query self.ids_p[cell_ids] and get index in p (or -1 if not attributed)
+  
     self.p_bar = np.zeros(len(self.p_ids))
     # Assign which mat prop should work on which p indexes
     for m in self.mat_props:
@@ -497,8 +529,16 @@ class Steady_State_Crafter:
     input_cell = set()
     output_cell = set()
     for f in self.filters:
-      input_cell = input_cell.union([x for x in f.input_ids if x >= 0])
-      output_cell = output_cell.union(f.output_ids)
+      if f.input_ids is None:
+        input_cell = set(self.solver.get_region_ids("__all__"))
+        break
+      else:
+        input_cell = input_cell.union([x for x in f.input_ids if x >= 0])
+      if f.output_ids is None:
+        output_cell = set(self.solver.get_region_ids("__all__"))
+        break
+      else:
+        output_cell = output_cell.union(f.output_ids)
     not_filtered_cell = parameterized_cells.difference(output_cell)
     input_dim = len(not_filtered_cell) + len(input_cell)
     # Now we have input dimension, let tell to the filter where to write
@@ -526,22 +566,34 @@ class Steady_State_Crafter:
     #initialize adjoint for objective function
     #TODO: what happen for 2 variables but lowly or highly coupled ??
     #TODO: adjoint should not be an attribute of the objective function
+    if self.adjoint is None:
+      self.adjoint = "adjoint-iterative"
     if self.obj.adjoint is None: #could have been set by user
       solved_variables_needed = []
       for var in self.obj.__get_variables_needed__():
         var_ = var.replace("_INTERPOLATOR","")
         if var_ in self.solver.solved_variables:
           solved_variables_needed.append(var_)
-      if solved_variables_needed:
+      if len(solved_variables_needed) == 0:
+        adjoint = No_Adjoint(self.mat_props, self.p_ids)
+      elif self.adjoint == "fd":
+        f = lambda p: self.evaluate_objective(self.pre_evaluation_objective(p))
+        adjoint = Sensitivity_Finite_Difference(f, **self.adjoint_args)
+      elif self.adjoint == "adjoint":
         adjoint = Sensitivity_Steady_Simple(
           solved_variables_needed,
           self.mat_props,
           self.solver,
-          self.p_ids
+          self.p_ids-self.solver.cell_id_start_at,
+          **self.adjoint_args
         )
-      else:
-        adjoint = No_Adjoint(self.mat_props, self.p_ids)
       self.obj.set_adjoint_problem(adjoint)
+    
+    if self.obj.indexes is None:
+      # pass all cell
+      self.obj.indexes = slice(None)
+    else:
+      self.obj.indexes -= self.solver.cell_id_start_at
       
     self.obj.set_p_to_cell_ids(self.p_ids)
     
@@ -559,6 +611,9 @@ class Steady_State_Crafter:
             solved_variables_needed.append(var_)
         if len(solved_variables_needed) == 0:
           adjoint = No_Adjoint(self.mat_props, self.p_ids)
+        elif self.adjoint == "fd":
+          f = lambda p: self.evaluate_objective(self.pre_evaluation_objective(p))
+          adjoint = Sensitivity_Finite_Difference(f)
         else:
           adjoint = Sensitivity_Steady_Simple(
             solved_variables_needed,
@@ -603,10 +658,14 @@ class Steady_State_Crafter:
   def __initialize_filter__(self):
     if not self.filters:
       return
-    
-    for filter_ in self.filters:
-      self.initialize_function_vars(filter_)
-      #filter_.set_p_to_cell_ids(self.p_ids)
+    # pass solver variable to filter
+    all_var_needed = set()
+    for f in self.filters:
+      all_var_needed = all_var_needed.union(f.variables_needed)
+    func_var = {var:None for var in all_var_needed}
+    self.solver.get_output_variables(func_var)
+    for f in self.filters:
+      f.set_inputs({k:v[f.output_ids-1] for k,v in func_var.items() if k in f.variables_needed})
     self.filters_initialized = True
     return
     
@@ -634,7 +693,9 @@ class Output_Struct:
     self.p_opt_filtered = None
     self.p_opt_grad = None # d(cost function) / d p
     self.fx = None #cost function value
+    self.grad_fx = None
     self.cx = None #constraints value
+    self.grad_cx = None
     self.func_eval = 0 #iteration number
     self.mat_props = {}
     return

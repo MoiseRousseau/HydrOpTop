@@ -20,19 +20,12 @@ class Volume_Percentage(Base_Function):
 
     super(Volume_Percentage, self).__init__()
     
-    if isinstance(ids_to_sum_volume, str):
-      if ids_to_sum_volume.lower() == "parametrized_cell":
-        self.ids_to_consider = None
-      else:
-        print("Error! Non-recognized option for ids_to_sum_volume: " + ids_to_sum_volume)
-        exit(1)
+    if isinstance(ids_to_sum_volume, str) and ids_to_sum_volume.lower() == "__all__":
+      self.cell_ids = None
     else:
-      self.ids_to_consider = ids_to_sum_volume
+      self.cell_ids = np.array(ids_to_sum_volume)
       
     self.vp0 = volume_of_p0 #boolean to compute the volume of the mat p=1 (False) p=0 (True)
-    
-    #function inputs
-    self.V = None
     
     #quantities derived from the input calculated one time
     self.initialized = False
@@ -40,6 +33,7 @@ class Volume_Percentage(Base_Function):
     
     self.variables_needed = ["VOLUME"]
     self.name = "Volume"
+    self.input_indexes = self.cell_ids # ask to the crafter the data corresponding to id defined
     self.inputs = {}
     return
   
@@ -54,11 +48,7 @@ class Volume_Percentage(Base_Function):
     if not self.initialized: self.__initialize__()
     if self.vp0: p_ = 1-p
     else: p_ = p
-    if self.ids_to_consider is None:
-      #sum on all parametrized cell
-      cf = np.sum(V[self.p_ids-1]*p_)/self.V_tot
-    else:
-      cf = np.sum((V[self.ids_to_consider-1]*p_))/self.V_tot
+    cf = np.sum(V*p_)/self.V_tot
     return cf
 
   
@@ -74,13 +64,10 @@ class Volume_Percentage(Base_Function):
       factor = 1.
     if not self.initialized: 
       self.__initialize__()
-    if self.ids_to_consider is None:
-      res[:] = factor * V[self.p_ids-1]/self.V_tot
-    else:
-      res[:] = factor * V[self.ids_to_consider-1]/self.V_tot
+    res[:] = factor * V/self.V_tot
     return res
-  
-  
+
+
   ### INITIALIZER FUNCTION ###
   def __initialize__(self):
     """
@@ -88,10 +75,7 @@ class Volume_Percentage(Base_Function):
     time only.
     """
     self.initialized = True
-    if self.ids_to_consider is None:
-      self.V_tot = np.sum(self.inputs["VOLUME"][self.p_ids-1])
-    else:
-      self.V_tot = np.sum(self.inputs["VOLUME"][self.ids_to_consider-1])
+    self.V_tot = np.sum(self.inputs["VOLUME"])
     return
 
   @classmethod

@@ -84,7 +84,7 @@ class Sensitivity_Steady_Simple:
     assert len(self.dR_dXi) == len(self.dXi_dp)
     var = [x for x in self.dXi_dp.keys()][0]
     n = len(self.dXi_dp[var])
-    dR_dXi_dXi_dp = ( (self.dR_dXi[var]).tocsr() )[:,self.assign_at_ids-1].dot(
+    dR_dXi_dXi_dp = ( (self.dR_dXi[var]).tocsr() )[:,self.assign_at_ids].dot(
       dia_matrix( (self.dXi_dp[var],[0]), shape=(n,n) )
     )
     
@@ -97,7 +97,7 @@ class Sensitivity_Steady_Simple:
     
     dc_dXi_dXi_dp = 0.
     for name in dc_dXi.keys():
-      dc_dXi_dXi_dp += dc_dXi[name][self.assign_at_ids-1]*self.dXi_dp[name]
+      dc_dXi_dXi_dp += dc_dXi[name][self.assign_at_ids]*self.dXi_dp[name]
 
     #if self.assign_at_ids is not None and isinstance(dc_dXi_dXi_dp,np.ndarray):
     #  dc_dXi_dXi_dp = dc_dXi_dXi_dp[self.assign_at_ids-1]
