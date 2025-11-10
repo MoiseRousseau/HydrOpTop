@@ -60,6 +60,7 @@ class voronoi_bounded:
         vor.filtered_point_region = point_region
         
         self.vor = vor
+        self.bb = bounding_box
         self.areas = np.zeros(len(self.vor.filtered_regions), dtype='f8')
         for i,region in enumerate(self.vor.filtered_regions):
             polygon = self.vor.vertices[region]
@@ -95,10 +96,11 @@ class voronoi_bounded:
             ax.fill(*zip(*polygon), alpha=0.4, c=rgb[i])
         
         ax.set_title(title)
+        ax.set_xlim(self.bb[:2])
+        ax.set_ylim(self.bb[2:])
         if show:
           plt.show()
         return
-
 
 
 

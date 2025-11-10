@@ -5,8 +5,27 @@ class Base_Simulator:
     def __init__(self, dry_run=False):
         self.name = "Base Simulator"
         self.dry_run = dry_run
+        self.problem_size = 0
+        self.cell_id_start_at = 0
+        self.var_loc = "cells"
         return
-    
+
+
+    def get_region_ids(self, name):
+        return np.arange(self.problem_size)
+
+    def get_grid_size(self):
+        return self.problem_size
+
+    def get_var_location(self, var):
+        return self.var_loc
+
+    def get_mesh(self):
+        vert = np.random.rand(self.problem_size,2)
+        cells = []
+        indexes = []
+        return vert, cells, indexes
+
     def create_cell_indexed_dataset(self, X_dataset, dataset_name,
                                   X_ids=None, resize_to=True):
         r"""

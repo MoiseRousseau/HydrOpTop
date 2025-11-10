@@ -11,6 +11,7 @@ __pycache__/
 */_build/
 article/
 *.hdf
+*.mtx
 
 #MinimalFEM simulation
 *.displacements

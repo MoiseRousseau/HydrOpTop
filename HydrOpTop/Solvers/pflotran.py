@@ -38,6 +38,7 @@ class PFLOTRAN(Base_Simulator):
     self.input_folder = '/'.join(pft_in.split('/')[:-1])+'/'
     self.prefix = (self.pft_in.split('/')[-1]).split('.')[0]
     self.output_sensitivity_format = "HDF5" #default
+    self.cell_id_start_at = 1
     if self.input_folder[0] == '/': self.input_folder = '.' + self.input_folder
     self.__get_input_deck__(self.pft_in)
     self.mesh_type = None
@@ -111,8 +112,14 @@ class PFLOTRAN(Base_Simulator):
     self.mpicommand = command
     self.nproc = processes
     return
-    
+
   def get_grid_size(self):
+    """
+    Return the number of element in the mesh.
+    """
+    return self.n_cells
+
+  def get_system_size(self):
     """
     Return the number of element in the mesh.
     """
@@ -120,8 +127,8 @@ class PFLOTRAN(Base_Simulator):
   
   def get_var_location(self, var):
     return "cell"
-  
-  
+
+
   # interacting with data #
   def get_region_ids(self, reg_name):
     """
