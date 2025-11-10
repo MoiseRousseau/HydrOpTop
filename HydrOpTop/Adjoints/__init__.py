@@ -3,7 +3,7 @@ import importlib
 __all__ = [
     "Sensitivity_Steady_Simple",
     "No_Adjoint",
-    #"Finite_Difference",
+    "Sensitivity_Finite_Difference",
     #"Ensemble_Gradient",
 ]
 

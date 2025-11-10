@@ -1,4 +1,3 @@
-import time
 from scipy.sparse import coo_matrix, dia_matrix
 from .adjoint_solve import Direct_Sparse_Linear_Solver, Iterative_Sparse_Linear_Solver
 import numpy as np
@@ -16,7 +15,7 @@ class Sensitivity_Steady_Simple:
   If cost_deriv_mat_prop is None, assume the cost function does not depend on
   the material property distribution.
   """
-  def __init__(self, solved_vars, parametrized_mat_props, solver, p_ids):
+  def __init__(self, solved_vars, parametrized_mat_props, solver, p_ids, method="iterative"):
     
     #vector
     #self.dc_dP = cost_deriv_pressure #dim = [cost] * L * T2 / M
@@ -26,7 +25,12 @@ class Sensitivity_Steady_Simple:
     self.solver = solver
     self.assign_at_ids = p_ids #in solver format!
     
-    self.adjoint = Iterative_Sparse_Linear_Solver()
+    if method == "direct":
+      self.adjoint = Direct_Sparse_Linear_Solver()
+    elif method == "iterative":
+      self.adjoint = Iterative_Sparse_Linear_Solver()
+    else:
+      raise ValueError(f"{method} should be iterative or direct")
     
     self.dXi_dp = None
     self.dR_dXi = None
@@ -101,9 +105,9 @@ class Sensitivity_Steady_Simple:
     #compute adjoint
     assert len(self.dR_dYi) == len(dc_dYi)
     var = [x for x in self.dR_dYi.keys()][0]
-    l = self.adjoint.solve(self.dR_dYi[var], dc_dYi[var]) #solver ordering
+    self.l0 = self.adjoint.solve(self.dR_dYi[var], dc_dYi[var]) #solver ordering
       
-    S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(l)
+    S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(self.l0)
     
     return S
   
