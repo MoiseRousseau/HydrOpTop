@@ -567,7 +567,8 @@ class Steady_State_Crafter:
     #TODO: what happen for 2 variables but lowly or highly coupled ??
     #TODO: adjoint should not be an attribute of the objective function
     if self.adjoint is None:
-      self.adjoint = "adjoint-iterative"
+      self.adjoint = "adjoint"
+      self.adjoint_args = {"method":"iterative"}
     if self.obj.adjoint is None: #could have been set by user
       solved_variables_needed = []
       for var in self.obj.__get_variables_needed__():

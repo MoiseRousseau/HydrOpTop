@@ -305,7 +305,11 @@ class IO:
     fig,ax = plt.subplots()
     ax.plot(it, data[:,1], label=header[1], color='r')
     ax.set_xlabel("# iterations")
+    ax.set_xlim([0,it[-1]])
     ax.set_ylabel(f"{header[1]}")
+    if np.max(data[:,1]) / np.min(data[:,1]) > 30.:
+      ax.set_yscale("log")
+    ax.grid()
     ax.legend()
     
     if include_constraints and len(header) > 2:
