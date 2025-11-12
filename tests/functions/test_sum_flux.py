@@ -11,7 +11,7 @@ class Test_Sum_Flux:
   from common import __add_inputs__
   
   pft_problem = "PFLOTRAN_pit_3d"
-  pflotranin = f"test_examples/{pft_problem}/pflotran.in"
+  pflotranin = f"tests/test_examples/{pft_problem}/pflotran.in"
   sim = PFLOTRAN(pflotranin)
   sim.run()
   #create sum flux object
@@ -22,7 +22,7 @@ class Test_Sum_Flux:
   def test_sum_flux_signed_vs_PFLOTRAN_integral_flux(self):
     self.obj.option = "signed"
     #get results from integral flux
-    src = open(f"test_examples/{self.pft_problem}/pflotran-int.dat", 'r')
+    src = open(f"tests/test_examples/{self.pft_problem}/pflotran-int.dat", 'r')
     line = src.readlines()[-1]
     flux_pft = float(line.split()[3]) / (3600*24*365) / 997.16
     src.close()
@@ -38,7 +38,7 @@ class Test_Sum_Flux:
   def test_sum_flux_signed_vs_PFLOTRAN_integral_flux_absolute(self):
     self.obj.option = "absolute"
     #run PFLOTRAN and get results from integral flux
-    src = open(f"test_examples/{self.pft_problem}/pflotran-int.dat", 'r')
+    src = open(f"tests/test_examples/{self.pft_problem}/pflotran-int.dat", 'r')
     line = src.readlines()[-1]
     flux_pft = float(line.split()[5]) / (3600*24*365) / 997.16
     src.close()

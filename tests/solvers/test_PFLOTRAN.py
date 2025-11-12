@@ -8,8 +8,8 @@ class Test_PFLOTRAN:
     """
     Test if Solver can read PFLOTRAN input
     """
-    sim = PFLOTRAN("test_examples/PFLOTRAN_9x9x1/uniform_flow.in")
-    sim = PFLOTRAN("test_examples/PFLOTRAN_pit_3d/pflotran.in")
+    sim = PFLOTRAN("tests/test_examples/PFLOTRAN_9x9x1/uniform_flow.in")
+    sim = PFLOTRAN("tests/test_examples/PFLOTRAN_pit_3d/pflotran.in")
     
   def test_adjoint(self):
     """
@@ -18,7 +18,7 @@ class Test_PFLOTRAN:
     from HydrOpTop.Functions import Mean_Liquid_Piezometric_Head
     from HydrOpTop.Materials import Identity
     from HydrOpTop.Adjoints import Sensitivity_Steady_Simple
-    sim = PFLOTRAN("test_examples/PFLOTRAN_9x9x1_opt/uniform_flow_opt.in")
+    sim = PFLOTRAN("tests/test_examples/PFLOTRAN_9x9x1_opt/uniform_flow_opt.in")
     cf = Mean_Liquid_Piezometric_Head()
     matprop = Identity("all", "PERMEABILITY")
     S_adjoint = common_test_solver.compute_sensitivity_adjoint(sim, cf, "PERMEABILITY", matprop, Sensitivity_Steady_Simple)

@@ -18,16 +18,23 @@ class Test_Crafter:
   obj = Sum_Variable("x")
   parametrization = Identity(all_cells, "a")
 
-  @pytest.mark.parametrize("adjoint_mode", ["fd-forward", "fd-central", "adjoint-direct", "adjoint-iterative"])
-  def test_crafter_derivative_1_param(self, adjoint_mode):
+  @pytest.mark.parametrize("deriv_mode", [
+    ["fd",{"scheme":"forward","step":1e-6}],
+    ["fd",{"scheme":"central","step":1e-6}],
+    ["adjoint", {"method":"direct"}],
+    ["adjoint", {"method":"iterative"}]
+  ])
+  def test_crafter_derivative_1_param(self, deriv_mode):
     """
     Test adjoint derivative compared to analytical value with 1 input parametrized
     for both finite-difference schemes: forward and central.
     The analytical derivative is exact only when not considering filter
     """
+    deriv = deriv_mode[0]
+    deriv_args = deriv_mode[1]
     # FD derivative
     craft = Steady_State_Crafter(
-        self.obj, self.solver, [self.parametrization], [], adjoint=adjoint_mode
+        self.obj, self.solver, [self.parametrization], [], deriv=deriv, deriv_args=deriv_args
     )
     p = np.ones(self.N) * 0.7
     p_bar = craft.pre_evaluation_objective(p)
@@ -68,7 +75,7 @@ class Test_Crafter:
     h_filter = Heaviside_Filter(self.all_cells)
     # FD derivative
     craft = Steady_State_Crafter(
-        self.obj, self.solver, [self.parametrization], [], [h_filter], adjoint="adjoint-iterative"
+        self.obj, self.solver, [self.parametrization], [], [h_filter], deriv="adjoint"
     )
     p = np.random.random(craft.get_problem_size())
     p_bar = craft.pre_evaluation_objective(p)
@@ -89,10 +96,10 @@ class Test_Crafter:
     """
     h_filter = filter_(np.random.choice(self.N, int(self.N)//2, replace=False))
     craft = Steady_State_Crafter(
-        self.obj, self.solver, [self.parametrization], [], [h_filter], adjoint="adjoint-iterative"
+        self.obj, self.solver, [self.parametrization], [], [h_filter], deriv="adjoint"
     )
     craft_fd = Steady_State_Crafter(
-        self.obj, self.solver, [self.parametrization], [], [h_filter], adjoint="fd-central"
+        self.obj, self.solver, [self.parametrization], [], [h_filter], deriv="fd", deriv_args={"scheme":"central"}
     )
     p = np.random.random(craft.get_problem_size())
     p_bar = craft.pre_evaluation_objective(p)

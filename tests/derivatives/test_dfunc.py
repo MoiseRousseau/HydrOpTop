@@ -79,11 +79,11 @@ def test_derivative_consistency(cls,instance):
         pytest.skip(f"{cls.__name__}: missing evaluate or d_objective")
 
     # --- choose input ---
-    if hasattr(instance, "input_indexes"):
-        if instance.input_indexes is None:
+    if hasattr(instance, "indexes"):
+        if instance.indexes is None:
             p = [1] # scalar so act as a array with infinite length
         else:
-            p = np.random.rand(len(instance.input_indexes))
+            p = np.random.rand(len(instance.indexes))
     elif hasattr(instance, "sample_input") and callable(instance.sample_input):
         p = np.asarray(instance.sample_input())
     else:
@@ -97,12 +97,7 @@ def test_derivative_consistency(cls,instance):
     # --- evaluate dp ---
     g_true = np.asarray(instance.d_objective_dp_partial(p))
     g_fd = finite_difference_dp(instance, p)
-    diff = np.linalg.norm(g_true - g_fd)
-    rel = diff / (np.linalg.norm(g_fd) + 1e-12)
-    assert rel < TOL, (
-        f"{cls.__name__} derivative dp mismatch:\n"
-        f"analytic={g_true}\nfinite-diff={g_fd}\nrelerr={rel}"
-    )
+    np.testing.assert_allclose(g_true, g_fd, atol=TOL**2, rtol=TOL)
 
     # --- evaluate dvar ---
     vars = instance.variables_needed
@@ -112,9 +107,4 @@ def test_derivative_consistency(cls,instance):
         g_fd = finite_difference_dvar(instance, var, p)
 
         # --- compare ---
-        diff = np.linalg.norm(g_true - g_fd)
-        rel = diff / (np.linalg.norm(g_fd) + 1e-12)
-        assert rel < TOL, (
-            f"{cls.__name__} derivative {var} mismatch:\n"
-            f"analytic={g_true}\nfinite-diff={g_fd}\nrelerr={rel}"
-        )
+        np.testing.assert_allclose(g_true, g_fd, atol=TOL**2, rtol=TOL)

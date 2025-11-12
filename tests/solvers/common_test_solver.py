@@ -12,12 +12,13 @@ def compute_sensitivity_adjoint(solver, objective, propname, parametrization, ad
   #run model
   solver.run()
   #initiate objective
-  inputs = []
-  for var in objective.__get_all_variables_needed__():
-    inputs.append(solver.get_output_variable(var))
+  inputs = {x:None for x in objective.__get_variables_needed__()}
+  solver.get_output_variables(inputs)
   objective.set_inputs(inputs)
   #initiate sensitivity
-  sens = adjoint(objective.__get_solved_variables_needed__(),
+  solved_var = set(objective.__get_variables_needed__())
+  solved_var.intersection_update(solver.solved_variables)
+  sens = adjoint(solved_var,
                  [parametrization], solver, np.arange(1,n+1)) 
   #compite
   S_adjoint = sens.compute_sensitivity(p, 
@@ -40,7 +41,7 @@ def compute_sensitivity_finite_difference(solver, objective, propname, parametri
   solver.run()
   #initiate objective
   inputs = []
-  for var in objective.__get_all_variables_needed__():
+  for var in objective.__get_variables_needed__():
     inputs.append(solver.get_output_variable(var))
   objective.set_inputs(inputs)
   
@@ -56,7 +57,7 @@ def compute_sensitivity_finite_difference(solver, objective, propname, parametri
     prop = parametrization.convert_p_to_mat_properties(p)
     solver.create_cell_indexed_dataset(prop, propname, propname+'.h5')
     solver.run()
-    for j,var in enumerate(objective.__get_all_variables_needed__()):
+    for j,var in enumerate(objective.__get_variables_needed__()):
       solver.get_output_variable(var,out=inputs[j])
     cur_obj = objective.evaluate(prop)
     deriv[i] = (cur_obj-ref_obj) / (old_p * pertub)
