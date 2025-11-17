@@ -8,13 +8,55 @@ from scipy.sparse.csgraph import maximum_bipartite_matching
 import numpy as np
 
 
+def jacobi_row_scaling(A, b, power=0.5):
+    scale = np.power(np.abs(A.diagonal()), power)
+    scale[scale == 0] = 1.0
+    D_inv = sp.diags(1.0 / scale)
+    A_s = D_inv @ A @ D_inv
+    b_s = D_inv @ b
+    return A_s, b_s, D_inv
+
+def ruiz_equilibrate(A, b, max_iter=5, tol=1e-4, eps=1e-8, verbose=False):
+    """
+    Perform Ruiz iterative equilibration on sparse matrix A and rhs b to improve matrix condition number.
+    From Ruiz (2017), "A scaling algorithm to equilibrate both rows and columns norms in matrices"
+    https://cerfacs.fr/wp-content/uploads/2017/06/14_DanielRuiz.pdf
+    """
+    m, n = A.shape
+    D_r = np.ones(m)
+    D_c = np.ones(n)
+    b_eq = b.copy()
+    for k in range(max_iter):
+        # Row normalization
+        row_norm = np.abs(A.tocsr()).max(axis=1).toarray().ravel()
+        row_norm[row_norm < eps] = 1.0
+        r_scale = 1.0 / np.sqrt(row_norm)
+        A = sp.diags(r_scale) @ A
+        b_eq *= r_scale[:,None] if b_eq.ndim == 2 else r_scale
+        D_r *= r_scale
+
+        # Column normalization
+        col_norm = np.abs(A.tocsr()).max(axis=0).toarray().ravel()
+        col_norm[col_norm < eps] = 1.0
+        c_scale = 1.0 / np.sqrt(col_norm)
+        A = A @ sp.diags(c_scale)
+        D_c *= c_scale
+
+        test = np.max([np.abs(1 - np.max(row_norm)), np.abs(1 - np.max(col_norm))])
+        if verbose:
+            print(f"Ruiz iter {k+1} convergence test: {test} < {tol} ?")
+        if test < tol:
+            break
+
+    return A, b_eq, D_r, D_c
 
 
 class Direct_Sparse_Linear_Solver:
-    def __init__(self, algo="lu"):
+    def __init__(self, algo="lu", row_scaling=True):
         """
 
         """
+        self.row_scaling = row_scaling
         self.algo = algo.lower()
         if self.algo == "pardiso":
             try:
@@ -43,18 +85,21 @@ class Direct_Sparse_Linear_Solver:
         LU direct solver from SciPy library.
         If LU solve is impossible, scale diagonal to force a solution
         """
-        damped_factor = [0.,1e-12,1e-8,1e-6,1e-4,1e-3,1e-2,1e-1,1.]
+        damped_factor = [0.,1e-3,1e-2,1e-1,1.]
+        l = None
         for df in damped_factor:
             if df != 0.:
                 print(f"    Current damping factor: {df}")
             #_A = ( A + sp.diags(A.diagonal()*df) ).tocsc()
-            _A = ( A + sp.eye(A.shape[0]) * df * A.diagonal().mean() ).tocsc()
+            _A = ( A + sp.eye(A.shape[0]) * df * np.abs(A.diagonal()).mean()).tocsc()
             try:
                 LU = spla.splu(_A)
                 l = LU.solve(b)
                 break
             except Exception as e:
                 print(f"LU solve failed ({e}), try increasing damping factor")
+        if l is None:
+            raise RuntimeError("LU solve failed")
         return l
 
     def __pardiso_solve__(self, A, b):
@@ -65,20 +110,25 @@ class Direct_Sparse_Linear_Solver:
         x = pypardiso.spsolve(A,b)
         return x
     
-    def jacobi_row_scaling(self, A, b, power=0.5):
-        scale = np.power(np.abs(A.diagonal()), power)
-        scale[scale == 0] = 1.0
-        D_inv = sp.diags(1.0 / scale)
-        A_s = D_inv @ A @ D_inv
-        b_s = D_inv @ b
-        return A_s, b_s, D_inv
+    def __qr_solve__(self, A, b):
+        import sparseqr
+        x = sparseqr.solve(A, b, tolerance=0)
+        return x
 
     def solve(self, A, b):
         print(f"Solve adjoint equation using {self.algo} solver")
         t_start = time.time()
-        A_scaled, b_scaled, D_inv = self.jacobi_row_scaling(A, b, power=0.5)
+        D_inv = 1.
+        if self.row_scaling:
+            A_scaled, b_scaled, D_inv = jacobi_row_scaling(A, b, power=0.5)
+            A_scaled, b_scaled, Dr, Dc = ruiz_equilibrate(
+                 A_scaled, b_scaled, max_iter=6, verbose=True
+            )
+            D_inv = D_inv @ sp.diags(Dc)
+        else:
+            A_scaled, b_scaled = A,b
         l_scaled = self.solve_func(A_scaled,b_scaled)
-        l = D_inv @ l_scaled
+        l = D_inv @ l_scaled if self.row_scaling else l_scaled
         print(f"Time to solve adjoint: {(time.time() - t_start)} s")
         return l
 
@@ -163,47 +213,6 @@ class Iterative_Sparse_Linear_Solver:
         self.callback_it += 1
         return
 
-    def jacobi_row_scaling(self, A, b, power=0.5):
-        scale = np.power(np.abs(A.diagonal()), power)
-        scale[scale == 0] = 1.0
-        D_inv = sp.diags(1.0 / scale)
-        A_s = D_inv @ A @ D_inv
-        b_s = D_inv @ b
-        return A_s, b_s, D_inv
-
-    def ruiz_equilibrate(self, A, b, max_iter=5, tol=1e-4, eps=1e-8, verbose=False):
-        """
-        Perform Ruiz iterative equilibration on sparse matrix A and rhs b to improve matrix condition number.
-        From Ruiz (2017), "A scaling algorithm to equilibrate both rows and columns norms in matrices"
-        https://cerfacs.fr/wp-content/uploads/2017/06/14_DanielRuiz.pdf
-        """
-        m, n = A.shape
-        D_r = np.ones(m)
-        D_c = np.ones(n)
-        b_eq = b.copy()
-        for k in range(max_iter):
-            # Row normalization
-            row_norm = np.abs(A.tocsr()).max(axis=1).toarray().ravel()
-            row_norm[row_norm < eps] = 1.0
-            r_scale = 1.0 / np.sqrt(row_norm)
-            A = sp.diags(r_scale) @ A
-            b_eq *= r_scale
-            D_r *= r_scale
-
-            # Column normalization
-            col_norm = np.abs(A.tocsr()).max(axis=0).toarray().ravel()
-            col_norm[col_norm < eps] = 1.0
-            c_scale = 1.0 / np.sqrt(col_norm)
-            A = A @ sp.diags(c_scale)
-            D_c *= c_scale
-
-            test = np.max([np.abs(1 - np.max(row_norm)), np.abs(1 - np.max(col_norm))])
-            if verbose:
-                print(f"Ruiz iter {k+1} convergence test: {test} < {tol} ?")
-            if test < tol:
-                break
-
-        return A, b_eq, D_r, D_c
 
     def solve(self, A, b):
 
@@ -234,8 +243,8 @@ class Iterative_Sparse_Linear_Solver:
 
         # --- Step 2: Preconditioner ---
         # Always do a row scaling before anything
-        A_scaled, b_scaled, D_inv = self.jacobi_row_scaling(A_perm, b_perm, power=0.5)
-        A_scaled, b_scaled, Dr, Dc = self.ruiz_equilibrate(
+        A_scaled, b_scaled, D_inv = jacobi_row_scaling(A_perm, b_perm, power=0.5)
+        A_scaled, b_scaled, Dr, Dc = ruiz_equilibrate(
             A_scaled, b_scaled, max_iter=6, verbose=self.verbose
         )
         D_inv = D_inv @ sp.diags(Dc)
