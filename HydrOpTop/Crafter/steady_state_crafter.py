@@ -77,12 +77,12 @@ class Steady_State_Crafter:
     # Cache the solver var not to open output file repetively
     all_var_needed = set(self.obj.variables_needed)
     for c in self.constraints:
-      all_var_needed = all_var_needed.union(c.variables_needed)
+      all_var_needed = all_var_needed.union(c[0].variables_needed)
     func_var = {var:None for var in all_var_needed}
     self.solver.get_output_variables(func_var)
     self.obj.set_inputs({k:v[self.obj.indexes] for k,v in func_var.items() if k in self.obj.variables_needed})
     for c in self.constraints:
-      c.set_inputs({k:v[c.indexes] for k,v in func_var.items() if k in c.variables_needed})
+      c[0].set_inputs({k:v[c[0].indexes] for k,v in func_var.items() if k in c[0].variables_needed})
     return func_var
 
   def filter_density(self, p):
@@ -129,6 +129,12 @@ class Steady_State_Crafter:
       # derivative according to solved var
       dobj_dY = {}
       dobj_dX = {}
+      # p for function
+      if not isinstance(self.obj.indexes, slice):
+        ids_to_p_index = self.ids_p[self.obj.indexes+self.solver.cell_id_start_at]
+      else:
+        ids_to_p_index = self.ids_p[self.obj.indexes]
+      pf = np.where(ids_to_p_index == -1, np.nan, p_[ids_to_p_index])
       for var in func.__get_variables_needed__():
         var_ = var.replace("_INTERPOLATOR","")
         if var_ in self.solver.solved_variables:
@@ -136,16 +142,16 @@ class Steady_State_Crafter:
             dobj_dY[var_] = np.zeros(self.solver.get_system_size())
           else:
             dobj_dY[var_] = np.zeros((self.solver.get_system_size(),len(self.last_cf)))
-          dobj_dY[var_][func.indexes] = func.d_objective(var, p_)
+          dobj_dY[var_][func.indexes] = func.d_objective(var, pf)
         elif var_ in [x.get_name() for x in self.mat_props]:
           dobj_dX[var_] = np.zeros(self.solver.get_grid_size())
-          dobj_dX[var_][func.indexes] = func.d_objective(var, p_)
-      dobj_dp_partial = func.d_objective_dp_partial(p_)
+          dobj_dX[var_][func.indexes] = func.d_objective(var, pf)
+      dobj_dp_partial = func.d_objective_dp_partial(pf)
 
       grad = func.adjoint.compute_sensitivity(
         p_, dobj_dY, dobj_dX,
       )
-      if grad.ndim == 2:
+      if isinstance(grad, np.ndarray) and grad.ndim == 2:
         grad += dobj_dp_partial[:,None]
       else:
         grad += dobj_dp_partial
@@ -177,10 +183,12 @@ class Steady_State_Crafter:
             p_[f.input_indexes]
           )
         grad = Jf[:,self.input_cells].transpose().dot(grad)
+
     elif isinstance(func.adjoint, Sensitivity_Finite_Difference):
-      if cf is not None:
-        func.adjoint.set_current_obj_val(cf) 
+      if self.last_cf is not None:
+        func.adjoint.set_current_obj_val(self.last_cf)
       grad = func.adjoint.compute_sensitivity(p)
+
     return grad
   
   
@@ -457,7 +465,7 @@ class Steady_State_Crafter:
     if grad.size > 0:
       grad[:] = self.evaluate_total_gradient(the_constraint, p, p_bar)
     if compare == '>':
-      grad[:] *= -1.
+      if grad.size > 0: grad[:] *= -1.
       constraint = -constraint
       val *= -1
     
@@ -501,7 +509,7 @@ class Steady_State_Crafter:
   
   def scipy_constraint_jac(self, constraint, p):
     self.scipy_run_sim(p)
-    grad = -self.evaluate_total_gradient(constraint[0], p, self.last_p_bar) #don't forget the minus
+    grad = self.evaluate_total_gradient(constraint[0], p, self.last_p_bar) #don't forget the minus
     self.last_grad_constraints[constraint[0].name] = grad.copy()
     return grad
   
@@ -624,7 +632,8 @@ class Steady_State_Crafter:
     self.last_grad_constraints = {x[0].name:None for x in self.constraints}
     for constraint in self.constraints:
       constraint = constraint[0]
-      constraint.set_p_to_cell_ids(self.p_ids)
+      #constraint.set_p_to_cell_ids(self.p_ids)
+      # set adjoint
       if constraint.adjoint is None:
         solved_variables_needed = []
         for var in constraint.__get_variables_needed__():
@@ -642,6 +651,11 @@ class Steady_State_Crafter:
             self.mat_props, self.solver, self.p_ids
           )
         constraint.set_adjoint_problem(adjoint)
+        # set indexes
+        if constraint.indexes is None: # pass all cell
+          constraint.indexes = slice(None)
+        else:
+          constraint.indexes -= self.solver.cell_id_start_at
         
     #initialize IO
     self.IO.communicate_functions_names(self.obj.__get_name__(), 

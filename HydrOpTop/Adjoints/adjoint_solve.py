@@ -223,7 +223,7 @@ class Iterative_Sparse_Linear_Solver:
                 A_perm = A[perm_r, :][:, perm_r]
                 b_perm = b[perm_r]
                 perm_c = perm_r
-                if self.l0 is not None: self.l0 = self.l0[perm_r]
+                if self.l0 is not None: self.l0 = self.l0[perm_r].T
             elif self.perm_type == "ltd":
                 perm_r, perm_c = self.permute_large_to_diagonal(A)
                 A_perm = A[perm_r, :][:, perm_c]
@@ -292,7 +292,7 @@ class Iterative_Sparse_Linear_Solver:
             else:
                 raise RuntimeError(f"Iterative algorithm {self.algo} not found...")
 
-        x_scaled = np.array(x_scaled).T if b_scaled.ndim == 2 else x_scaled
+        x_scaled = np.array(x_scaled).T if b_scaled.ndim == 2 else np.array(x_scaled).flatten()
 
         # Approximate a-fortiori condition number
         if self.verbose:
@@ -327,7 +327,7 @@ class Iterative_Sparse_Linear_Solver:
         #     print(f"Final residual: {np.linalg.norm(b - A @ x):.2e}")
         #     print(f"Total iterations: {self.callback_it}")
 
-        self.l0 = x_perm.copy()
+        self.l0 = x_perm.copy() if x_perm.ndim == 2 else x_perm.copy()[:,None]
 
         print(f"Time to solve adjoint: {(time.time() - t_start)} s")
         return x

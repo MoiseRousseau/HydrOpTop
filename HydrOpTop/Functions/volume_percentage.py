@@ -33,7 +33,7 @@ class Volume_Percentage(Base_Function):
     
     self.variables_needed = ["VOLUME"]
     self.name = "Volume"
-    self.input_indexes = self.cell_ids # ask to the crafter the data corresponding to id defined
+    self.indexes = self.cell_ids # ask to the crafter the data corresponding to id defined
     self.inputs = {}
     return
   
