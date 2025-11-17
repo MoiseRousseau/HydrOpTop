@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import copy
 
 from HydrOpTop.Solvers import Dummy_Simulator
 from HydrOpTop.Adjoints import Sensitivity_Steady_Simple
@@ -95,11 +96,12 @@ class Test_Crafter:
     Test adjoint derivative compared to analytical value with filter
     """
     h_filter = filter_(np.random.choice(self.N, int(self.N)//2, replace=False))
+    obj2 = copy.deepcopy(self.obj)
     craft = Steady_State_Crafter(
         self.obj, self.solver, [self.parametrization], [], [h_filter], deriv="adjoint"
     )
     craft_fd = Steady_State_Crafter(
-        self.obj, self.solver, [self.parametrization], [], [h_filter], deriv="fd", deriv_args={"scheme":"central"}
+        obj2, self.solver, [self.parametrization], [], [h_filter], deriv="fd", deriv_args={"scheme":"central"}
     )
     p = np.random.random(craft.get_problem_size())
     p_bar = craft.pre_evaluation_objective(p)

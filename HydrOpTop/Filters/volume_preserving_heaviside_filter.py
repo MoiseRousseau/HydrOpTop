@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import dia_matrix
+from scipy.sparse import coo_matrix
 from .Base_Filter_class import Base_Filter
 from ..Functions.volume_percentage import Volume_Percentage
 from scipy.optimize import root_scalar
@@ -35,6 +35,7 @@ class Volume_Preserving_Heaviside_Filter(Base_Filter):
   
   """
   def __init__(self, cell_ids, cutoff=0.5, steepness = 5, vol_constraint=None):
+    super(Volume_Preserving_Heaviside_Filter, self).__init__()
     self.input_ids = cell_ids
     self.output_ids = cell_ids
     self.cutoff = cutoff
@@ -69,8 +70,9 @@ class Volume_Preserving_Heaviside_Filter(Base_Filter):
                      np.exp(-self.stepness * (p-self.cutoff) / (1-self.cutoff) ) )
     d_p_filtered *= self.stepness
     d_p_filtered += np.exp(-self.stepness)
-    d_p = dia_matrix((d_p_filtered[np.newaxis,:],0),
-                                                   shape=(len(p),len(p)) )
+
+    n = np.arange(len(d_p_filtered))
+    d_p = coo_matrix((d_p_filtered,(n,n)))
     return d_p
   
   def update_stepness(self, stepness, ref_vol=None, autocorrect=True):

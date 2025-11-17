@@ -22,6 +22,7 @@ class Dummy_Simulator:
     self.r = np.random.normal(size=self.problem_size)
     self.var_loc = var_loc
     self.xyz = np.random.random((self.problem_size,3))
+    self.cell_id_start_at = 0
     
     self.input_variables_value = {
       "a": np.ones(self.problem_size),

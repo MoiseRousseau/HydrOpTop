@@ -4,9 +4,9 @@ class No_Adjoint:
   """
   def __init__(self, parametrized_mat_props, p_ids):
     self.assign_at_ids = p_ids #in solver format!
-    self.adjoint = None
     self.initialized = False
     self.parametrized_mat_props = parametrized_mat_props
+    self.l0 = None
     
     self.dXi_dp = {m.get_name():None for m in parametrized_mat_props} # dim = [mat_prop] * L * T2 / M
     return
