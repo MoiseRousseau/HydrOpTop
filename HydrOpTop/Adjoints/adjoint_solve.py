@@ -63,8 +63,15 @@ class Direct_Sparse_Linear_Solver:
                 import pypardiso
             except:
                 raise RuntimeError("Please install pypardiso library to use PARDISO direct solver.")
+        if self.algo == "qr":
+            try:
+                import sparseqr
+            except:
+                raise RuntimeError("Please install sparse library to use QR factorisation and solver.")
+
         self.solve_funcs = {
             "lu": self.__lu_solve__,
+            "qr": self.__qr_solve__,
             "spsolve": self.__sp_solve__,
             "pardiso": self.__pardiso_solve__,
         }
