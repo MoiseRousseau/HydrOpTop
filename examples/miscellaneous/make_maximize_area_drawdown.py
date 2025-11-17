@@ -8,7 +8,7 @@ HydrOpTop can be used to maximize the area of an excavation relative to a given 
 import numpy as np
 import pandas as pd
                                   
-from HydrOpTop.Functions import Reference_Liquid_Head, p_Weighted_Sum
+from HydrOpTop.Functions import Drawdown, p_Weighted_Sum
 from HydrOpTop.Materials import Log_SIMP
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Filters import Density_Filter, Volume_Preserving_Heaviside_Filter
@@ -23,18 +23,19 @@ if __name__ == "__main__":
     pit_ids = sim.get_region_ids("pit")
 
     # Create objective function
+    # Load a CSV file with the ratio of ressource per volume and the corresponding ids
     resources = pd.read_csv("./resources.csv",index_col=0)
     cf = p_Weighted_Sum(
         field=resources["Resources"].values,
-        field_ids=resources.index.values
+        field_ids=resources.index.values,
     )
 
     # Create 1 constrain per each maximum drawdown ids
     max_drawdown_ids = [984,1135] #impose max drawdown on cell id 983 and 1134
-    initial_head = [234.4,230.0]
-    max_drawdown = 9
+    initial_head = [234.5,230.1]
+    max_drawdown = 3.
     constrains = [
-        (Reference_Liquid_Head(0, c, norm=1),'>',h-max_drawdown) for h,c in zip(initial_head,max_drawdown_ids)
+        (Drawdown(h, c),'<',max_drawdown) for h,c in zip(initial_head,max_drawdown_ids)
     ]
 
     # Parametrization
@@ -46,17 +47,24 @@ if __name__ == "__main__":
     )
 
     # Filter?
-    dfilter = Density_Filter(10.)
-    hfilter = Volume_Preserving_Heaviside_Filter(0.5, 4)
+    dfilter = Density_Filter(pit_ids, radius=10.)
+    hfilter = Volume_Preserving_Heaviside_Filter(pit_ids, 0.5, 4)
 
     #craft optimization problem
     #i.e. create function to optimize, initiate IO array in classes...
-    crafted_problem = Steady_State_Crafter(cf, sim, [perm], constrains, [dfilter,hfilter])
+    crafted_problem = Steady_State_Crafter(
+        cf, sim, [perm], constrains, [dfilter,hfilter],
+        #deriv="fd", deriv_args={"scheme":"forward"}
+    )
     crafted_problem.IO.output_every_iteration(1)
     crafted_problem.IO.output_material_properties()
     crafted_problem.IO.define_output_format("vtu")
 
     #initialize optimizer
     p = np.zeros(crafted_problem.get_problem_size()) + 0.01
-    p_opt = crafted_problem.optimize(optimizer="nlopt-mma", action="maximize", max_it=26, ftol=0.0001, initial_guess=p)
+    p_opt = crafted_problem.optimize(
+        optimizer="nlopt-ccsaq", action="maximize", max_it=30, stop={"ftol":0.0001}, initial_guess=p
+    )
+
+    crafted_problem.IO.plot_convergence_history()
     
