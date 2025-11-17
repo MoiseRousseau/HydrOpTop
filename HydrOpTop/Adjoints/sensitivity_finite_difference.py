@@ -28,7 +28,10 @@ class Sensitivity_Finite_Difference:
         :param p: the material parameter
         """
         p = p.copy()
-        S = np.zeros_like(p)
+        if isinstance(self.current_obj_val,float):
+            S = np.zeros_like(p)
+        else: #this is an array
+            S = np.zeros( (len(p),len(self.current_obj_val)) )
         for i in range(len(p)):
             if self.scheme == "forward":
                 if self.current_obj_val is None:

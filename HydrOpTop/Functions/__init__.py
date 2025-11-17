@@ -2,6 +2,7 @@ import importlib
 from .Base_Function_class import Base_Function
 __all__ = [
     "Head_Gradient",
+    "Least_Square_Calibration",
     "Mean_Liquid_Piezometric_Head",
     "Mechanical_Compliance",
     "p_Gradient",

@@ -30,6 +30,11 @@ REGION opening
   FILE ../pflotran_meshes/disk/opening.ss
 END
 
+REGION sand
+  FILE ../pflotran_meshes/disk/sand.vs
+END
+
+
 
 #=========================== EOS ===================================
 EOS WATER
@@ -44,8 +49,18 @@ DATASET PERMEABILITY
   FILENAME permeability.h5
 END
 
-MATERIAL_PROPERTY mater
+MATERIAL_PROPERTY sand
   ID 1
+  SATURATION_FUNCTION default
+  POROSITY 0.3
+  PERMEABILITY
+    #PERM_ISO 1e-13
+    DATASET PERMEABILITY
+  /
+END
+
+MATERIAL_PROPERTY till
+  ID 2
   SATURATION_FUNCTION default
   POROSITY 0.3
   PERMEABILITY
@@ -138,7 +153,12 @@ END
 #=========================== stratigraphy couplers ============================
 STRATA
   REGION all
-  MATERIAL mater
+  MATERIAL till
+END
+
+STRATA
+  REGION sand
+  MATERIAL sand
 END
 
 END_SUBSURFACE

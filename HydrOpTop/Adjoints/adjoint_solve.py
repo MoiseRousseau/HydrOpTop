@@ -253,44 +253,53 @@ class Iterative_Sparse_Linear_Solver:
             M = None
 
         # --- Step 3: solve ---
-        callback = lambda xk: self.callback_scipy(xk, A_scaled, b_scaled)
-
         if self.verbose:
             print("Starting iterative solve...")
 
-        if self.algo == "bicgstab":
-            x_scaled, info = spla.bicgstab(
-                A_scaled, b_scaled, x0=self.l0, M=M, callback=callback,
-                **self.solver_kwargs,
-                #callback_type='x',
-            )
-        elif self.algo == "bicg":
-            x_scaled, info = spla.bicg(
-                A_scaled, b_scaled, x0=self.l0, M=M, callback=callback,
-                **self.solver_kwargs,
-            )
-        elif self.algo == "gmres":
-            x_scaled, info = spla.gmres(
-                A_scaled, b_scaled, x0=self.l0, M=M, callback=callback,
-                callback_type='x',
-                **self.solver_kwargs,
-            )
-        elif self.algo == "lsqr":
-            # scale by hand
-            x_scaled = spla.lsqr(
-                A_scaled, b_scaled, x0=self.l0,
-                show=self.verbose,
-                **self.solver_kwargs,
-            )
-        else:
-            raise RuntimeError(f"Iterative algorithm {self.algo} not found...")
+        RHS = b_scaled.T if b_scaled.ndim == 2 else [b_scaled]
+        x_scaled = []
+        for j,rhs in enumerate(RHS):
+            callback = lambda xk: self.callback_scipy(xk, A_scaled, rhs)
+            l0 = self.l0[j] if self.l0 is not None else None
+            if self.algo == "bicgstab":
+                X, info = spla.bicgstab(
+                    A_scaled, rhs, x0=l0, M=M, callback=callback,
+                    **self.solver_kwargs,
+                    #callback_type='x',
+                )
+                x_scaled.append(X)
+            elif self.algo == "bicg":
+                X, info = spla.bicg(
+                    A_scaled, rhs, x0=l0, M=M, callback=callback,
+                    **self.solver_kwargs,
+                )
+                x_scaled.append(X)
+            elif self.algo == "gmres":
+                X, info = spla.gmres(
+                    A_scaled, rhs, x0=l0, M=M, callback=callback,
+                    callback_type='x',
+                    **self.solver_kwargs,
+                )
+                x_scaled.append(X)
+            elif self.algo == "lsqr":
+                # scale by hand
+                X = spla.lsqr(
+                    A_scaled, rhs, x0=l0,
+                    show=self.verbose,
+                    **self.solver_kwargs,
+                )
+                x_scaled.append(X)
+            else:
+                raise RuntimeError(f"Iterative algorithm {self.algo} not found...")
+
+        x_scaled = np.array(x_scaled).T if b_scaled.ndim == 2 else x_scaled
 
         # Approximate a-fortiori condition number
         if self.verbose:
             # https://cs357.cs.illinois.edu/textbook/notes/condition.html
             conds = []
             for k in range(5):
-                perturb = np.random.random(len(b_scaled))-0.5
+                perturb = np.random.random(b_scaled.shape)-0.5
                 b_perturb = A @ (x_scaled + perturb) - b_scaled
                 cond_num = np.linalg.norm(perturb) / np.linalg.norm(x_scaled)
                 cond_den = np.linalg.norm(b_perturb) / np.linalg.norm(b_scaled)

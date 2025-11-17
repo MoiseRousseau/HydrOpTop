@@ -101,15 +101,25 @@ class Steady_State_Crafter:
     """
     Evaluate objective
     """
-    ids_to_p_index = self.ids_p[self.obj.indexes]
+    if not isinstance(self.obj.indexes, slice):
+      ids_to_p_index = self.ids_p[self.obj.indexes+self.solver.cell_id_start_at]
+    else:
+      ids_to_p_index = self.ids_p[self.obj.indexes]
     p_ = np.where(ids_to_p_index == -1, np.nan, p[ids_to_p_index])
     cf = self.obj.evaluate(p_)
-    if np.isnan(cf):
+    self.last_cf = cf
+    if np.any(np.isnan(cf)):
       raise RuntimeError("Objective function is NaN. Check if you defined it where some variable are not defined")
     return cf
 
   def evaluate_total_gradient(self, func, p, p_bar=None, cf=None):
-    if isinstance(func.adjoint, Sensitivity_Steady_Simple):
+    if not np.allclose(p, self.last_p):
+      self.func_eval += 1
+      self.last_p[:] = p
+      self.last_p_bar[:] = self.pre_evaluation_objective(p)
+      self.last_cf = self.evaluate_objective(self.last_p_bar)
+
+    if isinstance(func.adjoint, Sensitivity_Steady_Simple) or isinstance(func.adjoint, No_Adjoint):
       if self.filters:
         if p_bar is None:
           p_bar = self.filter_density(p)
@@ -122,17 +132,24 @@ class Steady_State_Crafter:
       for var in func.__get_variables_needed__():
         var_ = var.replace("_INTERPOLATOR","")
         if var_ in self.solver.solved_variables:
-          dobj_dY[var_] = np.zeros(self.solver.get_system_size())
+          if isinstance(self.last_cf, float):
+            dobj_dY[var_] = np.zeros(self.solver.get_system_size())
+          else:
+            dobj_dY[var_] = np.zeros((self.solver.get_system_size(),len(self.last_cf)))
           dobj_dY[var_][func.indexes] = func.d_objective(var, p_)
         elif var_ in [x.get_name() for x in self.mat_props]:
           dobj_dX[var_] = np.zeros(self.solver.get_grid_size())
           dobj_dX[var_][func.indexes] = func.d_objective(var, p_)
       dobj_dp_partial = func.d_objective_dp_partial(p_)
-      
+
       grad = func.adjoint.compute_sensitivity(
         p_, dobj_dY, dobj_dX,
-      ) + dobj_dp_partial # was input_variables_needed
-      
+      )
+      if grad.ndim == 2:
+        grad += dobj_dp_partial[:,None]
+      else:
+        grad += dobj_dp_partial
+
       if self.filters:
         # Compute d_p_bar / d_p
         p_bar = np.zeros_like(self.last_p_bar)
@@ -224,6 +241,8 @@ class Steady_State_Crafter:
       exit(ret_code)
     ### UPDATE FUNCTION VARIABLES ###
     self.update_function_vars()
+    self.last_p[:] = p
+    self.last_p_bar[:] = p_bar
     return p_bar
   
   
@@ -310,22 +329,24 @@ class Steady_State_Crafter:
          options=options,
          callback=self.scipy_callback
       )
+      p_opt = res.x
+      print(f"Optimizer {algo} exited with success = {res.success}. Reason: {res.message}")
     
-    elif optimizer == "scipy-trf":
+    elif optimizer == "scipy-trf" or optimizer == "scipy-dogbox":
       from scipy.optimize import least_squares
       p_opt = least_squares(
         self.scipy_function_to_optimize,
         x0=initial_guess,
         jac=self.scipy_jac,
         bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0).T,
-        ftol=stop["ftol"],
-        method="trf",
-        loss="soft_l1",
+        ftol=stop.get("ftol",1e-6),
+        method=optimizer[6:],
+        #loss="soft_l1",
         max_nfev=max_it,
         #callback=self.scipy_callback,
         verbose=2,
       )
-      
+      self.best_p = (p_opt.cost, p_opt.x)
     
     elif optimizer == "cyipopt":
       import cyipopt
@@ -459,15 +480,15 @@ class Steady_State_Crafter:
     self.scipy_run_sim(p)
     cf = self.evaluate_objective(self.last_p_bar)
     self.last_cf = cf
-    if self.best_p[0] is None:# or cf < self.best_p[0]:
+    if self.best_p[0] is None or np.linalg.norm(cf) < np.linalg.norm(self.best_p[0]):
         self.best_p = (cf, p.copy())
     return cf
   
   def scipy_jac(self,p):
     self.scipy_run_sim(p)
     grad = self.evaluate_total_gradient(self.obj, self.last_p, self.last_p_bar)
-    self.last_grad = grad
-    return -grad.T
+    self.last_grad = grad.T
+    return grad.T
   
   def scipy_constraint_val(self, constraint, p):
     self.scipy_run_sim(p)

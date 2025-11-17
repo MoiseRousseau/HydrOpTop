@@ -5,7 +5,7 @@ Simple permeability field calibration
 
 import numpy as np
                                   
-from HydrOpTop.Functions import Reference_Liquid_Head #objective
+from HydrOpTop.Functions import Least_Square_Calibration #objective
 from HydrOpTop.Materials import Log_SIMP
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Filters import Density_Filter
@@ -24,7 +24,7 @@ if __name__ == "__main__":
     #define cost function as sum of the head in the pit
     cell_ids = [444, 789, 920, 1030, 1339]
     head = [230., 250., 227., 146., 210.]
-    cf = Reference_Liquid_Head(head, cell_ids, norm=2)
+    cf = Least_Square_Calibration(head, cell_ids)
 
     filter_ = Density_Filter(cell_ids=all_cells, radius=10.)
 
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     p = np.zeros(crafted_problem.get_problem_size()) + 0.5
     #p = 0.999*np.random.rand(crafted_problem.get_problem_size())+0.001 
     p_opt = crafted_problem.optimize(
-        optimizer="nlopt-ccsaq", action="minimize",
+        optimizer="scipy-dogbox", action="minimize",
         stop={'ftol_rel':1e-6,"max_it":100},
         initial_guess=p
     )
