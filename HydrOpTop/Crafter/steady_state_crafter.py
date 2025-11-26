@@ -406,7 +406,42 @@ class Steady_State_Crafter:
       for key,val in options.items():
         nlp.add_option(key, val)
       p_opt, info = nlp.solve(initial_guess)
-    
+
+    elif optimizer == "pestlike-lm":
+      from .PESTMarquardtLS import PESTMarquardtLS
+      solver = PESTMarquardtLS(
+        #lambda_init=100,
+        #lambda_factors=[0.07, 1.2, 0.7, 1.2, 70, 120],
+        maxiter=max_it,
+        verbose=True
+      )
+      res = solver.fit(
+        self.scipy_function_to_optimize, x0=initial_guess,
+        bounds=density_parameter_bounds, jac=self.scipy_jac,
+      )
+      print(res)
+
+    elif optimizer == 'lmfit':
+      import lmfit
+      params = lmfit.Parameters()
+      for i in range(len(initial_guess)):
+        params.add(
+          f"p{i}", value=initial_guess[i],
+          min=density_parameter_bounds[0], max=density_parameter_bounds[1]
+        )
+      minimizer = lmfit.Minimizer(
+        lambda p: self.scipy_function_to_optimize([p[k].value for k in p.keys()]),
+        params,
+        #jac = (lambda p: self.scipy_jac([p[k].value for k in p.keys()]))
+      )
+      def lm_callback(params, iter, resid, *args, **kwargs):
+        chi2 = 0.5 * np.dot(resid, resid)
+        print(f"[Iter {iter}] Chi2={chi2:.6e}")
+        #history.append(params.valuesdict().copy())
+        return 0  # return nonzero to stop early
+      result = minimizer.minimize(method='leastsq', callback=lm_callback)
+      print(result)
+
     else:
       print(f"Error: Unknown optimizer or unadapted \"{optimizer}\"")
       return None
