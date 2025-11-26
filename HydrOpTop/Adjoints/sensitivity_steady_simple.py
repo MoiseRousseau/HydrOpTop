@@ -107,13 +107,16 @@ class Sensitivity_Steady_Simple:
 
     #if self.assign_at_ids is not None and isinstance(dc_dXi_dXi_dp,np.ndarray):
     #  dc_dXi_dXi_dp = dc_dXi_dXi_dp[self.assign_at_ids-1]
-    
+
     #compute adjoint
     assert len(self.dR_dYi) == len(dc_dYi)
     var = [x for x in self.dR_dYi.keys()][0]
-    self.l0 = self.adjoint.solve(self.dR_dYi[var], dc_dYi[var]) #solver ordering
-      
-    S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose()).dot(self.l0)
+    # Mask NaN along diagonal
+    keep = np.argwhere(~np.isnan(self.dR_dYi[var].diagonal())).flatten()
+    A = self.dR_dYi[var].tocsr()[keep][:,keep]
+    b = dc_dYi[var][keep]
+    self.l0 = self.adjoint.solve(A, b) #solver ordering
+    S = dc_dXi_dXi_dp - (dR_dXi_dXi_dp.transpose().tocsc()[:,keep]).dot(self.l0)
     
     return S
   
