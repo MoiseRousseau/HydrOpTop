@@ -100,7 +100,7 @@ class SSORPreconditioner:
 
 
 class Direct_Sparse_Linear_Solver:
-    def __init__(self, algo="lu", row_scaling=True):
+    def __init__(self, algo="lu", row_scaling=True, **kwargs):
         """
 
         """
@@ -140,7 +140,7 @@ class Direct_Sparse_Linear_Solver:
         LU direct solver from SciPy library.
         If LU solve is impossible, scale diagonal to force a solution
         """
-        damped_factor = [0.,1e-3,1e-2,1e-1,1.]
+        damped_factor = [0.,1e-12,1e-8,1e-6,1e-4,1e-3,1e-2,1e-1,1.]
         l = None
         for df in damped_factor:
             if df != 0.:
@@ -162,6 +162,7 @@ class Direct_Sparse_Linear_Solver:
         Solve large sparse linear systems of equations with the Intel oneAPI Math Kernel Library PARDISO solver.
         Use a simple wrapper around pypardiso spsolve routine.
         """
+        import pypardiso
         x = pypardiso.spsolve(A,b)
         return x
     
@@ -189,7 +190,7 @@ class Direct_Sparse_Linear_Solver:
 
 
 class Iterative_Sparse_Linear_Solver:
-    def __init__(self, algo="bicgstab", preconditionner=None, reorder=True, verbose=True, solver_kwargs=None):
+    def __init__(self, algo="bicgstab", preconditionner="", row_scaling=True, reorder=True, verbose=False, **kwargs):
         """
         Solve A x = b using an iterative algorithm from SciPy library.
 
@@ -220,14 +221,14 @@ class Iterative_Sparse_Linear_Solver:
         self.algo = algo.lower()
         self.reorder = reorder
         self.verbose = verbose
-        self.solver_kwargs = solver_kwargs
         self.preconditionner = preconditionner
         self.l0 = None #previous solution
         self.perm_rcm = None
         self.perm_type = "rcm"
         # default value if not supplied
-        if  self.solver_kwargs is None:
-            self.solver_kwargs = {"rtol":3e-3,"atol":1e-40,"maxiter":400}
+        self.solver_kwargs = {"rtol":3e-3,"atol":1e-40,"maxiter":250}
+        self.solver_kwargs.update(kwargs)
+        self.outer_v = [] #for lgmres recycling
         return
     
     def permute_rcm(self, A):
@@ -272,7 +273,6 @@ class Iterative_Sparse_Linear_Solver:
     def solve(self, A, b):
 
         print(f"Solve adjoint equation using {self.algo} solver")
-        self.callback_it = 0
         t_start = time.time()
 
         # Ensure A is sparse and CSC
@@ -334,6 +334,9 @@ class Iterative_Sparse_Linear_Solver:
         RHS = b_scaled.T if b_scaled.ndim == 2 else [b_scaled]
         x_scaled = []
         for j,rhs in enumerate(RHS):
+            if self.verbose:
+                print(f"Solving for RHS {j}")
+            self.callback_it = 0
             callback = lambda xk: self.callback_scipy(xk, A_scaled, rhs)
             l0 = self.l0[j] if self.l0 is not None else None
             if self.algo == "bicgstab":
@@ -356,16 +359,40 @@ class Iterative_Sparse_Linear_Solver:
                     **self.solver_kwargs,
                 )
                 x_scaled.append(X)
+            elif self.algo == "lgmres":
+                X, info = spla.lgmres(
+                    A_scaled, rhs, x0=l0, M=M, callback=callback,
+                    #callback_type='x',
+                    outer_v=self.outer_v,
+                    outer_k=10,
+                    **self.solver_kwargs,
+                )
+                x_scaled.append(X)
             elif self.algo == "lsqr":
                 # scale by hand
+                if "rtol" in self.solver_kwargs.keys():
+                    self.solver_kwargs["atol"] = self.solver_kwargs["rtol"]
+                    self.solver_kwargs["iter_lim"] = self.solver_kwargs["maxiter"]
+                    self.solver_kwargs.pop('rtol')
+                    self.solver_kwargs.pop('maxiter')
                 X = spla.lsqr(
                     A_scaled, rhs, x0=l0,
                     show=self.verbose,
                     **self.solver_kwargs,
                 )
-                x_scaled.append(X)
+                info = X[1]
+                x_scaled.append(X[0])
             else:
                 raise RuntimeError(f"Iterative algorithm {self.algo} not found...")
+
+            if info == 0:
+                if self.verbose:
+                    res = np.linalg.norm(rhs - A_scaled @ X) / np.linalg.norm(rhs)
+                    print(f"✅ Converged successfully within {self.callback_it} iterations and final residual {res:4e}.")
+            elif info > 0:
+                print(f"⚠️ {self.algo} Reached maximum iterations ({info}).")
+            else:
+                print("❌ Solver failed.")
 
         x_scaled = np.array(x_scaled).T if b_scaled.ndim == 2 else np.array(x_scaled).flatten()
 
@@ -374,9 +401,10 @@ class Iterative_Sparse_Linear_Solver:
             # https://cs357.cs.illinois.edu/textbook/notes/condition.html
             conds = []
             for k in range(5):
-                perturb = np.random.random(b_scaled.shape)-0.5
+                eps_pertub = 1e-3
+                perturb = (np.random.random(b_scaled.shape)-0.5) * np.linalg.norm(x_scaled) * eps_pertub
                 b_perturb = A @ (x_scaled + perturb) - b_scaled
-                cond_num = np.linalg.norm(perturb) / np.linalg.norm(x_scaled)
+                cond_num = np.linalg.norm(perturb) * eps_pertub
                 cond_den = np.linalg.norm(b_perturb) / np.linalg.norm(b_scaled)
                 conds.append(cond_den / cond_num)
             print(f"A-fortiori estimation of matrix condition number: {np.mean(conds):.4e} +/- {np.std(conds):.4e}") #REVERSED COMPARED TO PAPER
@@ -385,15 +413,6 @@ class Iterative_Sparse_Linear_Solver:
         x_perm = D_inv @ x_scaled
         x = np.zeros_like(x_perm)
         x[perm_c] = x_perm
-
-        if info == 0:
-            if self.verbose:
-                res = np.linalg.norm(b_scaled - A_scaled @ x_scaled) / np.linalg.norm(b_scaled)
-                print(f"✅ Converged successfully within {self.callback_it} iterations and final residual {res:4e}.")
-        elif info > 0:
-            print(f"⚠️ {self.algo} Reached maximum iterations ({info}).")
-        else:
-            print("❌ Solver failed.")
 
         if self.verbose:
             print(f"True unscaled residual {np.linalg.norm(b - A @ x) / np.linalg.norm(b)}.")
