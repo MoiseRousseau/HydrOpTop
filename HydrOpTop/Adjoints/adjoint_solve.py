@@ -51,6 +51,54 @@ def ruiz_equilibrate(A, b, max_iter=5, tol=1e-4, eps=1e-8, verbose=False):
     return A, b_eq, D_r, D_c
 
 
+class SSORPreconditioner:
+    """
+    Symmetric Successive Over-Relaxation (SSOR) preconditioner
+    for a sparse matrix A.
+
+    M^{-1} = (D + w L)^{-1} * D * (D + w U)^{-1}
+    """
+
+    def __init__(self, A, omega=1.0):
+        if not sp.issparse(A):
+            raise ValueError("A must be a SciPy sparse matrix")
+        self.A = A.tocsr()
+        self.n = A.shape[0]
+        self.omega = omega
+
+        # Extract D, L, U
+        self.D = sp.diags(A.diagonal())
+        self.L = sp.tril(A, -1)
+        self.U = sp.triu(A, 1)
+
+        # Build the two triangular SSOR factors
+        self.M1 = self.D + omega * self.L    # Lower factor
+        self.M2 = self.D + omega * self.U    # Upper factor
+
+    def solve(self, b):
+        """
+        Apply M^{-1} * b using two triangular solves.
+        """
+        # Solve (D + w L) y = b
+        y = spla.spsolve_triangular(self.M1, b, lower=True)
+        # Scale with D
+        y *= self.A.diagonal()
+        # Solve (D + w U) x = y
+        x = spla.spsolve_triangular(self.M2, y, lower=False)
+        return x
+
+    def as_linear_operator(self):
+        """
+        Return a scipy.sparse.linalg.LinearOperator to use in Krylov methods.
+        """
+        return spla.LinearOperator(
+            shape=(self.n, self.n),
+            matvec=self.solve,
+            dtype=self.A.dtype
+        )
+
+
+
 class Direct_Sparse_Linear_Solver:
     def __init__(self, algo="lu", row_scaling=True):
         """
@@ -256,14 +304,25 @@ class Iterative_Sparse_Linear_Solver:
         )
         D_inv = D_inv @ sp.diags(Dc)
         # Then preconditionning
-        if self.preconditionner == "ilu":
-            try:
-                ilu = spla.spilu(A_scaled.tocsc(), drop_tol=1e-4, fill_factor=1.0)
-                M = spla.LinearOperator(A_scaled.shape, ilu.solve)
-            except RuntimeError as e:
-                print(f"ILU failed: {e}. Continue with Diagonal preconditionner only")
-                M = None
-                #M = dia_matrix((np.sqrt(1.0 / np.abs(A.diagonal())), [0]), shape=A.shape)
+        if "ilu" in self.preconditionner:
+            fill_factor = float(self.preconditionner[3:]) + 1.
+            if self.verbose:
+                print(f"ILU factorization for {self.algo} preconditionning, fill factor = {fill_factor}")
+            M = None
+            diag_shift = [0., 1e-12, 1e-8, 1e-6, 1e-4, 1e-3, 1e-2, 1e-1, 1]
+            for alpha in diag_shift:
+                if M is not None: break
+                try:
+                    ilu = spla.spilu(
+                        (A_scaled + alpha * sp.eye(A_scaled.shape[0])).tocsc(),
+                        drop_tol=1e-6, fill_factor=fill_factor
+                    )
+                    M = spla.LinearOperator(A_scaled.shape, ilu.solve)
+                except RuntimeError as e:
+                    print(f"ILU failed: {e}. Try increasing diagonal shift (current: {alpha})")
+                    #M = dia_matrix((np.sqrt(1.0 / np.abs(A.diagonal())), [0]), shape=A.shape)
+        elif self.preconditionner == "ssor":
+            M = SSORPreconditioner(A_scaled).as_linear_operator()
         else:
             # no preconditionner
             M = None
