@@ -2,6 +2,13 @@ from scipy.sparse import coo_matrix, dia_matrix
 from .adjoint_solve import Direct_Sparse_Linear_Solver, Iterative_Sparse_Linear_Solver
 import numpy as np
 
+DEFAULT_SOLVER_ARGS = {
+  "method":"iterative",
+  "preconditionner":"ilu0",
+  "reorder":True,
+  "verbose":True,
+}
+
 
 class Sensitivity_Steady_Simple:
   """
@@ -15,7 +22,7 @@ class Sensitivity_Steady_Simple:
   If cost_deriv_mat_prop is None, assume the cost function does not depend on
   the material property distribution.
   """
-  def __init__(self, solved_vars, parametrized_mat_props, solver, p_ids, method="iterative"):
+  def __init__(self, solved_vars, parametrized_mat_props, solver, p_ids, solver_args={}):
     
     #vector
     #self.dc_dP = cost_deriv_pressure #dim = [cost] * L * T2 / M
@@ -25,21 +32,20 @@ class Sensitivity_Steady_Simple:
     self.solver = solver
     self.assign_at_ids = p_ids #in solver format!
     
+    solver_args_ = DEFAULT_SOLVER_ARGS
+    solver_args_.update(solver_args)
+    method = solver_args_.pop("method")
     if method == "direct":
-      self.adjoint = Direct_Sparse_Linear_Solver()
+      self.adjoint = Direct_Sparse_Linear_Solver(**solver_args_)
     elif method == "iterative":
-      self.adjoint = Iterative_Sparse_Linear_Solver()
+      self.adjoint = Iterative_Sparse_Linear_Solver(**solver_args_)
     else:
       raise ValueError(f"{method} should be iterative or direct")
     
     self.dXi_dp = None
-    self.dR_dXi = None
-    self.dR_dYi = None
+    self.dR_dXi = []
+    self.dR_dYi = []
     self.initialized = False
-    return
-    
-  def set_adjoint_problem_algo(self, algo=None):
-    if algo is not None: self.adjoint.method = algo
     return
     
   def update_mat_derivative(self, p):

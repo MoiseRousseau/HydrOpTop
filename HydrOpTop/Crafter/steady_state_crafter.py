@@ -2,6 +2,7 @@ import numpy as np
 import scipy.sparse as sp
 import nlopt
 import functools
+import time
 
 from HydrOpTop.Adjoints import *
 from HydrOpTop.IO import IO
@@ -21,7 +22,7 @@ class Steady_State_Crafter:
             (a fitler class instance) (None by default).
   - adjoint: a linear solver object that solve the adjoint equation
   """
-  def __init__(self, objective, solver, mat_props, constraints=[], filters=[], deriv=None, deriv_args={}, io=None):
+  def __init__(self, objective, solver, mat_props, constraints=[], filters=[], deriv=None, deriv_args=None, io=None):
     self.__print_information__()
     self.mat_props = mat_props
     self.solver = solver
@@ -113,6 +114,8 @@ class Steady_State_Crafter:
     return cf
 
   def evaluate_total_gradient(self, func, p, p_bar=None, cf=None):
+    tstart = time.time()
+
     if not np.allclose(p, self.last_p):
       self.func_eval += 1
       self.last_p[:] = p
@@ -130,11 +133,12 @@ class Steady_State_Crafter:
       dobj_dY = {}
       dobj_dX = {}
       # p for function
-      if not isinstance(self.obj.indexes, slice):
-        ids_to_p_index = self.ids_p[self.obj.indexes+self.solver.cell_id_start_at]
+      if not isinstance(func.indexes, slice):
+        ids_to_p_index = self.ids_p[func.indexes+self.solver.cell_id_start_at]
+        pf = np.where(ids_to_p_index == -1, np.nan, p_[ids_to_p_index])
       else:
-        ids_to_p_index = self.ids_p[self.obj.indexes]
-      pf = np.where(ids_to_p_index == -1, np.nan, p_[ids_to_p_index])
+        ids_to_p_index = self.ids_p[func.indexes]
+        pf = np.where(ids_to_p_index == -1, np.nan, p_[ids_to_p_index])[self.solver.cell_id_start_at:]
       for var in func.__get_variables_needed__():
         var_ = var.replace("_INTERPOLATOR","")
         if var_ in self.solver.solved_variables:
@@ -146,15 +150,16 @@ class Steady_State_Crafter:
         elif var_ in [x.get_name() for x in self.mat_props]:
           dobj_dX[var_] = np.zeros(self.solver.get_grid_size())
           dobj_dX[var_][func.indexes] = func.d_objective(var, pf)
-      dobj_dp_partial = func.d_objective_dp_partial(pf)
+      dobj_dp_partial = np.zeros(self.solver.get_grid_size())
+      dobj_dp_partial[func.indexes] = func.d_objective_dp_partial(pf)
 
       grad = func.adjoint.compute_sensitivity(
         p_, dobj_dY, dobj_dX,
       )
       if isinstance(grad, np.ndarray) and grad.ndim == 2:
-        grad += dobj_dp_partial[:,None]
+        grad += dobj_dp_partial[self.p_ids-self.solver.cell_id_start_at,None]
       else:
-        grad += dobj_dp_partial
+        grad += dobj_dp_partial[self.p_ids-self.solver.cell_id_start_at]
 
       if self.filters:
         # Compute d_p_bar / d_p
@@ -189,6 +194,7 @@ class Steady_State_Crafter:
         func.adjoint.set_current_obj_val(self.last_cf)
       grad = func.adjoint.compute_sensitivity(p)
 
+    print("Total time to get derivative:", time.time() - tstart, "s")
     return grad
   
   
@@ -198,9 +204,10 @@ class Steady_State_Crafter:
     )).flatten()
     p =  self.best_p[1] if final else self.last_p
     p_bar = self.filter_density(p) if final else self.last_p_bar
+    cf = self.last_cf if not isinstance(self.last_cf,np.ndarray) else np.linalg.norm(self.last_cf)
     self.IO.output(
-      it=self.func_eval, #iteration number
-      cf=self.last_cf, #cost function value
+      it=self.iteration, #iteration number
+      cf=cf, #cost function value
       constraints_val=self.last_constraints, #constraints value
       p_raw=p, #raw density parameter (not filtered)
       grad_cf=self.last_grad, # d(cost function) / d p
@@ -326,9 +333,9 @@ class Steady_State_Crafter:
                                     -np.inf, 0,
                                     jac=lambda p: self.scipy_constraint_jac(constraint,p))
         consts.append(const)
-      p_opt = minimize(
+      res = minimize(
          self.scipy_function_to_optimize, 
-         method="Newton-CG",#algo,
+         method=algo,
          jac=self.scipy_jac, 
          x0=initial_guess,
          bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0),
@@ -342,7 +349,7 @@ class Steady_State_Crafter:
     
     elif optimizer == "scipy-trf" or optimizer == "scipy-dogbox":
       from scipy.optimize import least_squares
-      p_opt = least_squares(
+      res = least_squares(
         self.scipy_function_to_optimize,
         x0=initial_guess,
         jac=self.scipy_jac,
@@ -351,10 +358,12 @@ class Steady_State_Crafter:
         method=optimizer[6:],
         #loss="soft_l1",
         max_nfev=max_it,
-        #callback=self.scipy_callback,
+        callback=self.scipy_callback,
         verbose=2,
       )
-      self.best_p = (p_opt.cost, p_opt.x)
+      p_opt = res.x
+      self.best_p = (res.cost, res.x)
+      self.last_cf = np.sqrt(np.mean(res.fun**2))
     
     elif optimizer == "cyipopt":
       import cyipopt
@@ -409,10 +418,11 @@ class Steady_State_Crafter:
     self.output_to_user(final=True)
     print("END!")
     
+    # Review this with best value
     out = Output_Struct(self.best_p[1])
     if self.filters: 
       out.p_opt_filtered = self.filter_density(p_opt)
-    out.fx = self.last_cf
+    out.fx = self.best_p[0]
     out.grad_fx = self.last_grad
     out.cx = self.last_constraints
     out.grad_cx = self.last_grad_constraints
@@ -427,6 +437,7 @@ class Steady_State_Crafter:
   def nlopt_function_to_optimize(self, p, grad):
     #start new it
     self.func_eval += 1
+    self.iteration += 1 #for mma and ccsaq, one func call per iteration
     print(f"\nFonction evaluation {self.func_eval}")
     ### PRE-EVALUATION
     p_bar = self.pre_evaluation_objective(p)
@@ -485,6 +496,7 @@ class Steady_State_Crafter:
     return
   
   def scipy_function_to_optimize(self,p):
+    print("\nNew function evaluation")
     self.scipy_run_sim(p)
     cf = self.evaluate_objective(self.last_p_bar)
     self.last_cf = cf
@@ -514,16 +526,8 @@ class Steady_State_Crafter:
     return grad
   
   def scipy_callback(self, x, res=None):
-    #self.output_to_user()
-    if res is None:
-      print(f"Current {self.obj.name} (cost function): {self.last_cf:.6e}")
-      return
     self.iteration += 1
-    print(f"\nIteration {res.nit}")
-    print(f"Solver / Gradient / Hessian call: {res.nfev} / {res.njev} / {res.nhev}")
-    print(f"Current {self.obj.name} (cost function): {res.fun:.6e}")
-    for name,val in self.last_constraints.items():
-      print(f"Current {name} (constraint): {val:.6e}")
+    self.output_to_user()
     return
   
   def _print_optimization_info_to_user(self):
@@ -597,7 +601,6 @@ class Steady_State_Crafter:
     #TODO: adjoint should not be an attribute of the objective function
     if self.adjoint is None:
       self.adjoint = "adjoint"
-      self.adjoint_args = {"method":"iterative"}
     if self.obj.adjoint is None: #could have been set by user
       solved_variables_needed = []
       for var in self.obj.__get_variables_needed__():
@@ -615,7 +618,7 @@ class Steady_State_Crafter:
           self.mat_props,
           self.solver,
           self.p_ids-self.solver.cell_id_start_at,
-          **self.adjoint_args
+          *( (self.adjoint_args,) if self.adjoint_args is not None else () )
         )
       self.obj.set_adjoint_problem(adjoint)
     
