@@ -7,12 +7,13 @@
 import importlib
 
 __all__ = [
-    "Zone_Homogeneous",
+    "Filter_Sequence",
     "Density_Filter",
     "Heaviside_Filter",
     #"No_Filter",
     "Pilot_Points",
     "Volume_Preserving_Heaviside_Filter",
+    "Zone_Homogeneous",
 ]
 
 def __getattr__(name):
