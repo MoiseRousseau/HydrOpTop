@@ -11,12 +11,12 @@ class Sum_Variable(Base_Function):
   - variable: the name of the variable to sum
   - ids_to_consider: the ids to sum
   """
-  def __init__(self, variable, ids_to_consider=None):
+  def __init__(self, variable, ids_to_consider):
     super(Sum_Variable, self).__init__()
     self.name = "Sum " + variable
     self.variable = variable
     self.variables_needed = [variable]
-    self.cell_ids = ids_to_consider
+    self.cell_ids = np.array(ids_to_consider)
     self.indexes = self.cell_ids
     return
   

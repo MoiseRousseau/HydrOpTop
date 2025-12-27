@@ -124,7 +124,7 @@ class Base_Function:
         Returns:
             np.ndarray: Partial derivative with respect to `p`.
         """
-        return np.zeros_like(p)
+        return np.array([0.])
 
     # -------------------------------------------------------------------------
     # Metadata Accessors
