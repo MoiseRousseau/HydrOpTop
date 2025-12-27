@@ -1,0 +1,9 @@
+Regression test vs other tests
+
+Test type	        Purpose
+---------           -------
+Unit test	        Does one function behave correctly?
+Integration test	Do components work together?
+Regression test   	Did existing behavior change?
+Performance test	Did it get slower?
+Validation test	    Is the result physically correct?
