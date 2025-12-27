@@ -78,7 +78,7 @@ def test_derivative_consistency(cls,instance):
     """Check that analytical derivative matches finite difference."""
 
     # --- choose input ---
-    p = np.random.random(len(instance.input_indexes))
+    p = np.random.random(len(instance.input_ids))
     
     # var to skip:
     deriv_var_to_skip = []
@@ -88,6 +88,7 @@ def test_derivative_consistency(cls,instance):
     # --- evaluate dp ---
     g_fd = super(cls, instance).get_filter_derivative(p, eps=EPS, drop_tol=1e-6)
     g_true = instance.get_filter_derivative(p)
+    # np.testing.assert_allclose(g_true, g_fd, atol=TOL**2, rtol=TOL)
     diff = spnorm(g_true - g_fd)
     rel = diff / (spnorm(g_fd) + 1e-12)
     assert rel < TOL, (
