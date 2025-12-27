@@ -91,7 +91,7 @@ class Filter_Sequence(Base_Filter):
             p_bar[self.sim_to_p_ids[f.output_ids]] = f.get_filtered_density(
                 p_bar[self.sim_to_p_ids[f.input_ids]]
             )
-        return p_bar, Jf[self.sim_to_p_ids[self.input_ids]]
+        return p_bar, Jf[:,self.sim_to_p_ids[self.input_ids]]
     
     @classmethod
     def sample_instance(cls):

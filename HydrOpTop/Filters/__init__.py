@@ -10,8 +10,8 @@ __all__ = [
     "Filter_Sequence",
     "Density_Filter",
     "Heaviside_Filter",
-    #"No_Filter",
     "Pilot_Points",
+    "Unit_Filter",
     "Volume_Preserving_Heaviside_Filter",
     "Zone_Homogeneous",
 ]

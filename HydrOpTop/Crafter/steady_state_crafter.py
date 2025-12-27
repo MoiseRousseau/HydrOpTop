@@ -6,8 +6,7 @@ import time
 
 from HydrOpTop.Adjoints import *
 from HydrOpTop.IO import IO
-from HydrOpTop.Filters import Pilot_Points
-
+from HydrOpTop.Filters import Unit_Filter, Filter_Sequence
 
 class Steady_State_Crafter:
   """
@@ -22,7 +21,7 @@ class Steady_State_Crafter:
             (a fitler class instance) (None by default).
   - adjoint: a linear solver object that solve the adjoint equation
   """
-  def __init__(self, objective, solver, mat_props, constraints=[], filters=[], deriv=None, deriv_args=None, io=None):
+  def __init__(self, objective, solver, mat_props, constraints=[], filters=[], deriv=None, deriv_args={}, io=None):
     self.__print_information__()
     self.mat_props = mat_props
     self.solver = solver
@@ -86,18 +85,6 @@ class Steady_State_Crafter:
       c[0].set_inputs({k:v[c[0].indexes] for k,v in func_var.items() if k in c[0].variables_needed})
     return func_var
 
-  def filter_density(self, p):
-    if not self.filters:
-      return p
-    # p is a vector of input dim, with both reduced dim
-    p_bar = np.zeros_like(self.last_p_bar)
-    p_bar[self.input_cells] = p
-    for filter_ in self.filters: #apply filter consecutively
-      # Filter does not need to be updated
-      #self.update_function_vars() #update filter var
-      p_bar[filter_.output_indexes] = filter_.get_filtered_density(p_bar[filter_.input_indexes])
-    return p_bar
-  
   def evaluate_objective(self, p):
     """
     Evaluate objective
@@ -123,71 +110,9 @@ class Steady_State_Crafter:
       self.last_cf = self.evaluate_objective(self.last_p_bar)
 
     if isinstance(func.adjoint, Sensitivity_Steady_Simple) or isinstance(func.adjoint, No_Adjoint):
-      if self.filters:
-        if p_bar is None:
-          p_bar = self.filter_density(p)
-        p_ = p_bar
-      else:
-        p_ = p
-      # derivative according to solved var
-      dobj_dY = {}
-      dobj_dX = {}
-      # p for function
-      if not isinstance(func.indexes, slice):
-        ids_to_p_index = self.ids_p[func.indexes+self.solver.cell_id_start_at]
-        pf = np.where(ids_to_p_index == -1, np.nan, p_[ids_to_p_index])
-      else:
-        ids_to_p_index = self.ids_p[func.indexes]
-        pf = np.where(ids_to_p_index == -1, np.nan, p_[ids_to_p_index])[self.solver.cell_id_start_at:]
-      for var in func.__get_variables_needed__():
-        var_ = var.replace("_INTERPOLATOR","")
-        if var_ in self.solver.solved_variables:
-          if isinstance(self.last_cf, float):
-            dobj_dY[var_] = np.zeros(self.solver.get_system_size())
-          else:
-            dobj_dY[var_] = np.zeros((self.solver.get_system_size(),len(self.last_cf)))
-          dobj_dY[var_][func.indexes] = func.d_objective(var, pf)
-        elif var_ in [x.get_name() for x in self.mat_props]:
-          dobj_dX[var_] = np.zeros(self.solver.get_grid_size())
-          dobj_dX[var_][func.indexes] = func.d_objective(var, pf)
-      dobj_dp_partial = np.zeros(self.solver.get_grid_size())
-      dobj_dp_partial[func.indexes] = func.d_objective_dp_partial(pf)
-
       grad = func.adjoint.compute_sensitivity(
-        p_, dobj_dY, dobj_dX,
+        func, self.filter_sequence, p
       )
-      if isinstance(grad, np.ndarray) and grad.ndim == 2:
-        grad += dobj_dp_partial[self.p_ids-self.solver.cell_id_start_at,None]
-      else:
-        grad += dobj_dp_partial[self.p_ids-self.solver.cell_id_start_at]
-
-      if self.filters:
-        # Compute d_p_bar / d_p
-        p_bar = np.zeros_like(self.last_p_bar)
-        p_bar[self.input_cells] = p
-        N = len(p_bar)
-        Jf = sp.diags(np.ones(N),format="csr")
-        for i,f in enumerate(self.filters):
-          # We are in simulation space here
-          # and filter acts as a bijection, we take the column we want at the end
-          Jp = f.get_filter_derivative(p_bar[f.input_indexes])
-          global_row = f.output_indexes[Jp.coords[0]]
-          global_col = f.input_indexes[Jp.coords[1]]
-          # add 1 to indexes unchanged by the filter
-          uc = np.nonzero(~np.isin(np.arange(0,N),f.output_indexes))[0]
-          global_row = np.concat([global_row,uc])
-          global_col = np.concat([global_col,uc])
-          data = np.concat([Jp.data,np.ones(len(uc))])
-          J = sp.coo_matrix(
-            (data,(global_row,global_col)), shape=(N,N)
-          )
-          # Update global filter derivative
-          Jf = J.dot(Jf)
-          # Update filter state
-          p_bar[f.output_indexes] = f.get_filtered_density(
-            p_[f.input_indexes]
-          )
-        grad = Jf[:,self.input_cells].transpose().dot(grad)
 
     elif isinstance(func.adjoint, Sensitivity_Finite_Difference):
       if self.last_cf is not None:
@@ -203,7 +128,7 @@ class Steady_State_Crafter:
       self.solver.get_region_ids("__all__"), self.p_ids
     )).flatten()
     p =  self.best_p[1] if final else self.last_p
-    p_bar = self.filter_density(p) if final else self.last_p_bar
+    p_bar = self.filter_sequence.filter(p) if final else self.last_p_bar
     cf = self.last_cf if not isinstance(self.last_cf,np.ndarray) else np.linalg.norm(self.last_cf)
     self.IO.output(
       it=self.iteration, #iteration number
@@ -243,7 +168,7 @@ class Steady_State_Crafter:
     and get result (i.e. update function parameter)
     """
     ### FILTERING
-    p_bar = self.filter_density(p)
+    p_bar = self.filter_sequence.filter(p)
     ### UPDATE MAT PROPERTIES
     dict_mat = self.get_material_properties_from_p(p_bar)
     for name,val in dict_mat.items():
@@ -456,7 +381,7 @@ class Steady_State_Crafter:
     # Review this with best value
     out = Output_Struct(self.best_p[1])
     if self.filters: 
-      out.p_opt_filtered = self.filter_density(p_opt)
+      out.p_opt_filtered = self.filter_sequence.filter(p_opt)
     out.fx = self.best_p[0]
     out.grad_fx = self.last_grad
     out.cx = self.last_constraints
@@ -503,7 +428,7 @@ class Steady_State_Crafter:
   
   def __nlopt_generic_constraint_to_optimize__(self, p, grad, iconstraint=0):
     ###FILTERING: convert p to p_bar
-    p_bar = self.filter_density(p)
+    p_bar = self.filter_sequence.filter(p)
     the_constraint,compare,val = self.constraints[iconstraint]
     constraint = the_constraint.evaluate(p_bar)
     c_name = self.constraints[iconstraint][0].name
@@ -594,35 +519,20 @@ class Steady_State_Crafter:
     # During filtering, the filter will received an array of size len(input_ids) and an array len(output_ids) to populate
     # At the end, the output array is the filtered p with correspondance p to cell ids (self.p_ids)
     # Here we determine which filter write where in this output array
-    input_cell = set()
-    output_cell = set()
+    # determine not filtered cells
+    output_ids = set()
     for f in self.filters:
-      if f.input_ids is None:
-        input_cell = set(self.solver.get_region_ids("__all__"))
-        break
-      else:
-        input_cell = input_cell.union([x for x in f.input_ids if x >= 0])
-      if f.output_ids is None:
-        output_cell = set(self.solver.get_region_ids("__all__"))
-        break
-      else:
-        output_cell = output_cell.union(f.output_ids)
-    not_filtered_cell = parameterized_cells.difference(output_cell)
-    input_dim = len(not_filtered_cell) + len(input_cell)
-    # Now we have input dimension, let tell to the filter where to write
-    for f in self.filters:
-      f.input_indexes = np.nonzero(np.isin(self.p_ids, f.input_ids))[0]
-      f.output_indexes = np.nonzero(np.isin(self.p_ids, f.output_ids))[0]
-    # Now store correspondance between input parameter p and the location to write in p_bar
-    self.input_cells = np.nonzero(np.isin(
-      self.p_ids, list(input_cell.union(not_filtered_cell))
-    ))[0]
+      output_ids = output_ids.union([x for x in f.output_ids if x >= 0])
+    not_filtered_cells = parameterized_cells.difference(output_ids)
+    # add a unit filter for non filtered cells
+    self.filters.insert(0, Unit_Filter(list(not_filtered_cells)))
+    self.filter_sequence = Filter_Sequence(self.filters)
     
     #create correspondance and problem size
-    self.problem_size = input_dim
+    self.problem_size = self.filter_sequence.input_dim
     #self.p = np.zeros(input_dim, dtype='f8')
-    self.last_p = np.zeros(input_dim,dtype='f8')
-    self.last_grad = np.zeros(input_dim,dtype='f8')
+    self.last_p = np.zeros(self.problem_size,dtype='f8')
+    self.last_grad = np.zeros(self.problem_size,dtype='f8')
     self.last_p_bar = np.zeros_like(self.p_ids,dtype='f8')
     if self.constraints:
       pass
