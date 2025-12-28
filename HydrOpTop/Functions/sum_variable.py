@@ -33,12 +33,13 @@ class Sum_Variable(Base_Function):
       deriv = np.ones(len(self.inputs[self.variable]),dtype='f8')
       return deriv
     else:
-      return 0.
+      return np.array([0.])
 
 
   @classmethod
   def sample_instance(cls):
     # sample cell_ids
-    res1 = cls(variable="ABC")
-    res1.set_inputs({"ABC":np.random.normal(size=50)})
+    N = 50
+    res1 = cls(variable="ABC", ids_to_consider=np.arange(N))
+    res1.set_inputs({"ABC":np.random.normal(size=N)})
     return [res1]

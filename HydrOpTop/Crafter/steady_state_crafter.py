@@ -246,6 +246,8 @@ class Steady_State_Crafter:
         p_opt = opt.optimize(initial_guess)
       except(KeyboardInterrupt):
         p_opt = self.last_p
+
+      self.output_to_user(final=True)
     
     
     elif optimizer in ["scipy-SLSQP", "scipy-trust-constr"]:
@@ -279,12 +281,12 @@ class Steady_State_Crafter:
         x0=initial_guess,
         jac=self.scipy_jac,
         bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0).T,
-        ftol=stop.get("ftol",1e-6),
         method=optimizer[6:],
         #loss="soft_l1",
         max_nfev=max_it,
         callback=self.scipy_callback,
         verbose=2,
+        **stop
       )
       p_opt = res.x
       self.best_p = (res.cost, res.x)
@@ -343,7 +345,9 @@ class Steady_State_Crafter:
       res = solver.fit(
         self.scipy_function_to_optimize, x0=initial_guess,
         bounds=density_parameter_bounds, jac=self.scipy_jac,
+        lm_callback=scipy_callback,
       )
+      p_opt = res["x"]
       print(res)
 
     elif optimizer == 'lmfit':
@@ -375,7 +379,6 @@ class Steady_State_Crafter:
     print("\nOptimization finished!")
     print(f"Best {self.obj.name} cost function value: {self.best_p[0]}")
     print("Write optimum")
-    self.output_to_user(final=True)
     print("END!")
     
     # Review this with best value
@@ -525,7 +528,7 @@ class Steady_State_Crafter:
       output_ids = output_ids.union([x for x in f.output_ids if x >= 0])
     not_filtered_cells = parameterized_cells.difference(output_ids)
     # add a unit filter for non filtered cells
-    self.filters.insert(0, Unit_Filter(list(not_filtered_cells)))
+    if len(not_filtered_cells): self.filters.insert(0, Unit_Filter(list(not_filtered_cells)))
     self.filter_sequence = Filter_Sequence(self.filters)
     
     #create correspondance and problem size
@@ -571,7 +574,7 @@ class Steady_State_Crafter:
       # pass all cell
       self.obj.indexes = slice(None)
     else:
-      self.obj.indexes -= self.solver.cell_id_start_at
+      self.obj.indexes = self.obj.indexes - self.solver.cell_id_start_at
       
     self.obj.set_p_to_cell_ids(self.p_ids)
     
@@ -603,7 +606,7 @@ class Steady_State_Crafter:
         if constraint.indexes is None: # pass all cell
           constraint.indexes = slice(None)
         else:
-          constraint.indexes -= self.solver.cell_id_start_at
+          constraint.indexes = constraint.indexes - self.solver.cell_id_start_at
         
     #initialize IO
     self.IO.communicate_functions_names(self.obj.__get_name__(), 
@@ -665,7 +668,7 @@ class Steady_State_Crafter:
 \t    solver-independent approach
 \t
 \t               by
-\t       Moise Rousseau (2025)
+\t       Moise Rousseau (2026)
 \t
 \t===================================
     """)

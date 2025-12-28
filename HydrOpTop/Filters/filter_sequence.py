@@ -33,8 +33,8 @@ class Filter_Sequence(Base_Filter):
             # else:
             output_ids = output_ids.union(f.output_ids)
         # correct for not filtered cell
-        self.input_ids = np.fromiter((x for x in input_ids), dtype='i4')#.union(not_filtered_cell))
-        self.output_ids = np.fromiter((x for x in output_ids), dtype='i4')#.union(not_filtered_cell))
+        self.input_ids = np.fromiter((x for x in input_ids), dtype='i4')
+        self.output_ids = np.fromiter((x for x in output_ids), dtype='i4')
         self.input_dim = len(self.input_ids)
         self.output_dim = len(self.output_ids)
         # create reverse mapping
