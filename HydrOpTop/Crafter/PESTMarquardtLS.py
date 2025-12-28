@@ -146,10 +146,11 @@ class PESTMarquardtLS:
 
                 A = H + lam_i * np.diag(diagH)
                 b = -g
-                try:
-                    du = np.linalg.solve(A, b)
-                except np.linalg.LinAlgError:
-                    du, *_ = np.linalg.lstsq(A, b, rcond=None)
+                du, *_ = np.linalg.lstsq(A, b, rcond=None)
+                # try:
+                #     du = np.linalg.solve(A, b)
+                # except np.linalg.LinAlgError:
+                #     du, *_ = np.linalg.lstsq(A, b, rcond=None)
 
                 if np.linalg.norm(du) < self.xtol * (1 + np.linalg.norm(u)):
                     continue
