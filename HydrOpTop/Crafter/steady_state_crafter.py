@@ -550,25 +550,7 @@ class Steady_State_Crafter:
     if self.adjoint is None:
       self.adjoint = "adjoint"
     if self.obj.adjoint is None: #could have been set by user
-      solved_variables_needed = []
-      for var in self.obj.__get_variables_needed__():
-        var_ = var.replace("_INTERPOLATOR","")
-        if var_ in self.solver.solved_variables:
-          solved_variables_needed.append(var_)
-      if len(solved_variables_needed) == 0:
-        adjoint = No_Adjoint(self.mat_props, self.p_ids)
-      elif self.adjoint == "fd":
-        f = lambda p: self.evaluate_objective(self.pre_evaluation_objective(p))
-        adjoint = Sensitivity_Finite_Difference(f, **self.adjoint_args)
-      elif self.adjoint == "adjoint":
-        adjoint = Sensitivity_Steady_Simple(
-          solved_variables_needed,
-          self.mat_props,
-          self.solver,
-          self.p_ids-self.solver.cell_id_start_at,
-          *( (self.adjoint_args,) if self.adjoint_args is not None else () )
-        )
-      self.obj.set_adjoint_problem(adjoint)
+      self.__initialize_adjoint__(self.obj)
     
     if self.obj.indexes is None:
       # pass all cell
@@ -586,22 +568,7 @@ class Steady_State_Crafter:
       #constraint.set_p_to_cell_ids(self.p_ids)
       # set adjoint
       if constraint.adjoint is None:
-        solved_variables_needed = []
-        for var in constraint.__get_variables_needed__():
-          var_ = var.replace("_INTERPOLATOR","")
-          if var_ in self.solver.solved_variables:
-            solved_variables_needed.append(var_)
-        if len(solved_variables_needed) == 0:
-          adjoint = No_Adjoint(self.mat_props, self.p_ids)
-        elif self.adjoint == "fd":
-          f = lambda p: self.evaluate_objective(self.pre_evaluation_objective(p))
-          adjoint = Sensitivity_Finite_Difference(f)
-        else:
-          adjoint = Sensitivity_Steady_Simple(
-            solved_variables_needed,
-            self.mat_props, self.solver, self.p_ids
-          )
-        constraint.set_adjoint_problem(adjoint)
+        self.__initialize_adjoint__(constraint)
         # set indexes
         if constraint.indexes is None: # pass all cell
           constraint.indexes = slice(None)
@@ -655,6 +622,28 @@ class Steady_State_Crafter:
       f.set_inputs({k:v[f.output_ids-1] for k,v in func_var.items() if k in f.variables_needed})
     self.filters_initialized = True
     return
+
+
+  def __initialize_adjoint__(self, func):
+    solved_variables_needed = []
+    for var in func.__get_variables_needed__():
+      var_ = var.replace("_INTERPOLATOR","")
+      if var_ in self.solver.solved_variables:
+        solved_variables_needed.append(var_)
+    if len(solved_variables_needed) == 0:
+      adjoint = No_Adjoint(self.mat_props, self.p_ids)
+    elif self.adjoint == "fd":
+      f = lambda p: self.evaluate_objective(self.pre_evaluation_objective(p))
+      adjoint = Sensitivity_Finite_Difference(f, **self.adjoint_args)
+    elif self.adjoint == "adjoint":
+      adjoint = Sensitivity_Steady_Simple(
+        solved_variables_needed,
+        self.mat_props,
+        self.solver,
+        self.p_ids-self.solver.cell_id_start_at,
+        *( (self.adjoint_args,) if self.adjoint_args is not None else () )
+      )
+    func.set_adjoint_problem(adjoint)
     
   
   def __print_information__(self):
