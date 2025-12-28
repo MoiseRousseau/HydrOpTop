@@ -226,7 +226,7 @@ class Iterative_Sparse_Linear_Solver:
         self.perm_rcm = None
         self.perm_type = "rcm"
         # default value if not supplied
-        self.solver_kwargs = {"rtol":3e-3,"atol":1e-40,"maxiter":250}
+        self.solver_kwargs = {"rtol":3e-4,"atol":1e-40,"maxiter":250}
         self.solver_kwargs.update(kwargs)
         self.outer_v = [] #for lgmres recycling
         return
