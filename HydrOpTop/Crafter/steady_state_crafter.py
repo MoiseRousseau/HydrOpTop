@@ -475,7 +475,8 @@ class Steady_State_Crafter:
   
   def scipy_constraint_val(self, constraint, p):
     self.scipy_run_sim(p)
-    val = constraint[0].evaluate(self.last_p_bar)
+    p_bar = self.filter_sequence.filter(p)
+    val = constraint[0].evaluate(p_bar)
     self.last_constraints[constraint[0].name] = val
     if constraint[1] == '<':
       return -val + constraint[2]
@@ -483,8 +484,7 @@ class Steady_State_Crafter:
       return val - constraint[2]
   
   def scipy_constraint_jac(self, constraint, p):
-    self.scipy_run_sim(p)
-    grad = self.evaluate_total_gradient(constraint[0], p, self.last_p_bar) #don't forget the minus
+    grad = self.evaluate_total_gradient(constraint[0], p)
     self.last_grad_constraints[constraint[0].name] = grad.copy()
     return grad
   
