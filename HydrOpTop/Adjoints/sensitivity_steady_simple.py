@@ -46,6 +46,7 @@ class Sensitivity_Steady_Simple:
     self.dR_dXi = []
     self.dR_dYi = []
     self.initialized = False
+    self.l0 = None
     return
     
   def update_mat_derivative(self, p):
