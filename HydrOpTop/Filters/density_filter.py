@@ -135,6 +135,98 @@ class Density_Filter(Base_Filter):
       return
 
 
+  def plot_isotropic_variogram(
+      self, p, weighted=True, reduced=True,
+      n_bins=12, max_pairs=200_000, random_state=None, ax=None, mplargs={}
+  ):
+    """
+    Volume-weighted isotropic experimental variogram with subsampling.
+
+    Parameters
+    ----------
+    p : (N,) array
+        Density parameter value
+    weighted : bool
+        Weight by volume associated too each cell
+    reduced : bool
+        Reduced variance to 1
+    p : (N,) array
+        Density parameter value
+    n_bins : int
+        Number of lag bins.
+    max_pairs : int
+        Maximum number of point pairs to sample.
+    random_state : int or None
+        Random seed for reproducibility.
+    """
+    import matplotlib.pyplot as plt
+
+    rng = np.random.default_rng(random_state)
+    points = self.inputs["ELEMENT_CENTER"]
+    volumes = self.inputs["VOLUME"] if weighted else np.ones_like(p)
+
+    N = len(self.cell_ids)
+    if not (p.shape[0] == N):
+        raise ValueError("Density parameter p and the cell_ids the filter operate on must have same length")
+
+    # Bounding box diagonal (max lag)
+    bbox_min = points.min(axis=0)
+    bbox_max = points.max(axis=0)
+    max_dist = np.linalg.norm(bbox_max - bbox_min) / 2
+
+    # Lag bins
+    bins = np.linspace(0.0, max_dist, n_bins + 1)
+    bin_centers = 0.5 * (bins[:-1] + bins[1:])
+
+    num = np.zeros(n_bins)   # weighted numerator
+    den = np.zeros(n_bins)   # weights sum
+
+    # Number of all possible pairs
+    n_all_pairs = N * (N - 1) // 2
+    n_pairs = min(max_pairs, n_all_pairs)
+
+    # Sample index pairs (i < j)
+    i_idx = rng.integers(0, N, size=n_pairs)
+    j_idx = rng.integers(0, N, size=n_pairs)
+    mask = i_idx != j_idx
+    i_idx = i_idx[mask]
+    j_idx = j_idx[mask]
+
+    # Pairwise quantities
+    d = np.linalg.norm(points[i_idx] - points[j_idx], axis=1)
+    dv = p[i_idx] - p[j_idx]
+    w = volumes[i_idx] * volumes[j_idx]
+
+    # Bin accumulation
+    for k in range(n_bins):
+        m = (d >= bins[k]) & (d < bins[k + 1])
+        if np.any(m):
+            num[k] += np.sum(w[m] * dv[m] ** 2)
+            den[k] += np.sum(w[m])
+
+    gamma = np.full(n_bins, np.nan)
+    valid = den > 0
+    gamma[valid] = 0.5 * num[valid] / den[valid]
+    if reduced: gamma /= np.var(p)
+
+    # Plot
+    if ax is None:
+      fig, ax_ = plt.subplots()
+    else:
+      ax_ = ax
+    ax_.plot(bin_centers, gamma, "o-", lw=1, **mplargs)
+    ax_.set_xlabel("Lag distance")
+    ax_.set_ylabel("Weighted semivariance γ(h)")
+    ax_.grid(True)
+    handles, labels = ax_.get_legend_handles_labels()
+    if any(labels):
+      ax_.legend()
+    if ax is None:
+      plt.tight_layout()
+      plt.show()
+    return
+
+
   @classmethod
   def sample_instance(cls):
     insts = []
