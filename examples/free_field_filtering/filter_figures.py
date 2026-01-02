@@ -1,9 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import sys
-
-sys.path.append('../../../')
-sys.path.append('../../../tests/filters/')
 
 def density_filter_fig():
   from HydrOpTop.Filters import Density_Filter
@@ -18,9 +14,13 @@ def density_filter_fig():
   p_ref = np.zeros(len(seeds),dtype='f8')
   p_ref[group1-1] = 1.
   p_ref[group2-1] = 1.
-  filter = Density_Filter()
-  filter.set_p_to_cell_ids(np.arange(1,n_pts+1))
-  filter.set_inputs([seeds[:,0], seeds[:,1], np.zeros(n_pts,dtype='f8'), mesh.areas])
+  filter = Density_Filter(np.arange(len(seeds)))
+  filter.set_inputs({
+    "ELEMENT_CENTER_X": seeds[:,0],
+    "ELEMENT_CENTER_Y": seeds[:,1],
+    "ELEMENT_CENTER_Z": np.zeros(n_pts,dtype='f8'),
+    "VOLUME": mesh.areas
+  })
   
   ax = axarr[0,0] #default
   mesh.plot(p_ref,ax,show=False)
