@@ -45,6 +45,22 @@ class Filter_Sequence(Base_Filter):
     
     def filter(self, p):
         return self.get_filtered_density(p)
+
+    def apply_filters(self, p, i):
+        """
+        Filter the given density field up to the i-th filter
+        """
+        p_bar = np.zeros(self.output_dim)
+        p_bar[self.sim_to_p_ids[self.input_ids]] = p
+        if not self.filters:
+            return p_bar
+        for j,filter_ in enumerate(self.filters): #apply filter consecutively
+            p_in = p_bar[self.sim_to_p_ids[filter_.input_ids]]
+            if i == j: return p_in
+            p_bar[self.sim_to_p_ids[filter_.output_ids]] = filter_.get_filtered_density(
+                p_in
+            )
+        return p_bar
     
     def get_filtered_density(self, p):
         p_bar = np.zeros(self.output_dim)
