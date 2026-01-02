@@ -105,9 +105,7 @@ class Steady_State_Crafter:
 
     if not np.allclose(p, self.last_p):
       self.func_eval += 1
-      self.last_p[:] = p
-      self.last_p_bar[:] = self.pre_evaluation_objective(p)
-      self.last_cf = self.evaluate_objective(self.last_p_bar)
+      self.pre_evaluation_objective(p)
 
     if isinstance(func.adjoint, Sensitivity_Steady_Simple) or isinstance(func.adjoint, No_Adjoint):
       grad = func.adjoint.compute_sensitivity(
@@ -196,6 +194,7 @@ class Steady_State_Crafter:
                      options={}):
     self.iteration = 0
     self.func_eval = 0
+    self.action = action
     ### DEFAULT INPUTS
     if initial_guess is None:
       initial_guess = np.zeros(self.get_problem_size(), dtype='f8') + \
@@ -416,11 +415,16 @@ class Steady_State_Crafter:
     if self.filters:
       self.last_p_bar[:] = p_bar
     # Store the best iterate
-    if self.best_p[0] is None or cf < self.best_p[0]:
-        self.best_p = (cf, p.copy())
+    self.__store_best_p__(p,cf)
+    # output to user: in nlopt, there is no callback, so we write the results here
+    # but constraints are evaluated after, so call it here
+    for c in self.constraints:
+      the_constraint,compare,val = c
+      constraint = the_constraint.evaluate(p_bar)
+      self.last_constraints[the_constraint.name] = constraint
     self.output_to_user()
     return cf
-    
+
   def nlopt_constraint(self, i):
     """
     Function defining the ith constraints to pass to nlopt "set_(in)equality_constraint()"
@@ -452,17 +456,18 @@ class Steady_State_Crafter:
   def scipy_run_sim(self, p):
     if not np.allclose(p, self.last_p):
       self.func_eval += 1
-      self.last_p_bar[:] = self.pre_evaluation_objective(p)
-      self.last_p[:] = p
-    return
+      p_bar = self.pre_evaluation_objective(p)
+    else:
+      p_bar = self.last_p_bar
+    return p_bar
   
   def scipy_function_to_optimize(self,p):
     print("\nNew function evaluation")
-    self.scipy_run_sim(p)
+    self.last_p_bar[:] = self.scipy_run_sim(p)
+    self.last_p[:] = p
     cf = self.evaluate_objective(self.last_p_bar)
     self.last_cf = cf
-    if self.best_p[0] is None or np.linalg.norm(cf) < np.linalg.norm(self.best_p[0]):
-        self.best_p = (cf, p.copy())
+    self.__store_best_p__(p, cf)
     return cf
   
   def scipy_jac(self,p):
@@ -490,7 +495,22 @@ class Steady_State_Crafter:
     self.iteration += 1
     self.output_to_user()
     return
-  
+
+  def __store_best_p__(self, p, cf):
+    # Check if the constraints are satisfied first
+    for c,cmp,val in self.constraints:
+      if cmp == "<" and not self.last_constraints[c.name] - val < 0.: return
+      if cmp == ">" and not self.last_constraints[c.name] - val > 0.: return
+    # Check for best value
+    if self.best_p[0] is None:
+      self.best_p = (cf, p.copy())
+      return
+    if self.action == "minimize" and np.linalg.norm(cf) < np.linalg.norm(self.best_p[0]):
+      self.best_p = (cf, p.copy())
+    elif self.action == "maximize" and np.linalg.norm(cf) > np.linalg.norm(self.best_p[0]):
+      self.best_p = (cf, p.copy())
+    return
+
   def _print_optimization_info_to_user(self):
     return
     
