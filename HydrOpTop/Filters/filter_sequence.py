@@ -41,6 +41,7 @@ class Filter_Sequence(Base_Filter):
         self.sim_to_p_ids = np.ma.masked_all(self.output_ids.max() + 1, dtype="i4")
         self.sim_to_p_ids[self.output_ids] = np.arange(self.output_dim, dtype="i4")
         #self.output_cell = np.array(self.output_cell)
+        return
     
     def filter(self, p):
         return self.get_filtered_density(p)
@@ -92,10 +93,11 @@ class Filter_Sequence(Base_Filter):
                 p_bar[self.sim_to_p_ids[f.input_ids]]
             )
         return p_bar, Jf[:,self.sim_to_p_ids[self.input_ids]]
-    
+
+
     @classmethod
     def sample_instance(cls):
-        from . import Density_Filter, Heaviside_Filter
+        from . import Zone_Homogeneous, Density_Filter, Heaviside_Filter
         instances = []
         # Test with one filter (cell_ids = parametrized_cells)
         N = 100
@@ -106,6 +108,16 @@ class Filter_Sequence(Base_Filter):
             "VOLUME":np.random.random(N)
         }
         instance = cls([filter_1])
+        instances.append(instance)
+        # Test with filter on a partial parametrization (cell_ids != parametrized_cells)
+        N = 100
+        cell_ids = np.arange(N)
+        filter_1p = Zone_Homogeneous(cell_ids[:50])
+        filter_1p.inputs = {
+            "ELEMENT_CENTER":np.random.random((50,2)),
+            "VOLUME":np.random.random(50)
+        }
+        instance = cls([filter_1p])
         instances.append(instance)
         # Test with 2 filters
         filter_2 = Heaviside_Filter(cell_ids)

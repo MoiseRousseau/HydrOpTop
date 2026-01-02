@@ -99,13 +99,13 @@ class Sensitivity_Steady_Simple:
         dfunc = func.d_objective(var, p_bar)
         dobj_dY[var] = np.zeros(self.solver.get_system_size())
         if dfunc.ndim == 2: dobj_dY[var] = dobj_dY[var].repeat(dfunc.shape[1]).reshape(self.solver.get_system_size(),dfunc.shape[1])
-        dobj_dY[var][func.indexes] = dfunc
+        dobj_dY[var][func.indexes-self.solver.cell_id_start_at] = dfunc
       # If not solved
       elif var in [x.get_name() for x in self.parametrized_mat_props]:
         dfunc = func.d_objective(var, p_bar)
         dobj_dX[var] = np.zeros(self.solver.get_system_size())
         if dfunc.ndim == 2: dobj_dX[var] = dobj_dX[var].repeat(dfunc.shape[1]).reshape(self.solver.get_system_size(),dfunc.shape[1])
-        dobj_dX[var][func.indexes] = dfunc
+        dobj_dX[var][func.indexes-self.solver.cell_id_start_at] = dfunc
     
     dobj_dp_partial = func.d_objective_dp_partial(p_bar)
     # dobj_dp_partial = np.zeros(self.solver.get_system_size())

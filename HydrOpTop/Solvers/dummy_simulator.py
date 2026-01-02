@@ -14,7 +14,7 @@ class Dummy_Simulator:
   - meshfile: a path to a meshio readable mesh
   - var_loc: the variable location
   """
-  def __init__(self, problem_size=None, var_loc="cell", seed=-1):
+  def __init__(self, problem_size=None, var_loc="cell", seed=-1, start_at=0):
     #super(Dummy_Simulator)
     self.problem_size = 10 if problem_size is None else problem_size
     if seed >= 0: np.random.seed(seed)
@@ -22,7 +22,7 @@ class Dummy_Simulator:
     self.r = np.random.normal(size=self.problem_size)
     self.var_loc = var_loc
     self.xyz = np.random.random((self.problem_size,3))
-    self.cell_id_start_at = 0
+    self.cell_id_start_at = start_at
     
     self.input_variables_value = {
       "a": np.ones(self.problem_size),
@@ -33,7 +33,7 @@ class Dummy_Simulator:
     return
 
   def get_region_ids(self, name):
-    return np.arange(self.problem_size)
+    return np.arange(self.problem_size)+self.cell_id_start_at
 
   def get_grid_size(self):
     return self.problem_size
@@ -52,6 +52,11 @@ class Dummy_Simulator:
   
   def create_cell_indexed_dataset(self, X_dataset, name="", outfile="",
                                         X_ids=None, resize_to=True):
+    if len(X_dataset) != self.problem_size:
+      X_dataset_ = np.ones(self.problem_size)
+      assert ~np.any(X_ids - self.cell_id_start_at < 0), "Impossible (0 or negative) cell id requested"
+      X_dataset_[X_ids-self.cell_id_start_at] = X_dataset
+      X_dataset = X_dataset_
     self.input_variables_value[name] = X_dataset
     return
 
@@ -60,6 +65,7 @@ class Dummy_Simulator:
     """
     Compute the sum of input value
     """
+
     self.x = self.r * self.input_variables_value["b"] / self.input_variables_value["a"] / self.A_diag
     return 0
   

@@ -19,21 +19,19 @@ if __name__ == "__main__":
     pflotranin = "excavated.in"
     sim = PFLOTRAN(pflotranin)
 
-    # Get cell ids in the region to maximize resources
-    pit_ids = sim.get_region_ids("pit")
-
     # Create objective function
     # Load a CSV file with the ratio of ressource per volume and the corresponding ids
     resources = pd.read_csv("./resources.csv",index_col=0)
+    pit_ids = resources.index.values
     cf = p_Weighted_Sum(
         field=resources["Resources"].values,
-        field_ids=resources.index.values,
+        field_ids=pit_ids,
     )
 
     # Create 1 constrain per each maximum drawdown ids
-    max_drawdown_ids = [984,1135] #impose max drawdown on cell id 983 and 1134
-    initial_head = [234.5,230.1]
-    max_drawdown = 3.
+    max_drawdown_ids = [1135,984] #impose max drawdown on cell id 984 and 1135
+    initial_head = [230.1,234.5]
+    max_drawdown = 12.
     constrains = [
         (Drawdown(h, c),'<',max_drawdown) for h,c in zip(initial_head,max_drawdown_ids)
     ]
@@ -46,15 +44,15 @@ if __name__ == "__main__":
         power=1
     )
 
-    # Filter?
-    dfilter = Density_Filter(pit_ids, radius=10.)
+    # Filter
+    dfilter = Density_Filter(pit_ids, radius=8.)
     hfilter = Volume_Preserving_Heaviside_Filter(pit_ids, 0.5, 4)
 
     #craft optimization problem
     #i.e. create function to optimize, initiate IO array in classes...
     crafted_problem = Steady_State_Crafter(
         cf, sim, [perm], constrains, [dfilter,hfilter],
-        #deriv="fd", deriv_args={"scheme":"forward"}
+        deriv="adjoint", deriv_args={"method":"direct"}
     )
     crafted_problem.IO.output_every_iteration(1)
     crafted_problem.IO.output_material_properties()
@@ -62,9 +60,12 @@ if __name__ == "__main__":
 
     #initialize optimizer
     p = np.zeros(crafted_problem.get_problem_size()) + 0.01
-    p_opt = crafted_problem.optimize(
-        optimizer="nlopt-ccsaq", action="maximize", max_it=30, stop={"ftol":0.0001}, initial_guess=p
+    res = crafted_problem.optimize(
+        optimizer="nlopt-ccsaq", action="maximize", max_it=15, stop={"ftol":0.0001}, initial_guess=p
     )
 
-    crafted_problem.IO.plot_convergence_history()
+
+    dfilter.write_vtu_fitered_density("debug.vtp", crafted_problem.filter_sequence.apply_filters(res.p_opt,0))
+
+    crafted_problem.IO.plot_convergence_history(include_constraints=True)
     

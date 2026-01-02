@@ -45,7 +45,7 @@ class No_Adjoint:
         dfunc = func.d_objective(var, p_bar)
         dobj_dX[var] = np.zeros(self.solver.get_system_size())
         if dfunc.ndim == 2: dobj_dX[var] = dobj_dX[var].repeat(dfunc.shape[1]).reshape(self.solver.get_system_size(),dfunc.shape[1])
-        dobj_dX[var][func.indexes] = dfunc
+        dobj_dX[var][func.indexes-self.solver.cell_id_start_at] = dfunc
 
     dobj_dp_partial = func.d_objective_dp_partial(p_bar)
 

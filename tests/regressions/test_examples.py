@@ -7,7 +7,7 @@ import pytest
 # Disable interactive plotting for test
 os.environ["MPLBACKEND"] = "Agg"
 
-EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples" / "Permeability_calibration"
+EXAMPLES_DIR = Path(__file__).parent.parent.parent / "examples"
 
 ENV = os.environ.copy()
 ENV["PYTHONPATH"] = (
@@ -27,30 +27,15 @@ def load_output(path):
     return header, data
 
 
-@pytest.mark.parametrize(
-    "example",
-    [
-        "make_calibration_permeability_zonal.py",
-        "make_calibration_permeability_free.py",
-    ],
-)
-def test_least_square_regression(example):
-    """
-    Numerical regression test for least square calibration scripts.
-    """
-
-    script = EXAMPLES_DIR / example
-    ref_file = EXAMPLES_DIR / example.replace(".py", ".ref")
-
+def run_and_compare(directory, script, output_file, ref_file, 
+                    rtol=1e-10, atol=1e-12):
     assert script.exists()
     assert ref_file.exists()
-
-    output_file = EXAMPLES_DIR / "out.txt"
 
     # Run example exactly as a user would
     result = subprocess.run(
         [sys.executable, script],
-        cwd=EXAMPLES_DIR,
+        cwd=directory,
         capture_output=True,
         env=ENV,
         text=True,
@@ -73,3 +58,41 @@ def test_least_square_regression(example):
         rtol=1e-10,
         atol=1e-12,
     )
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    "example",
+    [
+        "make_calibration_permeability_zonal.py",
+        "make_calibration_permeability_free.py",
+    ],
+)
+def test_least_square_regression(example):
+    """
+    Numerical regression test for least square calibration scripts.
+    """
+    directory = EXAMPLES_DIR / "Permeability_calibration"
+    script = directory / example
+    output_file = directory / "out.txt"
+    ref_file = directory / example.replace(".py", ".ref")
+    run_and_compare(directory, script, output_file, ref_file)
+
+
+#@pytest.mark.slow
+@pytest.mark.parametrize(
+    "example",
+    [
+        "make_optimization_drainage.py",
+        "make_maximize_area_drawdown.py"
+    ],
+)
+def test_constrained_optimization(example):
+    """
+    Regression test for constrained optimization
+    """
+    directory = EXAMPLES_DIR / "miscellaneous"
+    script = directory / example
+    output_file = directory / "out.txt"
+    ref_file = directory / example.replace(".py", ".ref")
+    run_and_compare(directory, script, output_file, ref_file, rtol=3e-3)

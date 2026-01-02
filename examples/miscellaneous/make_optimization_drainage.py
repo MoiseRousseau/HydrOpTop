@@ -3,7 +3,7 @@ Drains placement
 ################
 
 Some engineers already faced the problem to efficiently design drains to lower the groundwater table for example.
-HydrOpTop can be used to assess what the optimal drain pattern given a volume constrain as follow.
+HydrOpTop can be used to assess what the optimal drain pattern given a volume constraint as follow.
 
 In the same category than https://onlinelibrary.wiley.com/doi/abs/10.1002/nme.1811
 """
@@ -22,18 +22,19 @@ if __name__ == "__main__":
   #create PFLOTRAN simulation object
   pflotranin = "drainage.in"
   sim = PFLOTRAN(pflotranin)
+  all_cells = sim.get_region_ids("__all__")
   
   #get cell ids in the region to optimize and parametrize permeability
   #same name than in pflotran input file
-  perm = Log_SIMP(cell_ids_to_parametrize="all", property_name="PERMEABILITY", bounds=[1e-14, 1e-10], power=3)
+  perm = Log_SIMP(cell_ids_to_parametrize=all_cells, property_name="PERMEABILITY", bounds=[1e-14, 1e-10], power=3)
   
   #define cost function as sum of the head in the pit
-  cf = Mean_Liquid_Piezometric_Head(ids_to_sum="everywhere", penalizing_power=1)
+  cf = Mean_Liquid_Piezometric_Head(ids_to_sum=all_cells, penalizing_power=1)
   
   #define maximum volume constrains
-  max_vol = (Volume_Percentage("parametrized_cell"), '<', 0.2)
+  max_vol = (Volume_Percentage(all_cells), '<', 0.2)
   
-  filter_ = Density_Filter(10.)
+  filter_ = Density_Filter(all_cells, radius=10.)
   
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
@@ -44,6 +45,9 @@ if __name__ == "__main__":
   crafted_problem.IO.define_output_format("vtu")
   
   #initialize optimizer
-  p = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.15
-  p_opt = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=75, ftol=0.0001, initial_guess=p)
+  p = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.18
+  p_opt = crafted_problem.optimize(
+    optimizer="nlopt-ccsaq", action="minimize", max_it=50, stop={"ftol":0.0001}, initial_guess=p
+  )
+  crafted_problem.IO.plot_convergence_history()
     

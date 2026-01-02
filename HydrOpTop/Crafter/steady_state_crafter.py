@@ -80,20 +80,20 @@ class Steady_State_Crafter:
       all_var_needed = all_var_needed.union(c[0].variables_needed)
     func_var = {var:None for var in all_var_needed}
     self.solver.get_output_variables(func_var)
-    self.obj.set_inputs({k:v[self.obj.indexes] for k,v in func_var.items() if k in self.obj.variables_needed})
+    self.obj.set_inputs({k:v[self.obj.indexes-self.solver.cell_id_start_at] for k,v in func_var.items() if k in self.obj.variables_needed})
     for c in self.constraints:
-      c[0].set_inputs({k:v[c[0].indexes] for k,v in func_var.items() if k in c[0].variables_needed})
+      c[0].set_inputs({k:v[c[0].indexes-self.solver.cell_id_start_at] for k,v in func_var.items() if k in c[0].variables_needed})
     return func_var
 
-  def evaluate_objective(self, p):
+  def evaluate_objective(self, p_bar):
     """
     Evaluate objective
     """
-    if not isinstance(self.obj.indexes, slice):
-      ids_to_p_index = self.ids_p[self.obj.indexes+self.solver.cell_id_start_at]
-    else:
-      ids_to_p_index = self.ids_p[self.obj.indexes]
-    p_ = np.where(ids_to_p_index == -1, np.nan, p[ids_to_p_index])
+    # the p below must be in solver indexing
+    # we set it to NaN
+    p_ = np.zeros( max(self.obj.indexes.max(),self.p_ids.max())+1 ) + np.nan
+    p_[self.p_ids] = p_bar
+    p_ = p_[self.obj.indexes]
     cf = self.obj.evaluate(p_)
     self.last_cf = cf
     if np.any(np.isnan(cf)):
@@ -124,9 +124,7 @@ class Steady_State_Crafter:
   
   
   def output_to_user(self, final=False):
-    val_at = np.argwhere(np.isin(
-      self.solver.get_region_ids("__all__"), self.p_ids
-    )).flatten()
+    val_at = self.p_ids-self.solver.cell_id_start_at
     p =  self.best_p[1] if final else self.last_p
     p_bar = self.filter_sequence.filter(p) if final else self.last_p_bar
     cf = self.last_cf if not isinstance(self.last_cf,np.ndarray) else np.linalg.norm(self.last_cf)
@@ -509,14 +507,6 @@ class Steady_State_Crafter:
         parameterized_cells = set(self.solver.get_region_ids("__all__"))
         break
       parameterized_cells = parameterized_cells.union(cids)
-    self.p_ids = np.array(list(parameterized_cells)) # Correspondance between p and id in simulation
-    self.ids_p = -np.ones(self.solver.get_grid_size()+1, dtype='i8') #+1 because it can be 0 or 1 based
-    self.ids_p[self.p_ids] = np.arange(len(self.p_ids)) #now we can query self.ids_p[cell_ids] and get index in p (or -1 if not attributed)
-  
-    self.p_bar = np.zeros(len(self.p_ids))
-    # Assign which mat prop should work on which p indexes
-    for m in self.mat_props:
-      m.indexes = np.nonzero(np.isin(self.p_ids, m.cell_ids))[0]
     
     # Filter initialisation
     # During filtering, the filter will received an array of size len(input_ids) and an array len(output_ids) to populate
@@ -530,6 +520,19 @@ class Steady_State_Crafter:
     # add a unit filter for non filtered cells
     if len(not_filtered_cells): self.filters.insert(0, Unit_Filter(list(not_filtered_cells)))
     self.filter_sequence = Filter_Sequence(self.filters)
+    # check if there is no more filtered cell than parametrized
+    assert len(self.filter_sequence.output_ids) == len(parameterized_cells), "Seems there is more filtered cell than parametrized cell. You should not have filtered cell not parametrized."
+
+    # Create mapping from p indexing to simulation indexing
+    self.p_ids = self.filter_sequence.output_ids # Correspondance between p and id in simulation
+    #self.ids_p = -np.ones(self.solver.get_grid_size()+1, dtype='i8') #+1 because it can be 0 or 1 based
+    #self.ids_p[self.p_ids] = np.arange(len(self.p_ids)) #now we can query self.ids_p[cell_ids] and get index in p (or -1 if not attributed)
+    self.ids_p = self.filter_sequence.sim_to_p_ids
+    self.p_bar = np.zeros_like(self.p_ids)
+
+    # Assign which mat prop should work on which p indexes
+    for m in self.mat_props:
+      m.indexes = np.nonzero(np.isin(self.p_ids, m.cell_ids))[0]
     
     #create correspondance and problem size
     self.problem_size = self.filter_sequence.input_dim
@@ -551,14 +554,11 @@ class Steady_State_Crafter:
       self.adjoint = "adjoint"
     if self.obj.adjoint is None: #could have been set by user
       self.__initialize_adjoint__(self.obj)
-    
     if self.obj.indexes is None:
       # pass all cell
-      self.obj.indexes = slice(None)
-    else:
-      self.obj.indexes = self.obj.indexes - self.solver.cell_id_start_at
+      self.obj.indexes = np.arange(len(self.solver.get_region_ids("__all__")))
       
-    self.obj.set_p_to_cell_ids(self.p_ids)
+    #self.obj.set_p_to_cell_ids(self.p_ids)
     
     #initialize adjoint for constraints
     self.last_constraints = {x[0].name:0. for x in self.constraints}
@@ -571,9 +571,7 @@ class Steady_State_Crafter:
         self.__initialize_adjoint__(constraint)
         # set indexes
         if constraint.indexes is None: # pass all cell
-          constraint.indexes = slice(None)
-        else:
-          constraint.indexes = constraint.indexes - self.solver.cell_id_start_at
+          constraint.indexes = np.arange(len(self.solver.get_region_ids("__all__")))
         
     #initialize IO
     self.IO.communicate_functions_names(self.obj.__get_name__(), 
@@ -607,8 +605,8 @@ class Steady_State_Crafter:
     vertices, cells, indexes = self.solver.get_mesh()
     self.IO.set_mesh_info(vertices, cells, indexes)
     return
-    
-  
+
+
   def __initialize_filter__(self):
     if not self.filters:
       return
@@ -619,7 +617,7 @@ class Steady_State_Crafter:
     func_var = {var:None for var in all_var_needed}
     self.solver.get_output_variables(func_var)
     for f in self.filters:
-      f.set_inputs({k:v[f.output_ids-1] for k,v in func_var.items() if k in f.variables_needed})
+      f.set_inputs({k:v[f.input_ids-self.solver.cell_id_start_at] for k,v in func_var.items() if k in f.variables_needed})
     self.filters_initialized = True
     return
 

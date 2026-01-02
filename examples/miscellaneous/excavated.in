@@ -31,7 +31,7 @@ REGION opening
 END
 
 REGION pit
-  FILE ../pflotran_meshes/disk/pit.vs
+  FILE ./pit.vs
 END
 
 

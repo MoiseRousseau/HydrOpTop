@@ -55,7 +55,7 @@ class Density_Filter(Base_Filter):
   def set_inputs(self, inputs):
     self.inputs = inputs
     self.inputs["ELEMENT_CENTER"] = np.array(
-      [v for k,v in self.inputs.items() if "ELEMENT_CENTER_" in k]
+      [self.inputs["ELEMENT_CENTER_" + x] for x in "XYZ"]
     ).transpose()
     return
   
@@ -92,17 +92,61 @@ class Density_Filter(Base_Filter):
     out = self.D_matrix
     return out
 
+
+  def write_vtu_fitered_density(self, filename, p):
+      """
+      Write a VTU point dataset with volume and density parameters.
+
+      Parameters
+      ----------
+      filename : str
+          Output .vtu file path
+      p : array_like, shape (N,)
+          Density parameter associated with each point
+      p_bar : array_like, shape (N,)
+          Filtered density parameter (bijection output)
+      """
+
+      # Geometry: element centers
+      points = self.inputs["ELEMENT_CENTER"]
+      # Scalars
+      volume = self.inputs["VOLUME"]
+      p = np.asarray(p, dtype=float)
+      p_bar = self.get_filtered_density(p)
+
+      # Basic consistency checks
+      n = points.shape[0]
+      assert volume.shape[0] == n
+      assert p.shape[0] == n
+      assert p_bar.shape[0] == n
+
+      # Create PolyData with vertex cells
+      import pyvista as pv
+      cloud = pv.PolyData(points)
+
+      # Attach point data
+      cloud.point_data["volume"] = volume
+      cloud.point_data["p"] = p
+      cloud.point_data["p_bar"] = p_bar
+
+      # Write file
+      if filename[:-4] != '.vtp': filename += '.vtp'
+      cloud.save(filename)
+      return
+
+
   @classmethod
   def sample_instance(cls):
     insts = []
     N = 100
     cell_ids = np.arange(N)
+    rng = np.random.default_rng()
     # create test
     for p in [0.5, 1., 2.]:
       instance = cls(cell_ids, radius=0.1, distance_weighting_power=p)
       instance.inputs = {
-        "ELEMENT_CENTER":np.random.random((N,2)),
-        "VOLUME":np.random.random(N)
+        "ELEMENT_CENTER":rng.random((N,2)),
+        "VOLUME":rng.random(N)
       }
       instance.input_indexes = cell_ids
       instance.output_indexes = cell_ids

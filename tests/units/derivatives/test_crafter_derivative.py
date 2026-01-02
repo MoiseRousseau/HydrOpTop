@@ -4,7 +4,7 @@ import copy
 
 from HydrOpTop.Solvers import Dummy_Simulator
 from HydrOpTop.Adjoints import Sensitivity_Steady_Simple
-from HydrOpTop.Functions import Sum_Variable
+from HydrOpTop.Functions import Sum_Variable, Volume_Percentage
 from HydrOpTop.Materials import Identity
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Filters import Density_Filter, Heaviside_Filter, Zone_Homogeneous
@@ -17,6 +17,7 @@ class Test_Crafter:
   solver = Dummy_Simulator(problem_size=N, seed=1234)
   all_cells = solver.get_region_ids("__all__")
   parametrization = Identity(all_cells, "a")
+  parametrization_partial = Identity(all_cells[1:5], "a")
 
   @pytest.mark.parametrize("deriv_mode", [
     pytest.param(["fd",{"scheme":"forward","step":1e-6}], id="fd-forward"),
@@ -46,8 +47,33 @@ class Test_Crafter:
 
     # Comparison
     np.testing.assert_allclose(J_adjoint, J_ana, atol=1e-6, rtol=1e-5)
-  
-  
+
+
+  @pytest.mark.parametrize("param_start_at", [
+    pytest.param((parametrization, 0), id="full_parametrization"),
+    pytest.param((parametrization_partial,0), id="partial_parametrization"),
+    pytest.param((parametrization_partial,1), id="partial_parametrization_start_1"),
+  ])
+  def test_crafter_derivative_level0_partial(self, param_start_at):
+    param, start_at = param_start_at
+    solver = Dummy_Simulator(problem_size=self.N, seed=1234, start_at=start_at)
+    obj = Sum_Variable("x", ids_to_consider=solver.get_region_ids("__all__"))
+    # FD derivative
+    craft = Steady_State_Crafter(
+        obj, solver, [param], filters=[], deriv="adjoint", deriv_args={"method":"direct"}
+    )
+    p = np.ones(len(param.cell_ids)) * 0.7
+    p_bar = craft.pre_evaluation_objective(p)
+    cf = craft.evaluate_objective(p_bar)
+    J_adjoint = craft.evaluate_total_gradient(obj, p, p_bar=p_bar)
+
+    # Analytical derivative
+    J_ana = solver.analytical_deriv_dy_dx("a")[param.cell_ids-start_at]
+
+    # Comparison
+    np.testing.assert_allclose(J_adjoint, J_ana, atol=1e-6, rtol=1e-5)
+    return
+
   def test_crafter_derivative_level1_diag_filter(self):
     """
     Test adjoint derivative compared to analytical value with a diagonal filter
@@ -95,12 +121,15 @@ class Test_Crafter:
     np.testing.assert_allclose(J_adjoint, J_fd, atol=1e-6, rtol=1e-5)
 
 
-  def test_crafter_derivative_level3_filter_sequence(self):
+  @pytest.mark.parametrize("obj", [
+    pytest.param(Sum_Variable("x", ids_to_consider=all_cells), id="standard"),
+    pytest.param(Volume_Percentage(ids_to_sum_volume=all_cells), id="no_adjoint"),
+  ])
+  def test_crafter_derivative_level3_filter_sequence(self, obj):
     """
     Test adjoint derivative compared to finite difference value with a set of filter
     """
     from HydrOpTop.Filters import Density_Filter, Zone_Homogeneous, Heaviside_Filter
-    obj = Sum_Variable("x", ids_to_consider=self.all_cells)
     # create filter sequence
     reg1 = self.all_cells[:4]
     reg2 = self.all_cells[4:7]
@@ -122,6 +151,7 @@ class Test_Crafter:
 
     assert craft.get_problem_size() == 8 # 4 + 1 + 3
     np.testing.assert_allclose(S_adjoint, S_fd, atol=1e-6, rtol=1e-6)
+
 
   @pytest.mark.skip(reason="Not implemented")
   def test_crafter_adjoint_2_param(self): #TODO
