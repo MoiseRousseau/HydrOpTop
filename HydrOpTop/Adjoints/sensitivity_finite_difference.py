@@ -28,6 +28,7 @@ class Sensitivity_Finite_Difference:
         :param p: the material parameter
         """
         p = p.copy()
+        feval = 0
         if isinstance(self.current_obj_val,float):
             S = np.zeros_like(p)
         else: #this is an array
@@ -42,10 +43,12 @@ class Sensitivity_Finite_Difference:
                 p1[i] += self.step
                 step_ = self.step
                 S[i] = (self.func(p1) - self.current_obj_val) / step_
+                feval += 1
             elif self.scheme == "central":
                 p1 = p.copy()
                 p1[i] += self.step
                 p2 = p.copy()
                 p2[i] -= self.step
                 S[i] = 0.5 * (self.func(p1) - self.func(p2)) / self.step
-        return S
+                feval += 2
+        return S, feval

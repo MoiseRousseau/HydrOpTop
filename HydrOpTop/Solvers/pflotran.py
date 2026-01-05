@@ -13,6 +13,12 @@ DEFAULT_VISCOSITY = 8.904156e-4
 DEFAULT_DENSITY = 997.16
 DEFAULT_REF_PRESSURE = 101325.0
 
+
+KEYWORD_DEP_MODEL_FILE = [
+  "TYPE UNSTRUCTURED",
+  "FILE"
+]
+
 class PFLOTRAN(Base_Simulator):
   r"""
   Description:
@@ -40,6 +46,7 @@ class PFLOTRAN(Base_Simulator):
     self.output_sensitivity_format = "HDF5" #default
     self.cell_id_start_at = 1
     if self.input_folder[0] == '/': self.input_folder = '.' + self.input_folder
+    self.model_files = [pft_in]
     self.__get_input_deck__(self.pft_in)
     self.mesh_type = None
     self.__get_mesh_info__()
@@ -506,10 +513,32 @@ class PFLOTRAN(Base_Simulator):
     else:
       coo_mat.data[:] = data
     return
-  
-  
-  
-  
+
+  def copy_model(self, dir):
+    """
+    Copy model to a new directory
+    """
+    import shutil
+    # copy the input deck to the new destination but update the path
+    # to model file dependencies
+    input_deck2 = []
+    for line in self.input_deck:
+      for k in KEYWORD_DEP_MODEL_FILE:
+        if k in line:
+          for path in self.model_files:
+            new_path = dir + "/" + path.split("/")[-1]
+            line.replace(path,new_path).strip()
+      input_deck2.append(line)
+    with open(dir+"/"+self.pft_in.split('/')[-1],'w') as out:
+      out.write("\n".join(input_deck2))
+    for f in self.model_files:
+      new_path = dir + "/" + f.split("/")[-1]
+      shutil.copy(f, new_path)
+    return
+
+
+
+
   ### PRIVATE METHOD ###
   def __get_input_deck__(self, filename):
     self.input_deck = []
@@ -527,26 +556,31 @@ class PFLOTRAN(Base_Simulator):
           break
       if not restart: finish = True
     return
-  
+
   def __read_input_file__(self, filename, append_at_pos=0):
     """
     Store input deck
+    Also store dependence to other file in cards
     """
     src = open(filename, 'r')
     temp = []
     #read line in source file and remove \n and commentaru
     for line in src.readlines():
-      line = line.split('#')[0] 
+      line = line.split('#')[0]
       if len(line)>0 and line[-1] == '\n': line = line[:-1]
       if line: temp.append(line)
     #remove skip / noskip part
     skip = []
-    noskip = [] 
+    noskip = []
     for i,line in enumerate(temp):
+      # Detect model dependence to other files
+      for k in KEYWORD_DEP_MODEL_FILE:
+        if k+" " in line: self.model_files.append(line.replace(k,"").strip())
+      # skip line
       if "NOSKIP" in line:
         noskip.append(i)
         continue
-      if "SKIP" in line: 
+      if "SKIP" in line:
         skip.append(i)
     if len(skip) != len(noskip):
       print(skip, noskip)
@@ -559,9 +593,9 @@ class PFLOTRAN(Base_Simulator):
       self.input_deck = self.input_deck[:append_at_pos] + \
                         temp + self.input_deck[append_at_pos:]
     src.close()
-    return 
-    
-  
+    return
+
+
   def __get_unstructured_mesh__(self):
       mesh_path = self.input_folder + self.mesh_file
       if self.mesh_type == "h5":
@@ -671,5 +705,5 @@ class PFLOTRAN(Base_Simulator):
       print(src[right_time].keys())
       print(f"Do you forgot to add the \"{var}\" output variable under the OUTPUT card?\n")
       exit(1)
-    return right_time, out_var    
+    return right_time, out_var
     

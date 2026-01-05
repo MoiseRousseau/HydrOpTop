@@ -114,6 +114,8 @@ class Pilot_Points(Base_Filter):
       p_bar = self.interpolator(self.coords[:,:self.dim])
       return p_bar
 
+    def get_input_ids(self):
+      return self.output_ids
 
     @classmethod
     def sample_instance(cls):

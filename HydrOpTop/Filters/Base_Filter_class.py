@@ -80,6 +80,11 @@ class Base_Filter:
         if show: plt.show()
         return
 
+    def get_input_ids(self):
+        """
+        Hacky fix for pilot point
+        """
+        return self.input_ids
 
     def __get_variables_needed__(self):
         return self.variables_needed

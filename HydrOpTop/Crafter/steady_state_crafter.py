@@ -3,6 +3,7 @@ import scipy.sparse as sp
 import nlopt
 import functools
 import time
+import datetime, os
 
 from HydrOpTop.Adjoints import *
 from HydrOpTop.IO import IO
@@ -48,6 +49,7 @@ class Steady_State_Crafter:
     self.first_call_evaluation = True
     self.first_call_gradient = True
     self.func_eval = 0
+    self.func_eval_history = []
     self.iteration = 0
     self.best_p = (None,None) #best cf, best p
     self.last_p = None
@@ -115,7 +117,8 @@ class Steady_State_Crafter:
     elif isinstance(func.adjoint, Sensitivity_Finite_Difference):
       if self.last_cf is not None:
         func.adjoint.set_current_obj_val(self.last_cf)
-      grad = func.adjoint.compute_sensitivity(p)
+      grad, feval = func.adjoint.compute_sensitivity(p)
+      self.func_eval += feval
 
     print("Total time to get derivative:", time.time() - tstart, "s")
     return grad
@@ -387,6 +390,7 @@ class Steady_State_Crafter:
     out.cx = self.last_constraints
     out.grad_cx = self.last_grad_constraints
     out.func_eval = self.func_eval
+    out.func_eval_history = self.func_eval_history
     out.mat_props = self.get_material_properties_from_p(self.last_p_bar)
     return out
     
@@ -468,6 +472,7 @@ class Steady_State_Crafter:
     cf = self.evaluate_objective(self.last_p_bar)
     self.last_cf = cf
     self.__store_best_p__(p, cf)
+    self.func_eval_history.append((self.func_eval, np.linalg.norm(cf)))
     return cf
   
   def scipy_jac(self,p):
@@ -494,9 +499,11 @@ class Steady_State_Crafter:
   def scipy_callback(self, x, res=None):
     self.iteration += 1
     self.output_to_user()
+    #self.func_eval_history.append((self.func_eval, self.best_p[0]))
     return
 
   def __store_best_p__(self, p, cf):
+    cf = np.linalg.norm(cf)
     # Check if the constraints are satisfied first
     for c,cmp,val in self.constraints:
       if cmp == "<" and not self.last_constraints[c.name] - val < 0.: return
@@ -505,9 +512,9 @@ class Steady_State_Crafter:
     if self.best_p[0] is None:
       self.best_p = (cf, p.copy())
       return
-    if self.action == "minimize" and np.linalg.norm(cf) < np.linalg.norm(self.best_p[0]):
+    if self.action == "minimize" and cf < self.best_p[0]:
       self.best_p = (cf, p.copy())
-    elif self.action == "maximize" and np.linalg.norm(cf) > np.linalg.norm(self.best_p[0]):
+    elif self.action == "maximize" and cf > self.best_p[0]:
       self.best_p = (cf, p.copy())
     return
 
@@ -637,7 +644,8 @@ class Steady_State_Crafter:
     func_var = {var:None for var in all_var_needed}
     self.solver.get_output_variables(func_var)
     for f in self.filters:
-      f.set_inputs({k:v[f.input_ids-self.solver.cell_id_start_at] for k,v in func_var.items() if k in f.variables_needed})
+      input_ids = f.get_input_ids()
+      f.set_inputs({k:v[input_ids-self.solver.cell_id_start_at] for k,v in func_var.items() if k in f.variables_needed})
     self.filters_initialized = True
     return
 
