@@ -114,10 +114,10 @@ class Steady_State_Crafter:
         func, self.filter_sequence, p
       )
 
-    elif isinstance(func.adjoint, Sensitivity_Finite_Difference):
+    elif isinstance(func.adjoint, Sensitivity_Finite_Difference) or isinstance(func.adjoint, Sensitivity_Steady_Adjoint_Corrected):
       if self.last_cf is not None:
         func.adjoint.set_current_obj_val(self.last_cf)
-      grad, feval = func.adjoint.compute_sensitivity(p)
+      grad, feval = func.adjoint.compute_sensitivity(func, self.filter_sequence, p)
       self.func_eval += feval
 
     print("Total time to get derivative:", time.time() - tstart, "s")
@@ -291,7 +291,7 @@ class Steady_State_Crafter:
       p_opt = res.x
       self.best_p = (res.cost, res.x)
       self.last_cf = np.sqrt(np.mean(res.fun**2))
-    
+
     elif optimizer == "cyipopt":
       import cyipopt
       #define problem class
@@ -668,6 +668,16 @@ class Steady_State_Crafter:
         self.solver,
         self.p_ids-self.solver.cell_id_start_at,
         *( (self.adjoint_args,) if self.adjoint_args is not None else () )
+      )
+    elif self.adjoint == "adjoint-corrected":
+      f = lambda p: self.evaluate_objective(self.pre_evaluation_objective(p))
+      adjoint = Sensitivity_Steady_Adjoint_Corrected(
+        solved_variables_needed,
+        self.mat_props,
+        self.solver,
+        self.p_ids-self.solver.cell_id_start_at,
+        f,
+        *( (self.adjoint_args,) if self.adjoint_args is not None else () ),
       )
     func.set_adjoint_problem(adjoint)
     

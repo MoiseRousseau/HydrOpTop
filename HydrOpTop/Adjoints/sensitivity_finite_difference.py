@@ -20,7 +20,7 @@ class Sensitivity_Finite_Difference:
         self.current_obj_val = v
         return
 
-    def compute_sensitivity(self, p):
+    def compute_sensitivity(self, func, filter_sequence, p):
         """
         Compute the total cost function derivative according to material density
         parameter p.
