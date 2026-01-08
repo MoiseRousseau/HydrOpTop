@@ -340,6 +340,8 @@ class Steady_State_Crafter:
         #lambda_init=100,
         #lambda_factors=[0.07, 1.2, 0.7, 1.2, 70, 120],
         maxiter=max_it,
+        callback=self.scipy_callback,
+        **stop,
         verbose=True
       )
       res = solver.fit(
@@ -489,7 +491,7 @@ class Steady_State_Crafter:
     cf = self.evaluate_objective(self.last_p_bar)
     self.last_cf = cf
     self.__store_best_p__(p, cf)
-    self.func_eval_history.append((self.func_eval, np.linalg.norm(cf)))
+    self.func_eval_history.append((self.func_eval, np.sqrt(np.mean(cf**2))))
     return cf
   
   def scipy_jac(self,p):
@@ -520,7 +522,7 @@ class Steady_State_Crafter:
     return
 
   def __store_best_p__(self, p, cf):
-    cf = np.linalg.norm(cf)
+    cf = np.sqrt(np.mean(cf**2))
     # Check if the constraints are satisfied first
     for c,cmp,val in self.constraints:
       if cmp == "<" and not self.last_constraints[c.name] - val < 0.: return

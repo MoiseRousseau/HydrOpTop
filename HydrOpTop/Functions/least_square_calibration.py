@@ -51,7 +51,7 @@ class Least_Square_Calibration(Base_Function):
             self.indexes = self.cell_ids
       else:
             self.indexes = None #mean need all data from simulator
-      self.name = "Reference Head"
+      self.name = "LS RMSE"
       self.initialized = False
       return
   
@@ -87,7 +87,7 @@ class Least_Square_Calibration(Base_Function):
         Use current simulation state
         """
         if isinstance(self.weights, float):
-            dobj = np.eye((len(p)))
+            dobj = np.eye((len(self.cell_ids)))
         else:
             dobj = np.diag(self.weights)
         return dobj

@@ -38,7 +38,9 @@ class PESTMarquardtLS:
                  lambda_init: float = 1e-2,
                  lambda_scale_up: float = 10.0,
                  lambda_scale_down: float = 0.1,
-                 lambda_factors=(0.07, 0.12, 0.7, 4, 16, 64, 512),
+                 lambda_factors=(0.1, 1., 10., 100., 1000.),
+                 step_scales=(0.75, 1.),
+                 callback=None,
                  verbose: bool = False):
 
         self.maxiter = maxiter
@@ -50,6 +52,8 @@ class PESTMarquardtLS:
         self.lambda_scale_up = float(lambda_scale_up)
         self.lambda_scale_down = float(lambda_scale_down)
         self.lambda_factors = list(lambda_factors)
+        self.step_scales = list(step_scales)
+        self.callback = callback
         self.verbose = verbose
 
     # --- mapping u -> p with bounds -------------------
@@ -104,9 +108,8 @@ class PESTMarquardtLS:
         # evaluate initial
         p, dpdu = self._map_u_to_p(u, lo, hi, mask)
         r = rfun(p)
-        cost = 0.5 * np.dot(r, r)
+        cost = np.dot(r, r)
 
-        lam = self.lambda_init
         cost_history = [cost]
         x_history = [p.copy()]
 
@@ -138,8 +141,7 @@ class PESTMarquardtLS:
             best_cost = np.inf
             best = None
 
-            for fac in self.lambda_factors:
-                lam_i = lam * fac
+            for lam_i in self.lambda_factors:
 
                 diagH = np.diag(H).copy()
                 diagH[diagH == 0.0] = 1.0
@@ -152,20 +154,21 @@ class PESTMarquardtLS:
                 # except np.linalg.LinAlgError:
                 #     du, *_ = np.linalg.lstsq(A, b, rcond=None)
 
-                if np.linalg.norm(du) < self.xtol * (1 + np.linalg.norm(u)):
-                    continue
+                #if np.linalg.norm(du) < self.xtol * (1 + np.linalg.norm(u)):
+                #    continue
 
-                u_i = u + du
-                p_i, dpdu_i = self._map_u_to_p(u_i, lo, hi, mask)
-                r_i = rfun(p_i)
-                cost_i = 0.5 * np.dot(r_i, r_i)
+                for step_scale in self.step_scales:
+                    u_i = u + du * step_scale
+                    p_i, dpdu_i = self._map_u_to_p(u_i, lo, hi, mask)
+                    r_i = rfun(p_i)
+                    cost_i = np.dot(r_i, r_i)
 
-                if self.verbose:
-                    print(f"Test upgrade λ={lam_i:.3g}, cost={cost_i}")
+                    if self.verbose:
+                        print(f"Test upgrade λ={lam_i:.3g}, scale={step_scale}, cost={cost_i}")
 
-                if cost_i < best_cost:
-                    best_cost = cost_i
-                    best = (lam_i, u_i, p_i, dpdu_i, r_i, cost_i)
+                    if cost_i < best_cost:
+                        best_cost = cost_i
+                        best = (lam_i, u_i, p_i, dpdu_i, r_i, cost_i)
 
             if best is None:
                 return self._finish(p, False, "All λ failed", it,
@@ -180,10 +183,15 @@ class PESTMarquardtLS:
             x_history.append(p.copy())
 
             if self.verbose:
-                print(f"iter {it} finished: λ={lam:.3g} cost={cost}")
+                print(f"iter {it} finished: λ={lam:.3g}, cost={cost}")
 
-            # stopping on function change
-            if abs(cost_history[-2] - cost_history[-1]) < self.ftol * (1 + cost):
+            if self.callback is not None:
+                self.callback(p)
+
+            # stopping
+            if (abs(cost_history[-2] - cost_history[-1]) < self.ftol * (1 + cost) or # on function change
+                np.linalg.norm(du) < self.xtol# * (1 + np.linalg.norm(u)) # on xtol
+            ):
                 return self._finish(p, True, "ftol reached", it,
                                     cost_history, x_history)
 
