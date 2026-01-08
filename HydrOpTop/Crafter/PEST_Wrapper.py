@@ -66,28 +66,47 @@ class PEST_Wrapper:
     # ---------------------------------------------------
     def fit(self, rfun, x0, bounds=None, jac=None):
         # Create PEST file
-        self._write_pst(x0, bounds, dir=self.tmpdir)
+        use_jac = False if jac is None else True
+        self._write_pst(x0, bounds, use_jac, dir=self.tmpdir)
         self._write_ins(self.tmpdir)
         self._write_tpl(self.tmpdir)
+
+        # create model file
         with open(self.tmpdir+"/run_model.py","w") as f:
             f.write("import dill\n")
             f.write("with open('model.pkl','rb') as f:\n")
             f.write("    dill.load(f)()\n")
+        # Dump the rfunc so it can be call from command line
+        l = lambda: np.savetxt("./outputs.txt", rfun(np.loadtxt("./inputs.txt")))
+        with open(self.tmpdir+"/model.pkl", "wb") as f:
+            dill.dump(l, f)
+
+        # model derivative
+        if jac is not None:
+            with open(self.tmpdir+"/run_model_derivative.py","w") as f:
+                f.write("import dill\n")
+                f.write("with open('model_derivative.pkl','rb') as f:\n")
+                f.write("    jac = dill.load(f)()\n")
+                f.write("    with open(\"model_derivatives.dat\",'w') as out:\n")
+                f.write("       out.write(f\"{jac.shape[1]} {jac.shape[0]}\\n\")\n")
+                f.write(f"       for i in range(jac.shape[0]):\n")
+                f.write(f"          out.write(' '.join([str(x) for x in jac[i,:]])+'\\n')\n")
+
+            # Dump the rfunc so it can be call from command line
+            l = lambda: jac(np.loadtxt("./inputs.txt"))
+            with open(self.tmpdir+"/model_derivative.pkl", "wb") as f:
+                dill.dump(l, f)
+
         # write safe wrapper
         if self.create_safe_wrapper:
-            with open(self.tmpdir+"/run_model_safe.sh","w") as f:
+            with open(self.tmpdir+"/run_safe.sh","w") as f:
                 f.write("#!/bin/bash\n\n")
-                f.write("python run_model.py\n")
+                f.write("python $@\n")
                 f.write("status=$?\n\n")
                 f.write("if [ $status -ne 0 ]; then\n")
                 f.write("    echo \"run_model.py failed with status $status\" >&2\n")
                 f.write("fi\n\n")
                 f.write("exit 0")
-
-        # Dump the rfunc so it can be call from command line
-        l = lambda: np.savetxt("./outputs.txt", rfun(np.loadtxt("./inputs.txt")))
-        with open(self.tmpdir+"/model.pkl", "wb") as f:
-            dill.dump(l, f)
 
         # Run PEST
         ret = None
@@ -127,13 +146,13 @@ class PEST_Wrapper:
         }
 
     # ---------------------------------------------------
-    def _write_pst(self, x0, bounds, dir='.'):
+    def _write_pst(self, x0, bounds, use_jac=False, dir='.'):
         # create the pst file
         pst_out = ["pcf"]
         pst_out.append("* control data")
         pst_out.append("norestart estimation")
         pst_out.append(f"{self.NPAR} {self.NOBS} 1 0 1")
-        pst_out.append("1 1 double point 1 0 0")
+        pst_out.append(f"1 1 double point 1 {1 if use_jac else 0} 0")
         pst_out.append(f"{self.RLAMBDA1} 2.0 0.3 0.03 10 0 lamforgive derforgive")
         pst_out.append(f"4. 4. 0.001")
         pst_out.append(f"{self.PHIREDSWH}")
@@ -149,7 +168,8 @@ class PEST_Wrapper:
         pst_out.append("params relative 1e-4 0. switch 1.  parabolic")
         pst_out.append("* parameter data")
         for i in range(self.NPAR):
-            pst_out.append(f"par{i} none factor {x0[i]} {bounds[i][0]} {bounds[i][1]} params 1. 0. 1")
+            DERCOM = 0 if use_jac else 1
+            pst_out.append(f"par{i} none factor {x0[i]} {bounds[i][0]} {bounds[i][1]} params 1. 0. {DERCOM}")
 
         pst_out.append("* observation groups")
         pst_out.append("obs")
@@ -157,9 +177,17 @@ class PEST_Wrapper:
         for i in range(self.NOBS):
             pst_out.append(f"obs{i} 0. 1. obs")
 
+        if use_jac:
+            pst_out.append("* derivatives command line")
+            if self.create_safe_wrapper:
+                pst_out.append("bash run_safe.sh run_model_derivative.py")
+            else:
+                pst_out.append("python run_model_derivative.py")
+            pst_out.append("model_derivatives.dat")
+
         pst_out.append("* model command line")
         if self.create_safe_wrapper:
-            pst_out.append("./run_model_safe.sh")
+            pst_out.append("bash run_safe.sh run_model.py")
         else:
             pst_out.append("python run_model.py")
         pst_out.append("* model input/output")

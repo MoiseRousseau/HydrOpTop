@@ -194,7 +194,7 @@ class Steady_State_Crafter:
                      max_it=50,
                      initial_step=None,
                      stop={},
-                     options={}):
+                     **options):
     self.iteration = 0
     self.func_eval = 0
     self.action = action
@@ -334,6 +334,33 @@ class Steady_State_Crafter:
         nlp.add_option(key, val)
       p_opt, info = nlp.solve(initial_guess)
 
+    elif optimizer == "PEST-Wrapper":
+      from .PEST_Wrapper import PEST_Wrapper
+      from ..Functions.least_square_calibration import Least_Square_Calibration
+      assert isinstance(self.obj, Least_Square_Calibration), "PEST optimizer only available for Least_Square_Calibration function"
+      # create a temporary rundir
+      rundir = "PEST_run_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+      os.mkdir(rundir)
+      # Copy model file in the temp dir
+      self.solver.copy_model(rundir)
+      # Create PEST
+      use_jac = options.pop("use_jac") if "use_jac" in options.keys() else False
+      jac = self.scipy_jac if use_jac else None
+      solver = PEST_Wrapper(
+        NPAR=len(initial_guess), NOBS=len(self.obj.ref_head),
+        NOPTMAX=max_it,
+        RELPARSTP=stop["xtol"],
+        rundir=rundir,
+        **options,
+      )
+      res = solver.fit(
+        self.scipy_function_to_optimize, x0=initial_guess,
+        bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0),
+        jac=jac,
+      )
+      p_opt = res["x"]
+      self.func_eval_history = res["func_eval_history"]
+
     elif optimizer == "pestlike-lm":
       from .PESTMarquardtLS import PESTMarquardtLS
       solver = PESTMarquardtLS(
@@ -347,7 +374,6 @@ class Steady_State_Crafter:
       res = solver.fit(
         self.scipy_function_to_optimize, x0=initial_guess,
         bounds=density_parameter_bounds, jac=self.scipy_jac,
-        lm_callback=scipy_callback,
       )
       p_opt = res["x"]
       print(res)
