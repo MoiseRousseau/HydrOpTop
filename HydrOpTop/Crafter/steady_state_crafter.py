@@ -350,6 +350,23 @@ class Steady_State_Crafter:
       p_opt = res["x"]
       print(res)
 
+    elif optimizer == "spsa":
+      from .spsa import SPSA
+      from ..Functions.least_square_calibration import Least_Square_Calibration
+      solver = SPSA(
+        #lambda_init=100,
+        #lambda_factors=[0.07, 1.2, 0.7, 1.2, 70, 120],
+        maxiter=max_it,
+        bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0).T,
+        callback=self.scipy_callback,
+      )
+      if isinstance(self.obj, Least_Square_Calibration):
+        f = lambda x: np.sqrt(np.mean(self.scipy_function_to_optimize(x)**2))
+      else:
+        f = self.scipy_function_to_optimize
+      res = solver.fit(f, x0=initial_guess)
+      p_opt = res["x"]
+
     elif optimizer == 'lmfit':
       import lmfit
       params = lmfit.Parameters()
