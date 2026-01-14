@@ -59,6 +59,10 @@ class p_Weighted_Sum(Base_Function):
         return res
 
 
+    def output_to_user(self):
+        return {"Field":("cell",self.field_ids, self.field)}
+
+
     @classmethod
     def sample_instance(cls):
         N = 10

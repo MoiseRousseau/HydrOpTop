@@ -25,6 +25,8 @@ class IO:
     self.output_initial = True
     self.output_mat_props = False
     self.output_adj_obj = False
+    self.sim_extra_var = []
+    self.obj_extra_var = False
     self.initialized = False
     
     self.vertices = None
@@ -94,7 +96,7 @@ class IO:
     return
   
   
-  def output_gradient_constrains(self):
+  def output_gradient_constraints(self):
     r"""
     Enable writing the gradient of the constraints relative to the density parameter :math:`p`.
     """
@@ -116,11 +118,25 @@ class IO:
     """
     self.output_mat_props = True
     return
-  
-  
+
+  def output_simulation_vars(self, var_list):
+    """
+    Enable writing simulator output variable
+    """
+    self.sim_extra_var = var_list
+    return
+
+  def output_objective_extra_vars(self, x=True):
+    """
+    Enable writing additional objective specific variable
+    """
+    self.obj_extra_var = x
+    return
+
+
   def communicate_functions_names(self, cf, constrains):
     self.cf_name = cf
-  
+
   def output(self, it, #iteration number
              cf, #cost function value
              constraints_val, #constraints value
@@ -131,6 +147,8 @@ class IO:
              p_filtered=None, #filtered density parameters
              adj_obj=None,
              val_at=None, # cell/node ids corresponding to dataset
+             sim_extra_var={},
+             obj_extra_var={},
              final=False): # Final value to output
     if not self.initialized: self.initiate_output(constraints_val) 
     
@@ -190,13 +208,25 @@ class IO:
     # add adjoint vector
     if self.output_adj_obj:
       dict_var[f"Adjoint vector"] = adj_obj
-    
+    # add extra var
+    for var,(loc,val) in sim_extra_var.items():
+      dict_var[var] = self.correct_dataset_length(
+        val, loc,
+      )
+      self.var_loc[var] = loc
+    for var,(loc,ids,X) in obj_extra_var.items():
+      dict_var[var] = self.correct_dataset_length(
+        X, loc, ids
+      )
+      self.var_loc[var] = loc
+
+
     point_var = {k:v for k,v in dict_var.items() if self.var_loc[k] == "point"}
     cell_var = {k:v for k,v in dict_var.items() if self.var_loc[k] == "cell"}
     self.outputter.write(cell_var, point_var, self.output_number)
     self.output_number += 1
     return
-    
+
   def correct_dataset_length(self, X, var_loc, val_at=None):
     """
     Correct X_dataset if not of the size of the mesh.
@@ -214,7 +244,7 @@ class IO:
     if len(val_at) == len(X):
       X_new[val_at] = X
     return X_new
-    
+
   def initiate_output(self, constraints_val):
     self.initialized = True
     #initiate log
@@ -234,7 +264,7 @@ class IO:
     self.outputter.set_mesh(self.vertices, self.elements, 
                             self.indexes)
     return
-  
+
   def set_mesh_info(self, vertices, elements, indexes):
     #use by the crafter to pass mesh information
     self.vertices = vertices
@@ -244,10 +274,10 @@ class IO:
       self.n_elements += len(elems)
     self.indexes = indexes
     return
-  
+
   def communicate_var_location(self, var_loc):
     self.var_loc = var_loc
-    
+
   def write_fields_to_file(self, X, filename, Xname, var_loc="cell", at_ids=None):
     r"""
     Output the field data given in the list X using ``MeshIO`` python library.
@@ -282,9 +312,9 @@ class IO:
       mesh = meshio.Mesh(self.vertices, self.elements, point_data=dict_var)
     mesh.write(filename)
     return
-  
-  
-  def plot_convergence_history(self, include_constraints=False, save_fig_to=None):
+
+
+  def plot_convergence_history(self, include_constraints=True, save_fig_to=None):
     r"""
     Description:
       Plot the convergence history of the optimization (cost function and constraints)

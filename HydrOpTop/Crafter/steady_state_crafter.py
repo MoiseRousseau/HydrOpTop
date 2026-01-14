@@ -125,10 +125,18 @@ class Steady_State_Crafter:
   
   
   def output_to_user(self, final=False):
+    if not self.func_eval: return #first call for nlopt
     val_at = self.p_ids-self.solver.cell_id_start_at
     p =  self.best_p[1] if final else self.last_p
     p_bar = self.filter_sequence.filter(p) if final else self.last_p_bar
     cf = self.last_cf if not isinstance(self.last_cf,np.ndarray) else np.linalg.norm(self.last_cf)
+    func_var = {var:None for var in self.IO.sim_extra_var}
+    sim_extra_var = self.solver.get_output_variables(func_var)
+    sim_extra_var_loc = {x:self.solver.get_var_location(x) for x in self.IO.sim_extra_var}
+    sim_extra_var = {var:(sim_extra_var_loc[var],sim_extra_var[var]) for var in sim_extra_var.keys()}
+    obj_extra_var = self.obj.output_to_user() if self.IO.obj_extra_var else {}
+    for var,(loc,ids,X) in obj_extra_var.items():
+      obj_extra_var[var] = (loc,ids - self.solver.cell_id_start_at,X)
     self.IO.output(
       it=self.iteration, #iteration number
       cf=cf, #cost function value
@@ -140,6 +148,8 @@ class Steady_State_Crafter:
       p_filtered=p_bar,
       adj_obj=self.obj.adjoint.l0,
       val_at=val_at,
+      sim_extra_var=sim_extra_var,
+      obj_extra_var=obj_extra_var,
       final=final,
     )
     return
@@ -662,6 +672,9 @@ class Steady_State_Crafter:
       "Density parameter filtered":"cell",
     }
     var_loc[f"Gradient d{self.obj.__get_name__()}_dp"] = var_loc["Density parameter"]
+    var_loc.update({
+      f"Gradient d{x[0].__get_name__()}_dp" : "cell" for x in self.constraints
+    })
     var_loc.update({
       x[0].__get_name__(): self.solver.get_var_location(
         x[0].__get_variables_needed__()[0]
