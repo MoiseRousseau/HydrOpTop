@@ -116,7 +116,11 @@ class Steady_State_Crafter:
         func, self.filter_sequence, p
       )
 
-    elif isinstance(func.adjoint, Sensitivity_Finite_Difference) or isinstance(func.adjoint, Sensitivity_Steady_Adjoint_Corrected):
+    elif (
+      isinstance(func.adjoint, Sensitivity_Finite_Difference) or
+      isinstance(func.adjoint, Sensitivity_Steady_Adjoint_Corrected) or
+      isinstance(func.adjoint, Sensitivity_Ensemble)
+    ):
       if self.last_cf is not None:
         func.adjoint.set_current_obj_val(self.last_cf)
       grad, feval = func.adjoint.compute_sensitivity(func, self.filter_sequence, p)
@@ -754,6 +758,9 @@ class Steady_State_Crafter:
         f,
         *( (self.adjoint_args,) if self.adjoint_args is not None else () ),
       )
+    elif self.adjoint == "ensemble":
+      f = lambda p: self.evaluate_objective(self.pre_evaluation_objective(p))
+      adjoint = Sensitivity_Ensemble(f, **self.adjoint_args)
     func.set_adjoint_problem(adjoint)
     
   
