@@ -87,4 +87,9 @@ class Log_SIMP(Base_Material):
     insts.append(instance)
     instance = cls(cell_ids, property_name="TEST", bounds=[0.1,1], reverse=True)
     insts.append(instance)
+    instance = cls(
+      cell_ids, property_name="TEST",
+      bounds=[np.linspace(0.1,1,N), np.linspace(10,11,N)],
+    )
+    insts.append(instance)
     return insts

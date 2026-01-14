@@ -17,12 +17,13 @@ def finite_difference_dvar(f, var, p, eps=EPS):
         grad[i] = (f1 - f2) / (2 * eps)
     return grad
 
-def finite_difference_dp(f, p, eps=EPS):
+def finite_difference_dp(f, p, eps=EPS, i_der=[]):
     grad = np.zeros_like(p)
-    for i in range(len(p)):
+    if not i_der: i_der = range(len(p))
+    for i in i_der:
         x1 = p.copy()
         x2 = p.copy()
         x1[i] += eps
         x2[i] -= eps
-        grad[i] = (f.evaluate(x1) - f.evaluate(x2)) / (2 * eps)
+        grad[i] = (f(x1) - f(x2)) / (2 * eps)
     return grad

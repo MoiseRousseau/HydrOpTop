@@ -165,7 +165,8 @@ class Steady_State_Crafter:
       X = np.zeros_like(p_)
       for mat_prop in self.mat_props:
         if mat_prop.get_name() != mu: continue
-        X[mat_prop.indexes] = mat_prop.convert_p_to_mat_properties(p_[mat_prop.indexes])
+        indexes = self.ids_p[mat_prop.cell_ids]
+        X[indexes] = mat_prop.convert_p_to_mat_properties(p_[indexes])
       ret[mu] = X
     return ret
     
@@ -715,7 +716,7 @@ class Steady_State_Crafter:
       if var_ in self.solver.solved_variables:
         solved_variables_needed.append(var_)
     if len(solved_variables_needed) == 0:
-      adjoint = No_Adjoint(self.mat_props, self.p_ids)
+      adjoint = No_Adjoint(self.mat_props, self.p_ids-self.solver.cell_id_start_at, self.ids_p)
     elif self.adjoint == "fd":
       f = lambda p: self.evaluate_objective(self.pre_evaluation_objective(p))
       adjoint = Sensitivity_Finite_Difference(f, **self.adjoint_args)
@@ -725,6 +726,7 @@ class Steady_State_Crafter:
         self.mat_props,
         self.solver,
         self.p_ids-self.solver.cell_id_start_at,
+        self.ids_p,
         *( (self.adjoint_args,) if self.adjoint_args is not None else () )
       )
     elif self.adjoint == "adjoint-corrected":

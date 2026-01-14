@@ -22,7 +22,7 @@ class Sensitivity_Steady_Simple:
   If cost_deriv_mat_prop is None, assume the cost function does not depend on
   the material property distribution.
   """
-  def __init__(self, solved_vars, parametrized_mat_props, solver, p_ids, solver_args={}):
+  def __init__(self, solved_vars, parametrized_mat_props, solver, p_ids, ids_p, solver_args={}):
     
     #vector
     #self.dc_dP = cost_deriv_pressure #dim = [cost] * L * T2 / M
@@ -30,7 +30,8 @@ class Sensitivity_Steady_Simple:
     self.solved_vars = solved_vars
     self.parametrized_mat_props = parametrized_mat_props
     self.solver = solver
-    self.assign_at_ids = p_ids #in solver format!
+    self.p_ids = p_ids #in solver format!
+    self.ids_p = ids_p #in solver format!
     
     solver_args_ = DEFAULT_SOLVER_ARGS.copy()
     solver_args_.update(solver_args)
@@ -51,7 +52,8 @@ class Sensitivity_Steady_Simple:
     
   def update_mat_derivative(self, p):
     for i,m in enumerate(self.parametrized_mat_props):
-      self.dXi_dp[m.get_name()][m.indexes] = m.d_mat_properties(p[m.indexes])
+      indexes = self.ids_p[m.cell_ids]
+      self.dXi_dp[m.get_name()][indexes] = m.d_mat_properties(p[indexes])
     return
   
   def update_residual_derivatives(self):
@@ -86,32 +88,37 @@ class Sensitivity_Steady_Simple:
     if self.initialized == False:
       self.__initialize_adjoint__(p_bar)
     else:
-      self.update_mat_derivative(p_bar)
       self.update_residual_derivatives()
+    self.update_mat_derivative(p_bar)
 
     # Get derivative of the cost function with p_bar
     # derivative according to solved var
+    # in dobj_dXY, the function ask only the p_bar for its indexes
+    p_bar_ = np.zeros( max(func.indexes.max(),self.p_ids.max())+1 ) + np.nan
+    p_bar_[self.p_ids] = p_bar
+    p_bar_ = p_bar_[func.indexes]
     dobj_dY = {}
     dobj_dX = {}
     # Loop over the function variables
     for var in func.__get_variables_needed__():
       # If a solved variable, this go to the adjoint
       if var in self.solver.solved_variables:
-        dfunc = func.d_objective(var, p_bar)
+        dfunc = func.d_objective(var, p_bar_)
         dobj_dY[var] = np.zeros(self.solver.get_system_size())
         if dfunc.ndim == 2: dobj_dY[var] = dobj_dY[var].repeat(dfunc.shape[1]).reshape(self.solver.get_system_size(),dfunc.shape[1])
         dobj_dY[var][func.indexes-self.solver.cell_id_start_at] = dfunc
       # If not solved
       elif var in [x.get_name() for x in self.parametrized_mat_props]:
-        dfunc = func.d_objective(var, p_bar)
+        dfunc = func.d_objective(var, p_bar_)
         dobj_dX[var] = np.zeros(self.solver.get_system_size())
         if dfunc.ndim == 2: dobj_dX[var] = dobj_dX[var].repeat(dfunc.shape[1]).reshape(self.solver.get_system_size(),dfunc.shape[1])
         dobj_dX[var][func.indexes-self.solver.cell_id_start_at] = dfunc
     
-    dobj_dp_partial = func.d_objective_dp_partial(p_bar)
-    # dobj_dp_partial = np.zeros(self.solver.get_system_size())
+    dfunc = func.d_objective_dp_partial(p_bar_)
+    dobj_dp_partial = np.zeros_like(p_bar)
+    if np.any(dfunc):
+      dobj_dp_partial[self.ids_p[func.indexes]] = dfunc
     # if dfunc.ndim == 2: dobj_dp_partial = dobj_dp_partial.repeat(dfunc.shape[1]).reshape(self.solver.get_system_size(),dfunc.shape[1])
-    # dobj_dp_partial[func.indexes] = dfunc
 
     #note: dR_dXi in solver ordering, so we convert it to p ordering with assign_at_ids
     # and dXi_dP in p ordering
@@ -119,7 +126,7 @@ class Sensitivity_Steady_Simple:
     assert len(self.dR_dXi) == len(self.dXi_dp)
     var = [x for x in self.dXi_dp.keys()][0]
     n = len(self.dXi_dp[var])
-    dR_dXi_dXi_dp = ( (self.dR_dXi[var]).tocsr() )[:,self.assign_at_ids].dot(
+    dR_dXi_dXi_dp = ( (self.dR_dXi[var]).tocsr() )[:,self.p_ids].dot(
       dia_matrix( (self.dXi_dp[var],[0]), shape=(n,n) )
     )
 
@@ -137,7 +144,7 @@ class Sensitivity_Steady_Simple:
     
     dc_dXi_dXi_dp = 0.
     for name in dobj_dX.keys():
-      dc_dXi_dXi_dp += dobj_dX[name][self.assign_at_ids]*self.dXi_dp[name]
+      dc_dXi_dXi_dp += dobj_dX[name][self.p_ids]*self.dXi_dp[name]
 
     #if self.assign_at_ids is not None and isinstance(dc_dXi_dXi_dp,np.ndarray):
     #  dc_dXi_dXi_dp = dc_dXi_dXi_dp[self.assign_at_ids-1]
@@ -150,26 +157,23 @@ class Sensitivity_Steady_Simple:
     A = self.dR_dYi[var].tocsr()[keep][:,keep]
     b = dobj_dY[var][keep]
     self.l0 = self.adjoint.solve(A, b) #solver ordering
-    S = dc_dXi_dXi_dp - (R_mat.transpose().tocsc()[:,keep]).dot(self.l0)
+    # const terms
+    S = - (R_mat.transpose().tocsc()[:,keep]).dot(self.l0)
 
     if isinstance(S, np.ndarray) and S.ndim == 2:
-      S += dobj_dp_partial[:,None]
+      S += (dc_dXi_dXi_dp + dobj_dp_partial[:,None]) @ Jf
     else:
-      S += dobj_dp_partial
+      S += (dc_dXi_dXi_dp + dobj_dp_partial) @ Jf
 
     return S
   
   
   def __initialize_adjoint__(self,p_bar):
-    self.dXi_dp = {}
-    mat_prop_unique = set([m.get_name() for m in self.parametrized_mat_props])
-    for mu in mat_prop_unique:
-      dXi_dp = np.zeros_like(p_bar)
-      for m in self.parametrized_mat_props:
-        if m.get_name() != mu: continue
-        dXi_dp[m.indexes] = m.d_mat_properties(p_bar[m.indexes])
-      self.dXi_dp[mu] = dXi_dp
+    self.dXi_dp = {
+      mat_prop.get_name():np.zeros_like(p_bar) for mat_prop in self.parametrized_mat_props
+    }
 
+    mat_prop_unique = set([m.get_name() for m in self.parametrized_mat_props])
     self.dR_dXi = {
       mu : self.solver.get_sensitivity(mu) for mu in mat_prop_unique
     }
