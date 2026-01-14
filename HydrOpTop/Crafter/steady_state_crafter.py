@@ -52,6 +52,7 @@ class Steady_State_Crafter:
     self.func_eval_history = []
     self.iteration = 0
     self.best_p = (None,None) #best cf, best p
+    self.last_cf = None
     self.last_p = None
     self.last_grad = None
     self.last_p_bar = None
@@ -107,7 +108,8 @@ class Steady_State_Crafter:
 
     if not np.allclose(p, self.last_p):
       self.func_eval += 1
-      self.pre_evaluation_objective(p)
+      p_bar = self.pre_evaluation_objective(p)
+      self.last_cf = self.evaluate_objective(p_bar)
 
     if isinstance(func.adjoint, Sensitivity_Steady_Simple) or isinstance(func.adjoint, No_Adjoint):
       grad = func.adjoint.compute_sensitivity(
@@ -261,26 +263,32 @@ class Steady_State_Crafter:
       self.output_to_user(final=True)
     
     
-    elif optimizer in ["scipy-SLSQP", "scipy-trust-constr"]:
+    elif optimizer.lower() in ["scipy-slsqp", "scipy-trust-constr"]:
       from scipy.optimize import minimize, NonlinearConstraint
       algo = optimizer[6:]
       options["maxiter"] = max_it
       consts = []
       for constraint in self.constraints:
-        const = NonlinearConstraint(lambda p: self.scipy_constraint_val(constraint,p),
-                                    -np.inf, 0,
-                                    jac=lambda p: self.scipy_constraint_jac(constraint,p))
+        const = NonlinearConstraint(
+          lambda p: self.scipy_constraint_val(constraint,p),
+          0, np.inf,
+          jac=lambda p: self.scipy_constraint_jac(constraint,p),
+          finite_diff_rel_step=1e-4,
+          keep_feasible=True,
+        )
         consts.append(const)
+      pre = -1. if action == "maximize" else 1.
       res = minimize(
-         self.scipy_function_to_optimize, 
+         lambda x: pre * self.scipy_function_to_optimize(x),
          method=algo,
-         jac=self.scipy_jac, 
+         jac= lambda x: pre * self.scipy_jac(x),
+         hessp=(lambda x,p: np.zeros_like(p)) if self.obj.linear else None,
          x0=initial_guess,
          bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0),
          constraints=consts, 
-         tol=stop["ftol_rel"],
          options=options,
-         callback=self.scipy_callback
+         callback=self.scipy_callback,
+         **stop,
       )
       p_opt = res.x
       print(f"Optimizer {algo} exited with success = {res.success}. Reason: {res.message}")
@@ -369,6 +377,7 @@ class Steady_State_Crafter:
         bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0),
         jac=jac,
       )
+      if res is None: return #mean we just have created the pest model file
       p_opt = res["x"]
       self.func_eval_history = res["func_eval_history"]
 
@@ -454,7 +463,8 @@ class Steady_State_Crafter:
   ######################
   ### NLOPT FUNCTION ###
   ######################
-  def nlopt_function_to_optimize(self, p, grad):
+  def nlopt_function_to_optimize(self, p, grad=np.array([])):
+    self.output_to_user()
     #start new it
     self.func_eval += 1
     self.iteration += 1 #for mma and ccsaq, one func call per iteration
@@ -482,7 +492,6 @@ class Steady_State_Crafter:
       the_constraint,compare,val = c
       constraint = the_constraint.evaluate(p_bar)
       self.last_constraints[the_constraint.name] = constraint
-    self.output_to_user()
     return cf
 
   def nlopt_constraint(self, i):
@@ -491,13 +500,16 @@ class Steady_State_Crafter:
     """
     return functools.partial(self.__nlopt_generic_constraint_to_optimize__, iconstraint=i)
   
-  def __nlopt_generic_constraint_to_optimize__(self, p, grad, iconstraint=0):
+  def __nlopt_generic_constraint_to_optimize__(self, p, grad=np.array([]), iconstraint=0):
     ###FILTERING: convert p to p_bar
+    if not np.allclose(p, self.last_p, rtol=1e-06):
+      self.func_eval += 1
+      p_bar = self.pre_evaluation_objective(p)
     p_bar = self.filter_sequence.filter(p)
     the_constraint,compare,val = self.constraints[iconstraint]
     constraint = the_constraint.evaluate(p_bar)
     c_name = self.constraints[iconstraint][0].name
-    print(f"Current {c_name} (constrain): {constraint:.6e}")
+    print(f"Current {c_name} (constraint): {constraint:.6e}")
     if grad.size > 0:
       grad[:] = self.evaluate_total_gradient(the_constraint, p, p_bar)
     if compare == '>':
@@ -514,10 +526,12 @@ class Steady_State_Crafter:
   ###  SCIPY FUNCTIONS ###
   ########################
   def scipy_run_sim(self, p):
-    if not np.allclose(p, self.last_p):
+    if not np.allclose(p, self.last_p, rtol=1e-06):
       self.func_eval += 1
       p_bar = self.pre_evaluation_objective(p)
     else:
+      diff_norm = np.linalg.norm(p-self.last_p) / np.sqrt(len(p))
+      print(f"Do not rerun simulation as new p close to previously simulated p, diff norm: {diff_norm:.2e}")
       p_bar = self.last_p_bar
     return p_bar
   
@@ -543,13 +557,14 @@ class Steady_State_Crafter:
     val = constraint[0].evaluate(p_bar)
     self.last_constraints[constraint[0].name] = val
     if constraint[1] == '<':
-      return -val + constraint[2]
+      return - val + constraint[2]
     elif constraint[1] == '>':
       return val - constraint[2]
   
   def scipy_constraint_jac(self, constraint, p):
     grad = self.evaluate_total_gradient(constraint[0], p)
     self.last_grad_constraints[constraint[0].name] = grad.copy()
+    if constraint[1] == '<': grad *= -1.
     return grad
   
   def scipy_callback(self, x, res=None):

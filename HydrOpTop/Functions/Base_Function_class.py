@@ -26,6 +26,7 @@ class Base_Function:
         self.ids_p: Optional[np.ndarray] = None
         self.variables_needed: Optional[list[str]] = None
         self.indexes = None #Define the required cell_ids data
+        self.linear = False # Set this to true if the function is linear for better performance
 
     # -------------------------------------------------------------------------
     # Adjoint / Input Handling

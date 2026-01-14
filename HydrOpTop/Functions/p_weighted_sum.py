@@ -33,6 +33,7 @@ class p_Weighted_Sum(Base_Function):
         self.indexes = field_ids
 
         self.variables_needed = []
+        self.linear = True
         return
     
     

@@ -35,6 +35,7 @@ class Volume_Percentage(Base_Function):
     self.name = "Volume"
     self.indexes = self.cell_ids # ask to the crafter the data corresponding to id defined
     self.inputs = {}
+    self.linear = True
     return
   
   
