@@ -58,8 +58,6 @@ class Heaviside_Filter(Base_Filter):
       print("Matplotlib is not available on your installation")
       print("Please try 'pip3 install matplotlib' and restart the optimization")
     x = np.linspace(0,1,1000)
-    save = self.base_density_filter
-    self.base_density_filter = None
     y = self.get_filtered_density(x)
     fig,ax = plt.subplots()
     ax.plot(x,y,'b',label="Filtered parameter")
@@ -67,7 +65,6 @@ class Heaviside_Filter(Base_Filter):
     ax.set_ylabel("Filtered Parameter")
     ax.grid()
     plt.show()
-    self.base_density_filter = save
     return
 
   @classmethod
