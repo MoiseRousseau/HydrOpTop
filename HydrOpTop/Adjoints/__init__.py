@@ -5,7 +5,7 @@ __all__ = [
     "Sensitivity_Steady_Adjoint_Corrected",
     "No_Adjoint",
     "Sensitivity_Finite_Difference",
-    #"Ensemble_Gradient",
+    "Sensitivity_Ensemble",
 ]
 
 def __getattr__(name):
