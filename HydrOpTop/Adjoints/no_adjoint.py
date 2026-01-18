@@ -4,12 +4,13 @@ class No_Adjoint:
   """
   A dummy adjoint class that solve no adjoint...
   """
-  def __init__(self, parametrized_mat_props, p_ids, ids_p):
+  def __init__(self, parametrized_mat_props, solver, p_ids, ids_p):
     self.p_ids = p_ids #in solver format!
     self.ids_p = ids_p
     self.initialized = False
     self.parametrized_mat_props = parametrized_mat_props
     self.l0 = None
+    self.solver = solver
     
     self.dXi_dp = {m.get_name():None for m in parametrized_mat_props} # dim = [mat_prop] * L * T2 / M
     return
@@ -40,7 +41,7 @@ class No_Adjoint:
 
     # in dobj_dX, the function ask only the p_bar for its indexes
     p_bar_ = np.zeros( max(func.indexes.max(),self.p_ids.max())+1 ) + np.nan
-    p_bar_[self.p_ids] = p_bar
+    p_bar_[self.p_ids-self.solver.cell_id_start_at] = p_bar
     p_bar_ = p_bar_[func.indexes]
     dobj_dX = {}
     for var in func.__get_variables_needed__():
@@ -51,12 +52,15 @@ class No_Adjoint:
         if dfunc.ndim == 2: dobj_dX[var] = dobj_dX[var].repeat(dfunc.shape[1]).reshape(self.solver.get_system_size(),dfunc.shape[1])
         dobj_dX[var][func.indexes-self.solver.cell_id_start_at] = dfunc
 
-    dobj_dp_partial = np.zeros_like(p_bar)
-    dobj_dp_partial[self.ids_p[func.indexes]] = func.d_objective_dp_partial(p_bar_)
+    dfunc = func.d_objective_dp_partial(p_bar_)
+    dobj_dp_partial = np.zeros(self.solver.get_grid_size())
+    if np.any(dfunc):
+      dobj_dp_partial[func.indexes-self.solver.cell_id_start_at] = dfunc
+    dobj_dp_partial = dobj_dp_partial[self.p_ids-self.solver.cell_id_start_at]
 
     dc_dXi_dXi_dp = 0.
     for name in dobj_dX.keys():
-      dc_dXi_dXi_dp += dobj_dX[name][self.p_ids] * self.dXi_dp[name]
+      dc_dXi_dXi_dp += dobj_dX[name][self.p_ids-self.solver.cell_id_start_at] * self.dXi_dp[name]
     return (dc_dXi_dXi_dp + dobj_dp_partial) @ Jf
   
   def __initialize_adjoint__(self,p):

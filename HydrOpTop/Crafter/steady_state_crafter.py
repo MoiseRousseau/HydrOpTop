@@ -627,6 +627,7 @@ class Steady_State_Crafter:
 
     # Create mapping from p indexing to simulation indexing
     self.p_ids = self.filter_sequence.output_ids # Correspondance between p and id in simulation
+    self.p_ids.flags.writeable = False
     #self.ids_p = -np.ones(self.solver.get_grid_size()+1, dtype='i8') #+1 because it can be 0 or 1 based
     #self.ids_p[self.p_ids] = np.arange(len(self.p_ids)) #now we can query self.ids_p[cell_ids] and get index in p (or -1 if not attributed)
     self.ids_p = self.filter_sequence.sim_to_p_ids
@@ -733,7 +734,7 @@ class Steady_State_Crafter:
       if var_ in self.solver.solved_variables:
         solved_variables_needed.append(var_)
     if len(solved_variables_needed) == 0:
-      adjoint = No_Adjoint(self.mat_props, self.p_ids-self.solver.cell_id_start_at, self.ids_p)
+      adjoint = No_Adjoint(self.mat_props, self.solver, self.p_ids, self.ids_p)
     elif self.adjoint == "fd":
       f = lambda p: self.evaluate_objective(self.pre_evaluation_objective(p))
       adjoint = Sensitivity_Finite_Difference(f, **self.adjoint_args)
@@ -742,7 +743,7 @@ class Steady_State_Crafter:
         solved_variables_needed,
         self.mat_props,
         self.solver,
-        self.p_ids-self.solver.cell_id_start_at,
+        self.p_ids,
         self.ids_p,
         *( (self.adjoint_args,) if self.adjoint_args is not None else () )
       )

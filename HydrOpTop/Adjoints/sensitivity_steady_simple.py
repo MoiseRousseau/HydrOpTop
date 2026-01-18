@@ -104,6 +104,8 @@ class Sensitivity_Steady_Simple:
       # If a solved variable, this go to the adjoint
       if var in self.solver.solved_variables:
         dfunc = func.d_objective(var, p_bar_)
+        # dfunc might contains NaN, cast them to zero
+        np.nan_to_num(dfunc, copy=False, nan=0.)
         dobj_dY[var] = np.zeros(self.solver.get_system_size())
         if dfunc.ndim == 2: dobj_dY[var] = dobj_dY[var].repeat(dfunc.shape[1]).reshape(self.solver.get_system_size(),dfunc.shape[1])
         dobj_dY[var][func.indexes-self.solver.cell_id_start_at] = dfunc
@@ -115,9 +117,10 @@ class Sensitivity_Steady_Simple:
         dobj_dX[var][func.indexes-self.solver.cell_id_start_at] = dfunc
     
     dfunc = func.d_objective_dp_partial(p_bar_)
-    dobj_dp_partial = np.zeros_like(p_bar)
+    dobj_dp_partial = np.zeros(self.solver.get_grid_size())
     if np.any(dfunc):
-      dobj_dp_partial[self.ids_p[func.indexes]] = dfunc
+      dobj_dp_partial[func.indexes-self.solver.cell_id_start_at] = dfunc
+    dobj_dp_partial = dobj_dp_partial[self.p_ids-self.solver.cell_id_start_at]
     # if dfunc.ndim == 2: dobj_dp_partial = dobj_dp_partial.repeat(dfunc.shape[1]).reshape(self.solver.get_system_size(),dfunc.shape[1])
 
     #note: dR_dXi in solver ordering, so we convert it to p ordering with assign_at_ids
@@ -126,7 +129,7 @@ class Sensitivity_Steady_Simple:
     assert len(self.dR_dXi) == len(self.dXi_dp)
     var = [x for x in self.dXi_dp.keys()][0]
     n = len(self.dXi_dp[var])
-    dR_dXi_dXi_dp = ( (self.dR_dXi[var]).tocsr() )[:,self.p_ids].dot(
+    dR_dXi_dXi_dp = ( (self.dR_dXi[var]).tocsr() )[:,self.p_ids-self.solver.cell_id_start_at].dot(
       dia_matrix( (self.dXi_dp[var],[0]), shape=(n,n) )
     )
 
@@ -144,7 +147,7 @@ class Sensitivity_Steady_Simple:
     
     dc_dXi_dXi_dp = 0.
     for name in dobj_dX.keys():
-      dc_dXi_dXi_dp += dobj_dX[name][self.p_ids]*self.dXi_dp[name]
+      dc_dXi_dXi_dp += dobj_dX[name][self.p_ids-self.solver.cell_id_start_at]*self.dXi_dp[name]
 
     #if self.assign_at_ids is not None and isinstance(dc_dXi_dXi_dp,np.ndarray):
     #  dc_dXi_dXi_dp = dc_dXi_dXi_dp[self.assign_at_ids-1]
@@ -161,7 +164,7 @@ class Sensitivity_Steady_Simple:
     S = - (R_mat.transpose().tocsc()[:,keep]).dot(self.l0)
 
     if isinstance(S, np.ndarray) and S.ndim == 2:
-      S += (dc_dXi_dXi_dp + dobj_dp_partial[:,None]) @ Jf
+      S += ((dc_dXi_dXi_dp + dobj_dp_partial) @ Jf)[:,None]
     else:
       S += (dc_dXi_dXi_dp + dobj_dp_partial) @ Jf
 
