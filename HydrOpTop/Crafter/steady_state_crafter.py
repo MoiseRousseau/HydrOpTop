@@ -207,11 +207,10 @@ class Steady_State_Crafter:
                      initial_guess=None,
                      action="minimize", 
                      density_parameter_bounds=[0.001, 1],
-                     tolerance_constraints=0.005,
-                     max_it=50,
-                     initial_step=None,
-                     stop={},
+                     optimizer_args={},
                      **options):
+    if options:
+      print(f"Warning, the following options are ignored: {options}")
     self.iteration = 0
     self.func_eval = 0
     self.action = action
@@ -219,9 +218,24 @@ class Steady_State_Crafter:
     if initial_guess is None:
       initial_guess = np.zeros(self.get_problem_size(), dtype='f8') + \
                          np.mean(density_parameter_bounds)
+    if (np.min(initial_guess) < density_parameter_bounds[0] or
+        np.max(initial_guess) > density_parameter_bounds[1]):
+      raise ValueError(f"Initial guess not within bound provided ({density_parameter_bounds})")
     self.first_p = initial_guess.copy()
+
     ### OPTIMIZE
     if "nlopt" in optimizer:
+      print("Using NLOPT optimizer")
+      DEFAULT_OPT_ARGS = {
+        "set_maxeval":50,
+        "set_ftol_rel":1e-3,
+        #"set_ftol_abs":1e-8,
+        "set_xtol_rel":1e-4,
+        "set_xtol_abs":1e-5,
+        "tolerance_constraints":0.,
+      }
+      for k,v in DEFAULT_OPT_ARGS.items():
+        if k not in optimizer_args.keys(): optimizer_args[k] = v
       d_algo = {
         "nlopt-mma":nlopt.LD_MMA,
         "nlopt-ccsaq":nlopt.LD_CCSAQ,
@@ -239,25 +253,17 @@ class Steady_State_Crafter:
         raise RuntimeError(f"Error: Unknown action \"{action}\" (should be \"minimize\" or \"maximize\"")
       #add constraints
       for i,tc in enumerate(self.constraints):
-        opt.add_inequality_constraint(self.nlopt_constraint(i),
-                                      tolerance_constraints)
+        opt.add_inequality_constraint(
+          self.nlopt_constraint(i), optimizer_args["tolerance_constraints"]
+        )
       #define minimum and maximum bounds
       opt.set_lower_bounds(np.zeros(self.get_problem_size(), dtype='f8') +
                            density_parameter_bounds[0])
       opt.set_upper_bounds(np.zeros(self.get_problem_size(), dtype='f8') +
                            density_parameter_bounds[1])
-      #opt.set_param("inner_maxeval", 50)
-      if initial_step is not None:
-        opt.set_initial_step(initial_step)
-      #define stop criterion
-      opt.set_maxeval(max_it)
-      if stop:
-        if "ftol_rel" in stop.keys(): opt.set_ftol_rel(stop["ftol_rel"])
-        if "ftol_abs" in stop.keys(): opt.set_ftol_abs(stop["ftol_abs"])
-        if "stopval" in stop.keys(): opt.set_stopval(stop["stopval"])
-
-      # adjust initial step size
-      #opt.set_initial_step(20)
+      #other argument
+      for k,v in optimizer_args.items():
+        getattr(opt, k, lambda x: None)(v)
       #optimize
       try:
         p_opt = opt.optimize(initial_guess)
@@ -270,7 +276,6 @@ class Steady_State_Crafter:
     elif optimizer.lower() in ["scipy-slsqp", "scipy-trust-constr"]:
       from scipy.optimize import minimize, NonlinearConstraint
       algo = optimizer[6:]
-      options["maxiter"] = max_it
       consts = []
       for constraint in self.constraints:
         const = NonlinearConstraint(
@@ -282,6 +287,7 @@ class Steady_State_Crafter:
         )
         consts.append(const)
       pre = -1. if action == "maximize" else 1.
+      options = {}
       res = minimize(
          lambda x: pre * self.scipy_function_to_optimize(x),
          method=algo,
@@ -289,10 +295,9 @@ class Steady_State_Crafter:
          hessp=(lambda x,p: np.zeros_like(p)) if self.obj.linear else None,
          x0=initial_guess,
          bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0),
-         constraints=consts, 
-         options=options,
+         constraints=consts,
          callback=self.scipy_callback,
-         **stop,
+         options=optimizer_args,
       )
       p_opt = res.x
       print(f"Optimizer {algo} exited with success = {res.success}. Reason: {res.message}")
@@ -305,11 +310,8 @@ class Steady_State_Crafter:
         jac=self.scipy_jac,
         bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0).T,
         method=optimizer[6:],
-        #loss="soft_l1",
-        max_nfev=max_it,
         callback=self.scipy_callback,
-        verbose=2,
-        **stop
+         **optimizer_args,
       )
       p_opt = res.x
       self.best_p = (res.cost, res.x)
@@ -349,11 +351,7 @@ class Steady_State_Crafter:
                     ub=[density_parameter_bounds[1] for x in initial_guess],
                     cl=[0 for x in self.constraints],
                     cu=[1e40 for x in self.constraints])
-      if "ftol" in stop.keys():
-        nlp.add_option("tol", stop["ftol"])
-      nlp.add_option("max_iter", max_it)
-      nlp.add_option("print_level", 0)
-      for key,val in options.items():
+      for key,val in optimizer_args.items():
         nlp.add_option(key, val)
       p_opt, info = nlp.solve(initial_guess)
 
@@ -371,10 +369,8 @@ class Steady_State_Crafter:
       jac = self.scipy_jac if use_jac else None
       solver = PEST_Wrapper(
         NPAR=len(initial_guess), NOBS=len(self.obj.ref_head),
-        NOPTMAX=max_it,
-        RELPARSTP=stop["xtol"],
         rundir=rundir,
-        **options,
+        **optimizer_args,
       )
       res = solver.fit(
         self.scipy_function_to_optimize, x0=initial_guess,
@@ -390,9 +386,8 @@ class Steady_State_Crafter:
       solver = PESTMarquardtLS(
         #lambda_init=100,
         #lambda_factors=[0.07, 1.2, 0.7, 1.2, 70, 120],
-        maxiter=max_it,
+        **optimizer_args,
         callback=self.scipy_callback,
-        **stop,
         verbose=True
       )
       res = solver.fit(
@@ -488,14 +483,14 @@ class Steady_State_Crafter:
     self.last_p[:] = p
     if self.filters:
       self.last_p_bar[:] = p_bar
-    # Store the best iterate
-    self.__store_best_p__(p,cf)
     # output to user: in nlopt, there is no callback, so we write the results here
     # but constraints are evaluated after, so call it here
     for c in self.constraints:
       the_constraint,compare,val = c
       constraint = the_constraint.evaluate(p_bar)
       self.last_constraints[the_constraint.name] = constraint
+    # Store the best iterate
+    self.__store_best_p__(p,cf)
     return cf
 
   def nlopt_constraint(self, i):
@@ -509,7 +504,9 @@ class Steady_State_Crafter:
     if not np.allclose(p, self.last_p, rtol=1e-06):
       self.func_eval += 1
       p_bar = self.pre_evaluation_objective(p)
-    p_bar = self.filter_sequence.filter(p)
+    else:
+      p_bar = self.filter_sequence.filter(p)
+
     the_constraint,compare,val = self.constraints[iconstraint]
     constraint = the_constraint.evaluate(p_bar)
     c_name = self.constraints[iconstraint][0].name
@@ -573,6 +570,7 @@ class Steady_State_Crafter:
   
   def scipy_callback(self, x, res=None):
     self.iteration += 1
+    print(f"Current {self.obj.name} (cost function): {np.linalg.norm(self.last_cf):.6e}")
     self.output_to_user()
     #self.func_eval_history.append((self.func_eval, self.best_p[0]))
     return
@@ -639,6 +637,8 @@ class Steady_State_Crafter:
     
     #create correspondance and problem size
     self.problem_size = self.filter_sequence.input_dim
+    print(f"Number of primary parameter to optimize: {self.problem_size}")
+    print(f"Number of cell parametrized: {len(self.filter_sequence.output_ids)}")
     #self.p = np.zeros(input_dim, dtype='f8')
     self.last_p = np.zeros(self.problem_size,dtype='f8')
     self.last_grad = np.zeros(self.problem_size,dtype='f8')

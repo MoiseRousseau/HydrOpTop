@@ -63,8 +63,7 @@ if __name__ == "__main__":
     p_opt = crafted_problem.optimize(
         optimizer="scipy-dogbox",
         action="minimize",
-        max_it=10,
-        stop={'ftol':1e-40, "xtol":1e-2},
+        optimizer_args={"max_nfev":10, "ftol":1e-40, "xtol":1e-2},
         initial_guess=p
     )
 

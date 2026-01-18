@@ -61,7 +61,8 @@ if __name__ == "__main__":
     #initialize optimizer
     p = np.zeros(crafted_problem.get_problem_size()) + 0.01
     res = crafted_problem.optimize(
-        optimizer="nlopt-ccsaq", action="maximize", max_it=15, stop={"ftol":0.0001}, initial_guess=p
+        optimizer="nlopt-ccsaq", action="maximize", initial_guess=p,
+        optimizer_args={"set_maxeval":15, "set_ftol_rel":0.0001},
     )
 
 

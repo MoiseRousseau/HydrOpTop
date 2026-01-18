@@ -64,10 +64,8 @@ if __name__ == "__main__":
     p_opt = crafted_problem.optimize(
         optimizer="scipy-trf",
         action="minimize",
-        max_it=10,
-        stop={'ftol':1e-40, "xtol":1e-4},
+        optimizer_args={"max_nfev":10, "ftol":1e-40, "xtol":1e-4},
         initial_guess=p
     )
 
     crafted_problem.IO.plot_convergence_history()
-    

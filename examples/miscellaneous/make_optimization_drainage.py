@@ -47,7 +47,8 @@ if __name__ == "__main__":
   #initialize optimizer
   p = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.18
   p_opt = crafted_problem.optimize(
-    optimizer="nlopt-ccsaq", action="minimize", max_it=50, stop={"ftol":0.0001}, initial_guess=p
+    optimizer="nlopt-ccsaq", action="minimize", initial_guess=p,
+    optimizer_args={"ftol":0.0001, "set_maxeval":50},
   )
   crafted_problem.IO.plot_convergence_history()
     
