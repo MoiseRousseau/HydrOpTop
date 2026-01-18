@@ -27,6 +27,7 @@ class Base_Function:
         self.variables_needed: Optional[list[str]] = None
         self.indexes = None #Define the required cell_ids data
         self.linear = False # Set this to true if the function is linear for better performance
+        self.cell_id_start_at = 0 #to communicate 1 or 0 based cell ordering in solver
 
     # -------------------------------------------------------------------------
     # Adjoint / Input Handling

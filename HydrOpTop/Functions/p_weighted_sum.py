@@ -32,7 +32,13 @@ class p_Weighted_Sum(Base_Function):
         # ask the crafter the density parameter p at the same place than where the field is defined
         self.indexes = field_ids
 
-        self.variables_needed = []
+        if isinstance(self.field,str):
+            self.field_ = self.field
+            self.variables_needed = [self.field_]
+        else:
+            self.field_ = "CUSTOM_FIELD"
+            self.inputs[self.field_] = self.field
+            self.variables_needed = []
         self.linear = True
         return
     
@@ -45,7 +51,7 @@ class p_Weighted_Sum(Base_Function):
         """
         if self.vp0: p_ = 1-p
         else: p_ = p
-        cf = np.sum(self.field*np.power(p_,self.n))
+        cf = np.sum(self.inputs[self.field_]*np.power(p_,self.n))
         return cf
 
     
@@ -56,12 +62,20 @@ class p_Weighted_Sum(Base_Function):
             factor = -1.
         else:
             factor = 1.
-        res = factor * self.field * self.n * p**(self.n-1)
+        res = factor * self.inputs[self.field_] * self.n * p**(self.n-1)
         return res
 
 
+    def d_objective(self,var,p):
+        if var != self.field_:
+            return np.array([0.])
+        p_ = 1-p if self.vp0 else p
+        deriv = np.power(p_,self.n)
+        return deriv
+
+
     def output_to_user(self):
-        return {"Field":("cell",self.field_ids, self.field)}
+        return {self.field_:("cell",self.field_ids, self.inputs[self.field_])}
 
 
     @classmethod

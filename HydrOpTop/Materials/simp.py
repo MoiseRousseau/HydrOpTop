@@ -27,7 +27,7 @@ class SIMP(Base_Material):
   
   """
   def __init__(self, cell_ids_to_parametrize,
-                     property_name, bounds, power=3, reverse=False):
+                     property_name, bounds, power=1, reverse=False):
     if isinstance(cell_ids_to_parametrize, str) and \
              cell_ids_to_parametrize.lower() == "all":
       self.cell_ids = None

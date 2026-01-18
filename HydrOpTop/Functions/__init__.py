@@ -1,13 +1,14 @@
 import importlib
 from .Base_Function_class import Base_Function
 __all__ = [
+    "Cell_Gradient",
     "Drawdown",
-    "Head_Gradient",
     "Least_Square_Calibration",
     "Mean_Liquid_Piezometric_Head",
     "Mechanical_Compliance",
     "p_Gradient",
-    "p_Weighted_Head_Gradient",
+    "p_Weighted_Cell_Gradient",
+    "p_Weighted_Sum",
     "p_Weighted_Sum_Flux",
     "Reference_Liquid_Head",
     "Sum_Flux",

@@ -11,16 +11,16 @@ class Heaviside_Filter(Base_Filter):
     and to avoid blurry contour. The smooth Heaviside function is defined as:
 
     .. math::
-      
+
        \tilde{p}_i = \frac{\tanh(\beta \eta) + \tanh(\beta (\bar p - \eta))}
                           {\tanh(\beta \eta) + \tanh(\beta (1- \eta))}
 
-  Parameters: 
-    ``cutoff`` (float): the cutoff parameter :math:`\eta` (i.e. the value of 
+  Parameters:
+    ``cutoff`` (float): the cutoff parameter :math:`\eta` (i.e. the value of
     :math:`p_i` where the step is located)
-    
+
     ``steepness`` (float): the steepness of the smooth Heaviside function :math:`\beta`
-  
+
   Required solver output:
 
   """
@@ -33,24 +33,28 @@ class Heaviside_Filter(Base_Filter):
     self.initialized = False
     self.name = "Heaviside Filter"
     return
-  
+
   def get_filtered_density(self, p):
     a = np.tanh(self.stepness*self.cutoff)
     p_filtered = (a+np.tanh(self.stepness*(p-self.cutoff))) / \
                        (a+np.tanh(self.stepness*(1-self.cutoff)))
     return p_filtered
-  
+
   def get_filter_derivative(self, p):
     d_p_filtered = 1 - np.tanh(self.stepness*(p-self.cutoff))**2
     a = np.tanh(self.stepness*self.cutoff)
     d_p_filtered *= self.stepness / (a + np.tanh(self.stepness*(1-self.cutoff)))
     n = np.arange(len(d_p_filtered))
     return coo_matrix((d_p_filtered,(n,n)))
-  
+
+  def update_stepness(self,s):
+    self.stepness = s
+    return
+
   def plot_filtered_density(self):
     r"""
     Visualize the transformation applied
-    
+
     """
     try:
       import matplotlib.pyplot as plt

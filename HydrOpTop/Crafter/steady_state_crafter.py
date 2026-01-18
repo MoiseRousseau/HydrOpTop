@@ -658,16 +658,14 @@ class Steady_State_Crafter:
       self.__initialize_adjoint__(self.obj)
     if self.obj.indexes is None:
       # pass all cell
-      self.obj.indexes = np.arange(len(self.solver.get_region_ids("__all__")))
-      
-    #self.obj.set_p_to_cell_ids(self.p_ids)
+      self.obj.indexes = self.solver.get_region_ids("__all__")
+    self.obj.cell_id_start_at = self.solver.cell_id_start_at
     
     #initialize adjoint for constraints
     self.last_constraints = {x[0].name:0. for x in self.constraints}
     self.last_grad_constraints = {x[0].name:None for x in self.constraints}
     for constraint in self.constraints:
       constraint = constraint[0]
-      #constraint.set_p_to_cell_ids(self.p_ids)
       # set adjoint
       if constraint.adjoint is None:
         self.__initialize_adjoint__(constraint)
