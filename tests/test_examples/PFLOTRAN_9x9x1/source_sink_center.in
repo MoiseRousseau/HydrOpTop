@@ -94,10 +94,10 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    LIQUID_PRESSURE hydrostatic
   /
   DATUM 0 0 50
-  PRESSURE 101325.
+  LIQUID_PRESSURE 101325.
 END
 
 FLOW_CONDITION flux

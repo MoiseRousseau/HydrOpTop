@@ -96,3 +96,41 @@ def test_constrained_optimization(example):
     output_file = directory / "out.txt"
     ref_file = directory / example.replace(".py", ".ref")
     run_and_compare(directory, script, output_file, ref_file, rtol=3e-3)
+
+
+#@pytest.mark.slow
+@pytest.mark.parametrize(
+    "example",
+    [
+        "make_pervious_surround_2D.py",
+        #"make_pervious_surround_3D.py",
+    ],
+)
+def test_pervious_surround(example):
+    """
+    Regression test for classical linear elasticity benchmark
+    """
+    directory = EXAMPLES_DIR / "pervious_surround_optimization"
+    script = directory / example
+    output_file = directory / "out.txt"
+    ref_file = directory / example.replace(".py", ".ref")
+    run_and_compare(directory, script, output_file, ref_file, rtol=3e-3)
+
+
+#@pytest.mark.slow
+@pytest.mark.parametrize(
+    "example",
+    [
+        "make_cantilever_simple.py",
+        "make_cantilever_min_volume.py",
+    ],
+)
+def test_cantilever_benchmark(example):
+    """
+    Regression test for classical linear elasticity benchmark
+    """
+    directory = EXAMPLES_DIR / "linear_elasticity"
+    script = directory / example
+    output_file = directory / "out.txt"
+    ref_file = directory / example.replace(".py", ".ref")
+    run_and_compare(directory, script, output_file, ref_file, rtol=3e-3)

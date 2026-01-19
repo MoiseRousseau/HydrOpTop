@@ -94,12 +94,12 @@ END
 #=========================== flow conditions ==================================
 FLOW_CONDITION initial
   TYPE
-    PRESSURE hydrostatic
+    LIQUID_PRESSURE hydrostatic
   /
   DATUM 0 0 50
-  PRESSURE 101325.
+  LIQUID_PRESSURE 101325.
   GRADIENT 
-    PRESSURE -0.01 0. 0.
+    LIQUID_PRESSURE -0.01 0. 0.
   /
 END
 

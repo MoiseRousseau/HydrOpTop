@@ -4,7 +4,7 @@ import copy
 
 from HydrOpTop.Solvers import Dummy_Simulator
 from HydrOpTop.Adjoints import Sensitivity_Steady_Simple
-from HydrOpTop.Functions import Sum_Variable, Volume_Percentage
+from HydrOpTop.Functions import Sum_Variable, Volume_Percentage, p_Weighted_Sum
 from HydrOpTop.Materials import Identity
 from HydrOpTop.Crafter import Steady_State_Crafter
 from HydrOpTop.Filters import Density_Filter, Heaviside_Filter, Zone_Homogeneous
@@ -19,7 +19,8 @@ class Test_Crafter:
   solver = Dummy_Simulator(problem_size=N, seed=1234)
   all_cells = solver.get_region_ids("__all__")
   parametrization = Identity(all_cells, "a")
-  parametrization_partial = Identity(all_cells[1:5], "a")
+  subset_cells = all_cells[1:5]
+  parametrization_partial = Identity(subset_cells, "a")
 
   @pytest.mark.parametrize("deriv_mode", [
     pytest.param(["fd",{"scheme":"forward","step":1e-6}], id="fd-forward"),
@@ -81,7 +82,7 @@ class Test_Crafter:
     Test derivative against a non homogeneous parametrization (depend of a cell_id)
     """
     from HydrOpTop.Materials import SIMP
-    cell_ids = np.random.permutation(self.all_cells[1:5])
+    cell_ids = np.random.permutation(self.subset_cells)
     bounds = [np.random.random(4), 2.]
     param = SIMP(cell_ids, "a", bounds)
     solver = Dummy_Simulator(problem_size=self.N, seed=1234, start_at=1)
@@ -97,6 +98,23 @@ class Test_Crafter:
     # Comparison
     np.testing.assert_allclose(S_adjoint, S_fd, atol=1e-6, rtol=1e-5)
     return
+  
+
+  @pytest.mark.parametrize("obj", [
+    pytest.param(Sum_Variable("x", ids_to_consider=all_cells), id="solved_var"),
+    pytest.param(Volume_Percentage(ids_to_sum_volume=subset_cells), id="p_only"),
+    pytest.param(p_Weighted_Sum("x", field_ids=subset_cells, index_by_p0=True), id="solved_var_p"),
+  ])
+  def test_crafter_derivative_level1_obj(self, obj):
+    # adjoint deriv
+    craft = Steady_State_Crafter(obj, self.solver, [self.parametrization_partial], filters=[])
+    p = np.random.random(craft.get_problem_size())
+    craft.pre_evaluation_objective(p)
+    S_adjoint = craft.evaluate_total_gradient(obj, p)
+    # fd deriv
+    # we can't use standard FD in the crafter as no_adjoint is enforced when func does not depend of variable
+    S_fd = finite_difference_dp(lambda x: craft.evaluate_objective(craft.pre_evaluation_objective(x)), p)
+    np.testing.assert_allclose(S_adjoint, S_fd, atol=1e-6, rtol=1e-6)
 
 
   def test_crafter_derivative_level1_diag_filter(self):
@@ -180,7 +198,7 @@ class Test_Crafter:
     Test adjoint derivative with multiple different parametrization of the same variable
     """
     from HydrOpTop.Materials import Log_SIMP
-    param1 = Log_SIMP(np.random.permutation(self.all_cells[1:5]), "a", [1., 10.])
+    param1 = Log_SIMP(np.random.permutation(self.subset_cells), "a", [1., 10.])
     param2 = Log_SIMP(np.random.permutation(self.all_cells[5:8]), "a", [10., 100.])
     solver = Dummy_Simulator(problem_size=self.N, seed=1234, start_at=1)
     obj = Sum_Variable("x", ids_to_consider=solver.get_region_ids("__all__"))

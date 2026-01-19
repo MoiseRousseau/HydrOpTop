@@ -62,7 +62,7 @@ def collect_test_cases():
         if not instances:
             try: instances.append(cls())
             except:
-                print("Can add", cls)
+                print("Can't add", cls)
 
         # --- now for each instance, collect input samples ---
         for i, inst in enumerate(instances):
@@ -79,13 +79,14 @@ def test_derivative_consistency(cls,instance):
         pytest.skip(f"{cls.__name__}: missing evaluate or d_objective")
 
     # --- choose input ---
-    if hasattr(instance, "indexes"):
+    if hasattr(instance, "sample_input") and callable(instance.sample_input):
+        p = np.asarray(instance.sample_input())
+    elif hasattr(instance, "indexes"):
         if instance.indexes is None:
-            p = [1] # scalar so act as a array with infinite length
+            p = np.array([1.]) # scalar so act as a array with infinite length
+            p = np.random.random(len(next(iter(instance.inputs.items()))[1]))
         else:
             p = np.random.rand(len(instance.indexes))
-    elif hasattr(instance, "sample_input") and callable(instance.sample_input):
-        p = np.asarray(instance.sample_input())
     else:
         p = np.random.rand(3)
     
@@ -96,7 +97,7 @@ def test_derivative_consistency(cls,instance):
 
     # --- evaluate dp ---
     g_true = np.asarray(instance.d_objective_dp_partial(p))
-    g_fd = finite_difference_dp(instance, p)
+    g_fd = finite_difference_dp(instance.evaluate, p)
     np.testing.assert_allclose(g_true, g_fd, atol=TOL**2, rtol=TOL)
 
     # --- evaluate dvar ---
