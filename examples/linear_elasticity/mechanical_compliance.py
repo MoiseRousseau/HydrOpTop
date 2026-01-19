@@ -22,8 +22,9 @@ class Mechanical_Compliance(Base_Function):
     ``DISPLACEMENTS`` and ``MECHANICAL_LOAD``.
   
   """
-  def __init__(self, ids_to_consider="everywhere"):
+  def __init__(self, ids_to_consider=None):
     super(Mechanical_Compliance, self).__init__()
+    self.indexes = ids_to_consider
     self.name = "Mechanical Compliance"
     self.variables_needed = ["DISPLACEMENTS", "MECHANICAL_LOAD"]
     self.inputs = {}

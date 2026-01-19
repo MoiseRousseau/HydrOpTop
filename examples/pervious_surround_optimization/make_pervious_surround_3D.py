@@ -8,7 +8,7 @@ Source file for optimizing a man-made pervious surrond to reduce advective flow 
 import numpy as np
 import time
 
-from HydrOpTop.Functions import p_Weighted_Head_Gradient, Volume_Percentage
+from HydrOpTop.Functions import p_Weighted_Cell_Gradient, Volume_Percentage
 from HydrOpTop.Materials import Log_SIMP
 from HydrOpTop.Filters import Density_Filter
 from HydrOpTop.Crafter import Steady_State_Crafter
@@ -31,30 +31,47 @@ if __name__ == "__main__":
 
     #4. Define the cost function and constraint
     #define cost function as sum of the head in the pit
-    cf = p_Weighted_Head_Gradient(pit_ids, invert_weighting=True)
+    cf = p_Weighted_Cell_Gradient(pit_ids, variable="LIQUID_HEAD", invert_weighting=True)
     #define maximum volume constrains
     max_vol = (Volume_Percentage(pit_ids), '<', 0.2)
 
     #5. Define filter
-    filter = Density_Filter(6) #search neighbors in a 6 m radius
+    filter = Density_Filter(pit_ids, radius=6.) #search neighbors in a 6 m radius
 
     #6. Craft optimization problem
     #i.e. create function to optimize, initiate IO array in classes...
-    crafted_problem = Steady_State_Crafter(cf, sim, [perm], [max_vol], [filter])
+    crafted_problem = Steady_State_Crafter(
+        cf, sim, [perm], [max_vol], [filter],
+        deriv="adjoint", deriv_args={"method":"iterative","rtol":1e-6,"maxiter":800,"preconditionner":"ilu0"}
+    )
 
     #7. Output
     #Define the output behavior (output density parameter every 5 iterations in vtu format)
     crafted_problem.IO.output_every_iteration(5)
     crafted_problem.IO.define_output_format("vtu")
+    crafted_problem.IO.output_gradient()
+    crafted_problem.IO.output_material_properties()
+    crafted_problem.IO.output_objective_extra_vars()
 
     #8. Degine initial guess (homogeneous) and optimize
-    p_ini = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.12
-    out = crafted_problem.optimize(optimizer="nlopt-mma", action="minimize", max_it=200, ftol=1e-8, initial_guess=p_ini)
-
-    #9. Output the final optimized and filtered density parameter in a out.vtu file
-    crafted_problem.IO.write_fields_to_file([out.p_opt_filtered], "./out.vtu", ["Filtered_density"], var_loc="cell", at_ids=pit_ids-1)
+    p_ini = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.19
+    out = crafted_problem.optimize(
+        optimizer="nlopt-mma", action="minimize",
+        optimizer_args={'set_ftol_rel':1e-16,"set_maxeval":50, "set_initial_step":500.},
+        initial_guess=p_ini
+    )
     print(f"Elapsed time: {time.time()-t} seconds")
     crafted_problem.IO.plot_convergence_history()
-    
-    print("Elapsed time:", time.time()-t, "s")
-  
+
+
+# %%
+#Results
+#-------
+# Optimization preferentially placed permeable material (in red on the below figure) on the side of the pit to reduce hydraulic gradient accross contamined low permeable talings (in blue).
+#
+#.. figure:: ./Pervious_surround_3D.png
+#   :alt: Optimization results
+#
+#   Converged optimization results. Red: high permeable material, blue: low permeable, yellow: cells outside optimization domain.
+#
+

@@ -17,20 +17,20 @@ SUBSURFACE
 
 #=========================== discretization ===================================
 GRID
-  TYPE UNSTRUCTURED ../pflotran_meshes/2D_pit/mesh.h5
+  TYPE UNSTRUCTURED ./mesh.h5
 END
 
 REGION xmin
-  FILE ../pflotran_meshes/2D_pit/mesh.h5
+  FILE ./mesh.h5
 END
 REGION xmax
-  FILE ../pflotran_meshes/2D_pit/mesh.h5
+  FILE ./mesh.h5
 END
 REGION Pit
-  FILE ../pflotran_meshes/2D_pit/mesh.h5
+  FILE ./mesh.h5
 END
 REGION Rock
-  FILE ../pflotran_meshes/2D_pit/mesh.h5
+  FILE ./mesh.h5
 END
 
 
@@ -43,7 +43,7 @@ END
 
 
 #=========================== material properties ==============================
-DATASET PERMEABILITY
+DATASET permeability
   FILENAME permeability.h5
 END
 
@@ -52,7 +52,7 @@ MATERIAL_PROPERTY mater
   SATURATION_FUNCTION default
   POROSITY 0.3
   PERMEABILITY
-    DATASET PERMEABILITY
+    DATASET permeability
   /
 END
 
@@ -85,7 +85,6 @@ OUTPUT
     FACE_NORMAL_X
     FACE_NORMAL_Y
     FACE_NORMAL_Z
-    Z_COORDINATE
   /
   SNAPSHOT_FILE
     PRINT_CONNECTION_IDS
@@ -141,14 +140,6 @@ END
 BOUNDARY_CONDITION east
   FLOW_CONDITION initial
   REGION xmax
-END
-
-
-#=========================== numerical methods ================================
-NUMERICAL_METHODS FLOW
-  LINEAR_SOLVER
-    SOLVER DIRECT
-  /
 END
 
 

@@ -212,6 +212,10 @@ class Cell_Gradient(Base_Function):
       dobj = super(Cell_Gradient, self).d_objective(var,p)
     return dobj
 
+  def output_to_user(self):
+    grad = np.linalg.norm(self.get_head_gradient(), axis=0)
+    return {f"{self.variable} Gradient":("cell",self.ids_to_consider, grad)}
+
   ### INITIALIZER FUNCTION ###
   def __initialize__(self):
     """

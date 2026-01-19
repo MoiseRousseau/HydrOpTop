@@ -12,7 +12,7 @@ class Linear_Elasticity_2D:
     self.prefix = prefix
     self.meshfile = prefix + ".mesh"
     self.matpropfile = prefix + ".matprops"
-    
+
     #get problem size
     src = open(self.meshfile, 'r')
     self.n_points = int(src.readline())
@@ -20,15 +20,15 @@ class Linear_Elasticity_2D:
       src.readline()
     self.n_cells = int(src.readline())
     src.close()
-    
+
     #get poisson ratio
     self.poisson_ratio = poisson_ratio
-    
+
     self.areas = None #areas of elements
     self.element_center = None
     self.solver_command = str(pathlib.Path(__file__).parent.absolute()) + "/MinimalFEM"
     self.no_run = False
-    
+
     self.var_loc = {
       "STRESS":"point",
       "DISPLACEMENTS":"point",
@@ -37,25 +37,29 @@ class Linear_Elasticity_2D:
       "YOUNG_MODULUS":"cell",
     }
     self.solved_variables = ["DISPLACEMENTS", "STRESS"]
+    self.cell_id_start_at = 0
     return
-    
+
   def get_grid_size(self):
     return self.n_cells
-  
+
   def get_region_ids(self, name):
     return np.arange(0,self.n_cells)
-  
+
+  def get_node_region_ids(self, name):
+    return np.arange(0,self.n_points)
+
   def disable_run(self):
     """
     Disable running simulation (for debug purpose)
     """
     self.no_run = True
     return
-  
+
   def get_var_location(self, var):
     return self.var_loc[var]
-  
-  
+
+
   def create_cell_indexed_dataset(self, X_dataset, outfile="",
                                         X_ids=None, resize_to=True):
     """
@@ -75,8 +79,8 @@ class Linear_Elasticity_2D:
       out.write(f"{x}\n")
     out.close()
     return
-   
-    
+
+
   def get_mesh(self):
     """
     Return the mesh in meshio format
@@ -104,7 +108,7 @@ class Linear_Elasticity_2D:
       self.element_center = (vert[elems[:,0]] + vert[elems[:,1]] + vert[elems[:,2]]) / 3
     return vert, cells, indexes
 
-  
+
   # running
   def run(self):
     """
@@ -112,17 +116,29 @@ class Linear_Elasticity_2D:
     """
     if self.no_run: return 0
     print("Running Solver: ",end='')
-    cmd = [self.solver_command, self.prefix] 
+    cmd = [self.solver_command, self.prefix]
     tstart = time.time()
     ret = subprocess.call(cmd)
     print(f"{time.time() - tstart} s to run simulation")
-    if ret: 
+    if ret:
       print("\n!!! Error occured in Solver !!!")
       print("Please see " + self.log)
     return ret
-  
-  
-  
+
+
+  def get_output_variables(self, vars_out, i_timestep=-1):
+    """
+    Return output variables after simulation (all variable in one call)
+    """
+    # Initialize output if None
+    for var, out in vars_out.items():
+      if out is None:
+        vars_out[var] = self.get_output_variable(var)
+      else:
+        self.get_output_variable(var, out)
+    return vars_out
+
+
   def get_output_variable(self, var, out=None, i_timestep=-1):
     """
     Return output variable after simulation
@@ -166,21 +182,20 @@ class Linear_Elasticity_2D:
     elif var == "ELEMENT_CENTER_Z":
       temp = self.element_center[:,2]
     else:
-      print(f"No variable {var} with solver Linear_Elasticity_2D")
-      exit(1)
-    
+      raise ValueError(f"No variable {var} with solver Linear_Elasticity_2D")
+
     if out is not None:
       out[:] = temp
     else:
       out = temp
     return out
-  
+
   def get_sensitivity(self, var, timestep=None, coo_mat=None):
     """
     Return a scipy COO matrix representing the derivative
-    of the residual according to the given variable. 
+    of the residual according to the given variable.
     - var: the input variable to get sensitivity
-    - timestep: the timestep 
+    - timestep: the timestep
     - coo_mat: a scipy COO matrix for in place assignment
     """
     if var == "DISPLACEMENTS":
@@ -190,18 +205,18 @@ class Linear_Elasticity_2D:
     else:
       print(f"Unknown variable {var} sensibility")
       exit(1)
-      
+
     f = open(filename, 'rb')
     rows = struct.unpack('q', f.read(8))[0]
     cols = struct.unpack('q', f.read(8))[0]
     nnzs = struct.unpack('q', f.read(8))[0]
     outS = struct.unpack('q', f.read(8))[0]
     innS = struct.unpack('q', f.read(8))[0]
-      
+
     val = np.zeros(nnzs, 'f8')
     for count in range(nnzs):
       val[count] = struct.unpack('d', f.read(8))[0]
-    
+
     if coo_mat is None:
       i = np.zeros(outS, 'i8')
       j = np.zeros(nnzs, 'i8')
@@ -221,5 +236,10 @@ class Linear_Elasticity_2D:
       coo_mat.data[:] = val
     return
     return data
-    
-    
+
+  def get_system_size(self):
+    return 2*self.n_points
+
+  def get_grid_size(self):
+    return self.n_cells
+
