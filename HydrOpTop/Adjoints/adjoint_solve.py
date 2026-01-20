@@ -100,11 +100,19 @@ class SSORPreconditioner:
 
 
 class Direct_Sparse_Linear_Solver:
-    def __init__(self, algo="lu", row_scaling=True, **kwargs):
+    def __init__(self, algo="lu", row_scaling=False, debug_write_matrix=False, **kwargs):
         """
+        Solve A x = b using a direct algorithm, can handle multiple right hand
+        side at the same time.
 
+        Optionally apply Reverse Cuthill–McKee (RCM) reordering first for
+        better sparse matrix vector product performance.
+
+        Also scale matrix using Jacobi preconditionner and further improve the
+        matrix condition number using Ruiz equilibration.
         """
         self.row_scaling = row_scaling
+        self.debug = debug_write_matrix
         self.algo = algo.lower()
         if self.algo == "pardiso":
             try:
@@ -120,7 +128,7 @@ class Direct_Sparse_Linear_Solver:
         self.solve_funcs = {
             "lu": self.__lu_solve__,
             "qr": self.__qr_solve__,
-            "spsolve": self.__sp_solve__,
+            "umfpack": self.__umfpack_solve__,
             "pardiso": self.__pardiso_solve__,
         }
         self.solve_func = self.solve_funcs.get(self.algo,None)
@@ -128,11 +136,15 @@ class Direct_Sparse_Linear_Solver:
             raise RuntimeError(f"Direct solver not recognized, try one of {[x for x in self.solve_funcs.keys()]}")
         return
 
-    def __sp_solve__(self, A, b):
+    def __umfpack_solve__(self, A, b):
         """
         A simple wrapper around SciPy spsolve routine
         """
-        l = spla.spsolve(A.tocsr(), b)
+        try:
+            from scikits.umfpack import spsolve as umf_spsolve
+        except ImportError:
+            raise RuntimeError("scikit-umfpack not installed")
+        l = umf_spsolve(A, b)
         return l
 
     def __lu_solve__(self, A, b):
@@ -140,21 +152,8 @@ class Direct_Sparse_Linear_Solver:
         LU direct solver from SciPy library.
         If LU solve is impossible, scale diagonal to force a solution
         """
-        damped_factor = [0.,1e-12,1e-8,1e-6,1e-4,1e-3,1e-2,1e-1,1.]
-        l = None
-        for df in damped_factor:
-            if df != 0.:
-                print(f"    Current damping factor: {df}")
-            #_A = ( A + sp.diags(A.diagonal()*df) ).tocsc()
-            _A = ( A + sp.eye(A.shape[0]) * df * np.abs(A.diagonal()).mean()).tocsc()
-            try:
-                LU = spla.splu(_A)
-                l = LU.solve(b)
-                break
-            except Exception as e:
-                print(f"LU solve failed ({e}), try increasing damping factor")
-        if l is None:
-            raise RuntimeError("LU solve failed")
+        LU = spla.splu(A)
+        l = LU.solve(b)
         return l
 
     def __pardiso_solve__(self, A, b):
@@ -162,10 +161,16 @@ class Direct_Sparse_Linear_Solver:
         Solve large sparse linear systems of equations with the Intel oneAPI Math Kernel Library PARDISO solver.
         Use a simple wrapper around pypardiso spsolve routine.
         """
-        import pypardiso
-        x = pypardiso.spsolve(A,b)
+        try:
+            from pypardiso import spsolve as pardiso_spsolve
+            from pypardiso import PyPardisoSolver
+        except ImportError:
+            raise RuntimeError("pypardiso not installed")
+        s = PyPardisoSolver()
+        x = pardiso_spsolve(A, b, solver=s)
+        s.free_memory()
         return x
-    
+
     def __qr_solve__(self, A, b):
         import sparseqr
         x = sparseqr.solve(A, b, tolerance=0)
@@ -183,14 +188,35 @@ class Direct_Sparse_Linear_Solver:
             D_inv = D_inv @ sp.diags(Dc)
         else:
             A_scaled, b_scaled = A,b
-        l_scaled = self.solve_func(A_scaled,b_scaled)
+        if self.debug:
+            from scipy.io import mmwrite
+            print("Write debug matrices")
+            mmwrite("lhs.mtx", A_scaled)
+            np.savetxt("rhs.csv", b_scaled)
+
+        damped_factor = [0.,1e-6,1e-4,1e-3,1e-2,1e-1,1.]
+        l_scaled = None
+        for df in damped_factor:
+            if df != 0.:
+                print(f"    Current damping factor: {df}")
+            #_A = ( A + sp.diags(A.diagonal()*df) ).tocsc()
+                _A = ( A_scaled + sp.eye(A_scaled.shape[0]) * df * np.abs(A_scaled.diagonal()).mean()).tocsc()
+            else:
+                _A = A_scaled
+            try:
+                l_scaled = self.solve_func(_A,b_scaled)
+                break
+            except Exception as e:
+                print(f"LU solve failed ({e}), try increasing damping factor")
+        if l_scaled is None:
+            raise RuntimeError("LU solve failed")
         l = D_inv @ l_scaled if self.row_scaling else l_scaled
         print(f"Time to solve adjoint: {(time.time() - t_start)} s")
         return l
 
 
 class Iterative_Sparse_Linear_Solver:
-    def __init__(self, algo="bicgstab", preconditionner="", row_scaling=True, reorder=True, verbose=False, **kwargs):
+    def __init__(self, algo="bicgstab", preconditionner="", row_scaling=True, reorder=True, verbose=False, debug_write_matrix=False, **kwargs):
         """
         Solve A x = b using an iterative algorithm from SciPy library.
 
@@ -221,6 +247,7 @@ class Iterative_Sparse_Linear_Solver:
         self.algo = algo.lower()
         self.reorder = reorder
         self.verbose = verbose
+        self.debug = debug_write_matrix
         self.preconditionner = preconditionner
         self.l0 = None #previous solution
         self.perm_rcm = None
@@ -230,7 +257,7 @@ class Iterative_Sparse_Linear_Solver:
         self.solver_kwargs.update(kwargs)
         self.outer_v = [] #for lgmres recycling
         return
-    
+
     def permute_rcm(self, A):
         if self.perm_rcm is None:
             self.perm_rcm = reverse_cuthill_mckee(A, symmetric_mode=True)
@@ -271,6 +298,9 @@ class Iterative_Sparse_Linear_Solver:
 
 
     def solve(self, A, b):
+
+        if np.any(np.isnan(A.data)) or np.any(np.isnan(b)):
+            raise RuntimeError("Adjoint system contains NaN. This is a HydrOpTop bug, please contact support.")
 
         print(f"Solve adjoint equation using {self.algo} solver")
         t_start = time.time()
@@ -330,6 +360,12 @@ class Iterative_Sparse_Linear_Solver:
         # --- Step 3: solve ---
         if self.verbose:
             print("Starting iterative solve...")
+
+        if self.debug:
+            print("Write debug matrices")
+            from scipy.io import mmwrite
+            mmwrite("lhs.mtx", A_scaled)
+            np.savetxt("rhs.csv", b_scaled)
 
         RHS = b_scaled.T if b_scaled.ndim == 2 else [b_scaled]
         x_scaled = []

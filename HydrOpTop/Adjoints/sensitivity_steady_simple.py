@@ -105,7 +105,7 @@ class Sensitivity_Steady_Simple:
       if var in self.solver.solved_variables:
         dfunc = func.d_objective(var, p_bar_)
         # dfunc might contains NaN, cast them to zero
-        np.nan_to_num(dfunc, copy=False, nan=0.)
+        dfunc = np.nan_to_num(dfunc, nan=0.)
         dobj_dY[var] = np.zeros(self.solver.get_system_size())
         if dfunc.ndim == 2: dobj_dY[var] = dobj_dY[var].repeat(dfunc.shape[1]).reshape(self.solver.get_system_size(),dfunc.shape[1])
         dobj_dY[var][func.indexes-self.solver.cell_id_start_at] = dfunc
@@ -157,11 +157,16 @@ class Sensitivity_Steady_Simple:
     var = [x for x in self.dR_dYi.keys()][0]
     # Mask NaN along diagonal
     keep = np.argwhere(~np.isnan(self.dR_dYi[var].diagonal())).flatten()
-    A = self.dR_dYi[var].tocsr()[keep][:,keep]
+    A = self.dR_dYi[var].tocsc()[keep][:,keep]
     b = dobj_dY[var][keep]
-    self.l0 = self.adjoint.solve(A, b) #solver ordering
-    # const terms
-    S = - (R_mat.transpose().tocsc()[:,keep]).dot(self.l0)
+    # if multiple rhs in b, figure out whether to multiply by Rmat
+    # to reduce number of rhs (i.e. less parameter than observation)
+    if b.ndim == 1 or (b.ndim == 2 and b.shape[1] < R_mat.shape[1]):
+      self.l0 = self.adjoint.solve(A, b) #solver ordering
+      S = - (R_mat.transpose().tocsc()[:,keep]).dot(self.l0)
+    elif (b.ndim == 2 and b.shape[1] > R_mat.shape[1]):
+      self.l0 = self.adjoint.solve(A, R_mat[keep,:].toarray())
+      S = - self.l0.T @ b
 
     if isinstance(S, np.ndarray) and S.ndim == 2:
       S += ((dc_dXi_dXi_dp + dobj_dp_partial) @ Jf)[:,None]
