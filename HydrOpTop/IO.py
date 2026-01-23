@@ -241,7 +241,7 @@ class IO:
     else:
       X_new = np.zeros(len(self.vertices), dtype='f8')
     X_new[:] = np.nan
-    if len(val_at) == len(X):
+    if len(val_at) == X.shape[0]:
       X_new[val_at] = X
     return X_new
 

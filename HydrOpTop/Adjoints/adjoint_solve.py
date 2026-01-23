@@ -100,7 +100,7 @@ class SSORPreconditioner:
 
 
 class Direct_Sparse_Linear_Solver:
-    def __init__(self, algo="lu", row_scaling=False, debug_write_matrix=False, **kwargs):
+    def __init__(self, algo="lu", row_scaling=False, debug_write_matrix=False, verbose=False, **kwargs):
         """
         Solve A x = b using a direct algorithm, can handle multiple right hand
         side at the same time.
@@ -113,6 +113,8 @@ class Direct_Sparse_Linear_Solver:
         """
         self.row_scaling = row_scaling
         self.debug = debug_write_matrix
+        self.verbose = verbose
+        self.n_solve = 0
         self.algo = algo.lower()
         if self.algo == "pardiso":
             try:
@@ -177,8 +179,10 @@ class Direct_Sparse_Linear_Solver:
         return x
 
     def solve(self, A, b):
-        print(f"Solve adjoint equation using {self.algo} solver")
-        t_start = time.time()
+        self.n_solve += 1
+        if self.verbose:
+            print(f"Solve adjoint equation using {self.algo} solver")
+            t_start = time.time()
         D_inv = 1.
         if self.row_scaling:
             A_scaled, b_scaled, D_inv = jacobi_row_scaling(A, b, power=0.5)
@@ -211,7 +215,7 @@ class Direct_Sparse_Linear_Solver:
         if l_scaled is None:
             raise RuntimeError("LU solve failed")
         l = D_inv @ l_scaled if self.row_scaling else l_scaled
-        print(f"Time to solve adjoint: {(time.time() - t_start)} s")
+        if self.verbose: print(f"Time to solve adjoint: {(time.time() - t_start)} s")
         return l
 
 
@@ -249,6 +253,7 @@ class Iterative_Sparse_Linear_Solver:
         self.verbose = verbose
         self.debug = debug_write_matrix
         self.preconditionner = preconditionner
+        self.row_scaling = row_scaling
         self.l0 = None #previous solution
         self.perm_rcm = None
         self.perm_type = "rcm"
@@ -256,6 +261,7 @@ class Iterative_Sparse_Linear_Solver:
         self.solver_kwargs = {"rtol":3e-4,"atol":1e-40,"maxiter":250}
         self.solver_kwargs.update(kwargs)
         self.outer_v = [] #for lgmres recycling
+        self.n_solve = 0
         return
 
     def permute_rcm(self, A):
@@ -302,8 +308,9 @@ class Iterative_Sparse_Linear_Solver:
         if np.any(np.isnan(A.data)) or np.any(np.isnan(b)):
             raise RuntimeError("Adjoint system contains NaN. This is a HydrOpTop bug, please contact support.")
 
-        print(f"Solve adjoint equation using {self.algo} solver")
-        t_start = time.time()
+        if self.verbose:
+            print(f"Solve adjoint equation using {self.algo} solver")
+            t_start = time.time()
 
         # Ensure A is sparse and CSC
         A = A.tocsc()
@@ -328,11 +335,12 @@ class Iterative_Sparse_Linear_Solver:
 
         # --- Step 2: Preconditioner ---
         # Always do a row scaling before anything
-        A_scaled, b_scaled, D_inv = jacobi_row_scaling(A_perm, b_perm, power=0.5)
-        A_scaled, b_scaled, Dr, Dc = ruiz_equilibrate(
-            A_scaled, b_scaled, max_iter=6, verbose=self.verbose
-        )
-        D_inv = D_inv @ sp.diags(Dc)
+        if self.row_scaling:
+            A_scaled, b_scaled, D_inv = jacobi_row_scaling(A_perm, b_perm, power=0.5)
+            A_scaled, b_scaled, Dr, Dc = ruiz_equilibrate(
+                A_scaled, b_scaled, max_iter=6, verbose=self.verbose
+            )
+            D_inv = D_inv @ sp.diags(Dc)
         # Then preconditionning
         if "ilu" in self.preconditionner:
             fill_factor = float(self.preconditionner[3:]) + 1.
@@ -459,5 +467,5 @@ class Iterative_Sparse_Linear_Solver:
 
         self.l0 = x_perm.copy() if x_perm.ndim == 2 else x_perm.copy()[:,None]
 
-        print(f"Time to solve adjoint: {(time.time() - t_start)} s")
+        if self.verbose: print(f"Time to solve adjoint: {(time.time() - t_start)} s")
         return x

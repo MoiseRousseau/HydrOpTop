@@ -308,6 +308,8 @@ class Steady_State_Crafter:
         self.scipy_function_to_optimize,
         x0=initial_guess,
         jac=self.scipy_jac,
+        tr_solver="lsmr",
+        tr_options={"show":False, "atol":1e-4, "btol":1e-4},# "maxiter":10},
         bounds=np.repeat([density_parameter_bounds],len(initial_guess),axis=0).T,
         method=optimizer[6:],
         callback=self.scipy_callback,

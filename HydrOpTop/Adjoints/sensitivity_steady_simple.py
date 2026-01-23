@@ -1,12 +1,14 @@
 from scipy.sparse import coo_matrix, dia_matrix, diags
+from scipy.sparse.linalg import LinearOperator
 from .adjoint_solve import Direct_Sparse_Linear_Solver, Iterative_Sparse_Linear_Solver
 import numpy as np
 
 DEFAULT_SOLVER_ARGS = {
   "method":"iterative",
-  "preconditionner":"ilu0",
+  "preconditionner":"",
   "reorder":True,
-  "verbose":True,
+  "verbose":False,
+  "factorize_op":False,
 }
 
 
@@ -36,6 +38,7 @@ class Sensitivity_Steady_Simple:
     solver_args_ = DEFAULT_SOLVER_ARGS.copy()
     solver_args_.update(solver_args)
     method = solver_args_.pop("method")
+    self.factorized = solver_args_.pop("factorize_op")
     if method == "direct":
       self.adjoint = Direct_Sparse_Linear_Solver(**solver_args_)
     elif method == "iterative":
@@ -159,22 +162,37 @@ class Sensitivity_Steady_Simple:
     keep = np.argwhere(~np.isnan(self.dR_dYi[var].diagonal())).flatten()
     A = self.dR_dYi[var].tocsc()[keep][:,keep]
     b = dobj_dY[var][keep]
-    # if multiple rhs in b, figure out whether to multiply by Rmat
-    # to reduce number of rhs (i.e. less parameter than observation)
-    if b.ndim == 1 or (b.ndim == 2 and b.shape[1] < R_mat.shape[1]):
-      self.l0 = self.adjoint.solve(A, b) #solver ordering
-      S = - (R_mat.transpose().tocsc()[:,keep]).dot(self.l0)
-    elif (b.ndim == 2 and b.shape[1] > R_mat.shape[1]):
-      self.l0 = self.adjoint.solve(A, R_mat[keep,:].toarray())
-      S = - self.l0.T @ b
 
-    if isinstance(S, np.ndarray) and S.ndim == 2:
-      S += ((dc_dXi_dXi_dp + dobj_dp_partial) @ Jf)[:,None]
-    else:
-      S += (dc_dXi_dXi_dp + dobj_dp_partial) @ Jf
+    if self.factorized:
+      # Instead of solving and return the jacobian, we return a linearOperator that can use
+      # to solve a smaller system and directly get the upgrade vector without forming
+      # the jacobian
+      mv = lambda v: - b.T @ self.adjoint.solve(
+        A.T, R_mat[keep,:].toarray() @ v
+      ) + ((dc_dXi_dXi_dp + dobj_dp_partial) @ Jf).T @ v
+      rmv = lambda v: - (R_mat.transpose().tocsc()[:,keep]).dot(
+        self.adjoint.solve(A, b @ v)
+      ) #+ (dc_dXi_dXi_dp + dobj_dp_partial) @ Jf @ v
+      op = LinearOperator(b.T.shape, matvec=mv, rmatvec=rmv)
+      return op.T
 
-    return S
-  
+    else: # Default behavior
+      # if multiple rhs in b, figure out whether to multiply by Rmat
+      # to reduce number of rhs (i.e. less parameter than observation)
+      if b.ndim == 1 or (b.ndim == 2 and b.shape[1] < R_mat.shape[1]):
+        self.l0 = self.adjoint.solve(A, b) #solver ordering
+        S = - (R_mat.transpose().tocsc()[:,keep]).dot(self.l0)
+      elif (b.ndim == 2 and b.shape[1] > R_mat.shape[1]):
+        self.l0 = self.adjoint.solve(A, R_mat[keep,:].toarray())
+        S = - self.l0.T @ b
+
+      if isinstance(S, np.ndarray) and S.ndim == 2:
+        S += ((dc_dXi_dXi_dp + dobj_dp_partial) @ Jf)[:,None]
+      else:
+        S += (dc_dXi_dXi_dp + dobj_dp_partial) @ Jf
+
+    return S #LinearOperator(S.shape, matvec=lambda v: S@v, rmatvec=lambda v:S.T@v)
+
   
   def __initialize_adjoint__(self,p_bar):
     self.dXi_dp = {
