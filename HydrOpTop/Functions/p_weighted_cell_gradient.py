@@ -80,7 +80,7 @@ class p_Weighted_Cell_Gradient(Cell_Gradient):
 
       #gradient value
       gradXYZ = self.compute_head_gradient(self.head) - self.grad_correction*self.head[:,np.newaxis]
-      grad_mag = np.sqrt(gradXYZ[:,0]**2+gradXYZ[:,1]**2+gradXYZ[:,2]**2)
+      grad_mag = np.linalg.norm(gradXYZ,axis=1)
 
       if self.invert_weighting: p_ = 1-p
       else: p_ = p

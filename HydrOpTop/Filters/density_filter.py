@@ -53,7 +53,7 @@ class Density_Filter(Base_Filter):
     return
   
   def set_inputs(self, inputs):
-    self.inputs = inputs
+    super(Density_Filter,self).set_inputs(inputs)
     self.inputs["ELEMENT_CENTER"] = np.array(
       [self.inputs["ELEMENT_CENTER_" + x] for x in "XYZ"]
     ).transpose()

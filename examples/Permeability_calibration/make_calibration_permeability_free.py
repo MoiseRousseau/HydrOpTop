@@ -52,7 +52,7 @@ if __name__ == "__main__":
         mat_props=[perm_till, perm_sand],
         filters=[filter_till, filter_sand],
         deriv="adjoint",
-        deriv_args={"method":"direct"}
+        deriv_args={"method":"direct"},
     )
     crafted_problem.IO.output_every_iteration(1)
     crafted_problem.IO.output_gradient()

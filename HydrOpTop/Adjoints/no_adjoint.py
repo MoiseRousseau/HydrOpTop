@@ -41,7 +41,7 @@ class No_Adjoint:
 
     # in dobj_dX, the function ask only the p_bar for its indexes
     p_bar_ = np.zeros( max(func.indexes.max(),self.p_ids.max())+1 ) + np.nan
-    p_bar_[self.p_ids-self.solver.cell_id_start_at] = p_bar
+    p_bar_[self.p_ids] = p_bar
     p_bar_ = p_bar_[func.indexes]
     dobj_dX = {}
     for var in func.__get_variables_needed__():

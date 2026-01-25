@@ -71,20 +71,22 @@ class Dummy_Simulator:
   
   def get_output_variables(self, vars_out, i_timestep=-1):
     for var in vars_out.keys():
+      out = np.zeros(self.problem_size+self.cell_id_start_at)+np.nan
       if var == "x":
-        vars_out[var] = self.x
+        out[self.cell_id_start_at:] = self.x
       elif var == "ELEMENT_CENTER_X":
-        vars_out[var] = self.xyz[:,0]
+        out[self.cell_id_start_at:] = self.xyz[:,0]
       elif var == "ELEMENT_CENTER_Y":
-        vars_out[var] = self.xyz[:,1]
+        out[self.cell_id_start_at:] = self.xyz[:,1]
       elif var == "ELEMENT_CENTER_Z":
-        vars_out[var] = self.xyz[:,2]
+        out[self.cell_id_start_at:] = self.xyz[:,2]
       elif var == "VOLUME":
-        vars_out[var] = self.A_diag
+        out[self.cell_id_start_at:] = self.A_diag
       elif var in self.input_variables_value.keys():
-        vars_out[var] = self.input_variables_value[var]
+        out[self.cell_id_start_at:] = self.input_variables_value[var]
       else:
         raise ValueError(f"{var} not an output of the Dummy Simulator")
+      vars_out[var] = out
     return vars_out
   
   def get_sensitivity(self, var, timestep=None, coo_mat=None):

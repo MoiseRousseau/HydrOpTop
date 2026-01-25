@@ -42,7 +42,7 @@ if __name__ == "__main__":
     #i.e. create function to optimize, initiate IO array in classes...
     crafted_problem = Steady_State_Crafter(
         cf, sim, [perm], [max_vol], [filter],
-        deriv="adjoint", deriv_args={"method":"iterative","rtol":1e-6,"maxiter":800,"preconditionner":"ilu0"}
+        deriv="adjoint", deriv_args={"method":"iterative","rtol":1e-6,"maxiter":800}
     )
 
     #7. Output
@@ -51,13 +51,14 @@ if __name__ == "__main__":
     crafted_problem.IO.define_output_format("vtu")
     crafted_problem.IO.output_gradient()
     crafted_problem.IO.output_material_properties()
+    crafted_problem.IO.output_simulation_vars(["LIQUID_HEAD"])
     crafted_problem.IO.output_objective_extra_vars()
 
     #8. Degine initial guess (homogeneous) and optimize
-    p_ini = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.19
+    p_ini = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.01
     out = crafted_problem.optimize(
-        optimizer="nlopt-mma", action="minimize",
-        optimizer_args={'set_ftol_rel':1e-16,"set_maxeval":50, "set_initial_step":500.},
+        optimizer="nlopt-ccsaq", action="minimize",
+        optimizer_args={'set_ftol_rel':1e-16,"set_maxeval":50, "set_initial_step":1000.},
         initial_guess=p_ini
     )
     print(f"Elapsed time: {time.time()-t} seconds")

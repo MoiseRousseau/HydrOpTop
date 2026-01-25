@@ -78,14 +78,18 @@ class Steady_State_Crafter:
   
   def update_function_vars(self):
     # Cache the solver var not to open output file repetively
-    all_var_needed = set(self.obj.variables_needed)
+    all_var_needed = set(self.obj.__get_variables_needed__())
     for c in self.constraints:
-      all_var_needed = all_var_needed.union(c[0].variables_needed)
+      all_var_needed = all_var_needed.union(c[0].__get_variables_needed__())
     func_var = {var:None for var in all_var_needed}
     self.solver.get_output_variables(func_var)
-    self.obj.set_inputs({k:v[self.obj.indexes-self.solver.cell_id_start_at] for k,v in func_var.items() if k in self.obj.variables_needed})
+    self.obj.set_inputs(
+      {k:v for k,v in func_var.items() if k in self.obj.__get_variables_needed__()}
+    )
     for c in self.constraints:
-      c[0].set_inputs({k:v[c[0].indexes-self.solver.cell_id_start_at] for k,v in func_var.items() if k in c[0].variables_needed})
+      c[0].set_inputs({
+        k:v for k,v in func_var.items() if k in c[0].__get_variables_needed__()
+      })
     return func_var
 
   def evaluate_objective(self, p_bar):
@@ -719,12 +723,13 @@ class Steady_State_Crafter:
     # pass solver variable to filter
     all_var_needed = set()
     for f in self.filters:
-      all_var_needed = all_var_needed.union(f.variables_needed)
+      all_var_needed = all_var_needed.union(f.__get_variables_needed__())
     func_var = {var:None for var in all_var_needed}
     self.solver.get_output_variables(func_var)
     for f in self.filters:
-      input_ids = f.get_input_ids()
-      f.set_inputs({k:v[input_ids-self.solver.cell_id_start_at] for k,v in func_var.items() if k in f.variables_needed})
+      f.set_inputs({
+        k:v for k,v in func_var.items() if k in f.__get_variables_needed__()
+      })
     self.filters_initialized = True
     return
 

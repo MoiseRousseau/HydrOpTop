@@ -65,20 +65,21 @@ class Cell_Gradient(Base_Function):
       "FACE_NORMAL_X", "FACE_NORMAL_Y", "FACE_NORMAL_Z"
     ]
     self.name = f"{self.variable} Cell Gradient"
-    self.indexes = None #request all data
     self.cell_id_start_at = 0 #updated in place by the crafter
     return
 
 
   def set_inputs(self, inputs):
     self.inputs = inputs
-    no_bc_connections = (inputs["CONNECTION_IDS"][:,0] > 0) * (inputs["CONNECTION_IDS"][:,1] > 0)
-    self.var_data = inputs[self.variable]
-    self.connection_ids = inputs["CONNECTION_IDS"][no_bc_connections]-1
-    self.areas = inputs["FACE_AREA"][no_bc_connections]
-    self.fraction = inputs["FACE_UPWIND_FRACTION"][no_bc_connections]
-    self.volume = inputs["VOLUME"]
-    self.normal = [inputs["FACE_NORMAL_"+c][no_bc_connections] for c in "XYZ"]
+    self.inputs[self.variable] = self.inputs[self.variable][self.indexes]
+    self.inputs["VOLUME"] = self.inputs["VOLUME"][self.indexes]
+    no_bc_connections = (self.inputs["CONNECTION_IDS"][:,0] > 0) * (self.inputs["CONNECTION_IDS"][:,1] > 0)
+    self.var_data = self.inputs[self.variable]
+    self.connection_ids = self.inputs["CONNECTION_IDS"][no_bc_connections]-1
+    self.areas = self.inputs["FACE_AREA"][no_bc_connections]
+    self.fraction = self.inputs["FACE_UPWIND_FRACTION"][no_bc_connections]
+    self.volume = self.inputs["VOLUME"]
+    self.normal = [self.inputs["FACE_NORMAL_"+c][no_bc_connections] for c in "XYZ"]
     return
 
   ### COST FUNCTION ###
@@ -117,15 +118,13 @@ class Cell_Gradient(Base_Function):
     if not self.initialized: self.__initialize__()
     head = self.var_data
     gradXYZ = self.compute_head_gradient(head) - self.grad_correction*head[:,np.newaxis]
-    return gradXYZ[self.ids_to_consider]
+    return gradXYZ
 
   def write_head_gradient_magnitude(self, f_out="grad.h5"):
     """
     Write head gradient calculated at every cell of the (restricted) domain
     """
-    if not self.initialized: self.__initialize__()
-    head = self.var_data
-    gradXYZ = self.compute_head_gradient(head) - self.grad_correction*head[:,np.newaxis]
+    gradXYZ = self.get_head_gradient()
     #write it
     import h5py
     out = h5py.File(f_out, "w")
@@ -141,9 +140,7 @@ class Cell_Gradient(Base_Function):
     """
     Evaluate the function
     """
-    if not self.initialized: self.__initialize__()
-    head = self.var_data
-    gradXYZ = self.compute_head_gradient(head) - self.grad_correction*head[:,np.newaxis]
+    gradXYZ = self.get_head_gradient()
     #objective value
     grad_mag = np.sqrt(gradXYZ[:,0]**2+gradXYZ[:,1]**2+gradXYZ[:,2]**2)
     cf = np.sum(self.volume[self.ids_to_consider] * grad_mag[self.ids_to_consider]**self.power) / self.V_tot
@@ -213,8 +210,12 @@ class Cell_Gradient(Base_Function):
     return dobj
 
   def output_to_user(self):
-    grad = np.linalg.norm(self.get_head_gradient(), axis=0)
-    return {f"{self.variable} Gradient":("cell",self.ids_to_consider, grad)}
+    grad = np.linalg.norm(self.get_head_gradient(), axis=1)
+    out = {
+      f"{self.variable} Gradient corrected":("cell",np.arange(len(self.volume))+1, grad),
+      f"Gradient correction":("cell",np.arange(len(self.volume))+1, np.linalg.norm(self.grad_correction,axis=1)),
+    }
+    return out
 
   ### INITIALIZER FUNCTION ###
   def __initialize__(self):

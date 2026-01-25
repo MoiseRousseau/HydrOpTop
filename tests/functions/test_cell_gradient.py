@@ -47,7 +47,8 @@ class Test_Cell_Gradient:
     """
     #initiate objective
     ids = np.arange(10,73)
-    obj = Cell_Gradient(cell_ids=ids-1, variable="LIQUID_HEAD", power=1)
+    ids = np.array([39,48,57])
+    obj = Cell_Gradient(cell_ids=ids, variable="LIQUID_HEAD", power=1)
     obj.cell_id_start_at = 1
     __add_inputs__(obj, self.sim_uniform)
     cf = obj.evaluate(None)

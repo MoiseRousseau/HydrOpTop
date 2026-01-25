@@ -20,7 +20,7 @@ if __name__ == "__main__":
   #get cell ids in the region to optimize and parametrize permeability
   #same name than in pflotran input file
   pit_ids = sim.get_region_ids("Pit")
-  perm = Log_SIMP(cell_ids_to_parametrize=pit_ids, property_name="PERMEABILITY", bounds=[1e-14, 1e-10], power=3)
+  perm = Log_SIMP(cell_ids_to_parametrize=pit_ids, property_name="PERMEABILITY", bounds=[5e-14,1e-10], power=3)
 
   #define cost function as sum of the head in the pit
   cf = p_Weighted_Cell_Gradient(pit_ids, variable="LIQUID_HEAD", power=1, invert_weighting=True)
@@ -29,7 +29,7 @@ if __name__ == "__main__":
   max_vol = (Volume_Percentage(pit_ids), '<', 0.2)
 
   # filter
-  filter = Density_Filter(pit_ids, radius=12.)
+  filter = Density_Filter(pit_ids, radius=6.)
 
   #craft optimization problem
   #i.e. create function to optimize, initiate IO array in classes...
@@ -45,6 +45,6 @@ if __name__ == "__main__":
   p = np.zeros(crafted_problem.get_problem_size(),dtype='f8') + 0.01
   crafted_problem.optimize(
     optimizer="nlopt-ccsaq", action="minimize", initial_guess=p,
-    optimizer_args={"set_maxeval":30, "set_initial_step":100., 'set_ftol_rel':1e-16},
+    optimizer_args={"set_maxeval":50, "set_initial_step":1000., 'set_ftol_rel':1e-16},
   )
 

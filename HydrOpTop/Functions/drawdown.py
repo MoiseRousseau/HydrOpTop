@@ -113,7 +113,7 @@ class Drawdown(Base_Function):
     def sample_instance(cls):
         # sample cell_ids
         res1 = cls(ref_head=[11.2,43.2,56.4,29.4], cell_ids=[2,4,5,10])
-        res1.set_inputs({"LIQUID_HEAD":np.random.rand(20)[res1.cell_ids]*100})
+        res1.set_inputs({"LIQUID_HEAD":np.random.rand(20)*100})
         # sample xyz
         from scipy.interpolate import LinearNDInterpolator
         res2 = cls(

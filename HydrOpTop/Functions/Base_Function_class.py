@@ -45,7 +45,8 @@ class Base_Function:
             The `inputs` dictionary will then be updated in place, so
             subsequent calls are unnecessary.
         """
-        self.inputs.update(inputs)
+        inputs_ = {k:v[self.indexes] for k,v in inputs.items()}
+        self.inputs.update(inputs_)
 
     def get_inputs(self) -> Dict[str, Any]:
         """Return the current input values."""

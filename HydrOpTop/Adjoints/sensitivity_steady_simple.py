@@ -97,7 +97,7 @@ class Sensitivity_Steady_Simple:
     # Get derivative of the cost function with p_bar
     # derivative according to solved var
     # in dobj_dXY, the function ask only the p_bar for its indexes
-    p_bar_ = np.zeros( max(func.indexes.max(),self.p_ids.max())+1 ) + np.nan
+    p_bar_ = np.zeros( self.solver.get_grid_size() + 1 ) + np.nan
     p_bar_[self.p_ids] = p_bar
     p_bar_ = p_bar_[func.indexes]
     dobj_dY = {}

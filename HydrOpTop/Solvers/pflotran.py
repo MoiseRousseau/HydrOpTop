@@ -410,7 +410,7 @@ class PFLOTRAN(Base_Simulator):
         # Initialize output if None
         for var, out in vars_out.items():
             if out is None:
-                out = np.zeros(self.n_cells)
+                out = np.zeros(self.n_cells+1)+np.nan #1 padding as cell id start at 1
                 vars_out[var] = out
         for var, out in vars_out.items():
             if var == "CONNECTION_IDS":
@@ -438,10 +438,10 @@ class PFLOTRAN(Base_Simulator):
     if "ELEMENT_CENTER_" in var:
       center = self.__get_mesh_center__()
       dict_index = {"X":0,"Y":1,"Z":2}
-      out[:] = center[:,dict_index[var[-1]]]
+      out[1:] = center[:,dict_index[var[-1]]]
       return out
     elif "VOLUME" in var:
-      out[:] = self.__get_mesh_volume__()
+      out[1:] = self.__get_mesh_volume__()
       return out
 
     # Look for simulation variable
@@ -473,10 +473,12 @@ class PFLOTRAN(Base_Simulator):
     if out is None:
       out = temp
     else:
-      if len(temp) != len(out): #for face variable, resize this
+      if len(temp)+1 != len(out): #for face variable, resize this
           print(f"Resize array for variable {var}")
           out.resize(len(temp), refcheck=False) # in place resize so we keep the reference
-      out[:] = temp
+          out[:] = temp
+      else:
+        out[1:] = temp
     src.close()
     return out
   

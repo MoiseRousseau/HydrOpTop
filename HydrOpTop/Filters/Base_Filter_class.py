@@ -17,7 +17,8 @@ class Base_Filter:
         self.inputs = {}
   
     def set_inputs(self, inputs):
-        self.inputs = inputs
+        indexes = self.get_input_ids()
+        self.inputs = {k:v[indexes] for k,v in inputs.items()}
         return
   
     def get_filtered_density(self, p):

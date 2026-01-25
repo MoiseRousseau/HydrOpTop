@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial import ConvexHull
 
 def element_center(points):
     """
@@ -11,7 +12,8 @@ def element_center(points):
 def element_area(points):
     """Area of a 2D polygon using the shoelace formula"""
     if len(points) == 3:
-    	res = 0.5 * np.linalg.norm(np.cross(b - a, c - a))
+        a,b,c = points
+        res = 0.5 * np.linalg.norm(np.cross(b - a, c - a))
     else:
         x, y = zip(*points)
         res = 0.5 * abs(sum(x[i] * y[(i+1)%len(points)] - x[(i+1)%len(points)] * y[i] for i in range(len(points))))
@@ -20,12 +22,14 @@ def element_area(points):
 def element_volume(pts):
     if len(pts) == 4:
         return tetrahedron_volume(pts)
-    elif len(pts) == 5:
-        return pyramid_volume(pts)
-    elif len(pts) == 6:
-        return wedge_volume(pts)
-    elif len(pts) == 8:
-        return hexahedron_volume(pts)
+    else:
+        return general_volume(pts)
+    # elif len(pts) == 5:
+    #     return general_volume(pts)
+    # elif len(pts) == 6:
+    #     return general_volume(pts)
+    # elif len(pts) == 8:
+    #     return general_volume(pts)
 
 
 def tetrahedron_volume(pts):
@@ -71,3 +75,14 @@ def wedge_volume(pts):
         tetrahedron_volume([c, d, e, f])
     )
     return vol
+
+
+def general_volume(pts):
+    """
+    Robust volume of a hexahedron from 8 unordered points.
+    Works for any convex shape.
+
+    pts: (8,3) array
+    """
+    hull = ConvexHull(pts)
+    return hull.volume

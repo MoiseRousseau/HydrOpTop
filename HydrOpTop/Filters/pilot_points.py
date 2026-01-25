@@ -92,7 +92,7 @@ class Pilot_Points(Base_Filter):
 
 
     def set_inputs(self, inputs):
-      self.inputs = inputs
+      super(Pilot_Points, self).set_inputs(inputs)
       if self.coords is None:
         self.coords = np.array(
           [self.inputs[k] for k in self.variables_needed]
