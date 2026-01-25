@@ -1,0 +1,15 @@
+<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">
+  <Collection>
+    <DataSet timestep="0" file="000.randomized_field-0.vtu"/>
+    <DataSet timestep="1" file="001.randomized_field-0.vtu"/>
+    <DataSet timestep="2" file="002.randomized_field-0.vtu"/>
+    <DataSet timestep="3" file="003.randomized_field-0.vtu"/>
+    <DataSet timestep="4" file="004.randomized_field-0.vtu"/>
+    <DataSet timestep="5" file="005.randomized_field-0.vtu"/>
+    <DataSet timestep="6" file="006.randomized_field-0.vtu"/>
+    <DataSet timestep="7" file="007.randomized_field-0.vtu"/>
+    <DataSet timestep="8" file="008.randomized_field-0.vtu"/>
+    <DataSet timestep="9" file="009.randomized_field-0.vtu"/>
+  </Collection>
+</VTKFile>
+

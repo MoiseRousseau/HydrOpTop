@@ -33,7 +33,13 @@ class IO:
     self.elements = None
     self.var_loc = None
     return
-  
+
+
+  def reinitialize(self):
+    self.output_number = 0
+    self.initialized = False
+    return
+
   
   def define_output_file(self, filename):
     r"""
@@ -150,6 +156,7 @@ class IO:
              sim_extra_var={},
              obj_extra_var={},
              final=False): # Final value to output
+
     if not self.initialized: self.initiate_output(constraints_val) 
     
     #output to log

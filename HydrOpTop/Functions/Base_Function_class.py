@@ -133,6 +133,9 @@ class Base_Function:
     def output_to_user(self):
         return {}
 
+    def human_readable_cf_val(self, cf):
+        return cf
+
     # -------------------------------------------------------------------------
     # Metadata Accessors
     # -------------------------------------------------------------------------

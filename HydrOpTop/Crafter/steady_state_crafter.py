@@ -132,6 +132,9 @@ class Steady_State_Crafter:
 
     print("Total time to get derivative:", time.time() - tstart, "s")
     return grad
+
+  def get_jacobian(self, p_opt):
+    return self.scipy_jac(p_opt)
   
   
   def output_to_user(self, final=False):
@@ -139,7 +142,7 @@ class Steady_State_Crafter:
     val_at = self.p_ids-self.solver.cell_id_start_at
     p =  self.best_p[1] if final else self.last_p
     p_bar = self.filter_sequence.filter(p) if final else self.last_p_bar
-    cf = self.last_cf if not isinstance(self.last_cf,np.ndarray) else np.linalg.norm(self.last_cf)
+    cf = self.obj.human_readable_cf_val(self.last_cf)
     func_var = {var:None for var in self.IO.sim_extra_var}
     sim_extra_var = self.solver.get_output_variables(func_var)
     sim_extra_var_loc = {x:self.solver.get_var_location(x) for x in self.IO.sim_extra_var}
@@ -217,6 +220,9 @@ class Steady_State_Crafter:
       print(f"Warning, the following options are ignored: {options}")
     self.iteration = 0
     self.func_eval = 0
+    for c,_,_ in self.constraints:
+      if hasattr(c.adjoint, 'adjoint'): c.adjoint.adjoint.n_solve = 0
+    if hasattr(self.obj.adjoint, 'adjoint'): self.obj.adjoint.adjoint.n_solve = 0
     self.action = action
     ### DEFAULT INPUTS
     if initial_guess is None:
@@ -226,6 +232,9 @@ class Steady_State_Crafter:
         np.max(initial_guess) > density_parameter_bounds[1]):
       raise ValueError(f"Initial guess not within bound provided ({density_parameter_bounds})")
     self.first_p = initial_guess.copy()
+
+    # Reset IO object
+    self.IO.reinitialize()
 
     ### OPTIMIZE
     if "nlopt" in optimizer:
@@ -322,6 +331,7 @@ class Steady_State_Crafter:
       p_opt = res.x
       self.best_p = (res.cost, res.x)
       self.last_cf = np.sqrt(np.mean(res.fun**2))
+      self.output_to_user(final=True)
 
     elif optimizer == "cyipopt":
       import cyipopt
@@ -462,6 +472,8 @@ class Steady_State_Crafter:
     out.func_eval = self.func_eval
     out.func_eval_history = self.func_eval_history
     out.adjoint_eval = self.obj.adjoint.adjoint.n_solve if hasattr(self.obj.adjoint, 'adjoint') else 0
+    for c,_,_ in self.constraints:
+      if hasattr(c.adjoint, 'adjoint'): out.adjoint_eval += c.adjoint.adjoint.n_solve
     out.mat_props = self.get_material_properties_from_p(self.last_p_bar)
     return out
     
@@ -577,7 +589,7 @@ class Steady_State_Crafter:
   
   def scipy_callback(self, x, res=None):
     self.iteration += 1
-    print(f"Current {self.obj.name} (cost function): {np.linalg.norm(self.last_cf):.6e}")
+    print(f"Current {self.obj.name} (cost function): {self.obj.human_readable_cf_val(self.last_cf):.6e}")
     self.output_to_user()
     #self.func_eval_history.append((self.func_eval, self.best_p[0]))
     return
