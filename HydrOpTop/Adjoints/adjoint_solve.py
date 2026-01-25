@@ -116,6 +116,7 @@ class Direct_Sparse_Linear_Solver:
         self.verbose = verbose
         self.n_solve = 0
         self.algo = algo.lower()
+        self.pardiso_solver = None
         if self.algo == "pardiso":
             try:
                 import pypardiso
@@ -168,9 +169,9 @@ class Direct_Sparse_Linear_Solver:
             from pypardiso import PyPardisoSolver
         except ImportError:
             raise RuntimeError("pypardiso not installed")
-        s = PyPardisoSolver()
-        x = pardiso_spsolve(A, b, solver=s)
-        s.free_memory()
+        if self.pardiso_solver is None:
+            self.pardiso_solver = PyPardisoSolver()
+        x = pardiso_spsolve(A, b, solver=self.pardiso_solver)
         return x
 
     def __qr_solve__(self, A, b):
@@ -217,6 +218,10 @@ class Direct_Sparse_Linear_Solver:
         l = D_inv @ l_scaled if self.row_scaling else l_scaled
         if self.verbose: print(f"Time to solve adjoint: {(time.time() - t_start)} s")
         return l
+
+    def free_memory(self):
+        if self.pardiso_solver: self.pardiso_solver.free_memory()
+        return
 
 
 class Iterative_Sparse_Linear_Solver:
