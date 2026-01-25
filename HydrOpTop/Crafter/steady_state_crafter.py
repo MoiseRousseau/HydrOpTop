@@ -461,6 +461,7 @@ class Steady_State_Crafter:
     out.grad_cx = self.last_grad_constraints
     out.func_eval = self.func_eval
     out.func_eval_history = self.func_eval_history
+    out.adjoint_eval = self.obj.adjoint.adjoint.n_solve if hasattr(self.obj.adjoint, 'adjoint') else 0
     out.mat_props = self.get_material_properties_from_p(self.last_p_bar)
     return out
     
@@ -788,25 +789,76 @@ class Steady_State_Crafter:
 
 
 class Output_Struct:
-  def __init__(self, p_opt):
-    self.p_opt = p_opt #raw density parameter (not filtered)
-    self.p_opt_filtered = None
-    self.p_opt_grad = None # d(cost function) / d p
-    self.fx = None #cost function value
-    self.grad_fx = None
-    self.cx = None #constraints value
-    self.grad_cx = None
-    self.func_eval = 0 #iteration number
-    self.mat_props = {}
-    return
+    def __init__(self, p_opt):
+        self.p_opt = p_opt #raw density parameter (not filtered)
+        self.p_opt_filtered = None
+        self.p_opt_grad = None # d(cost function) / d p
+        self.fx = None #cost function value
+        self.grad_fx = None
+        self.cx = None #constraints value
+        self.grad_cx = None
+        self.func_eval = 0 #iteration number
+        self.adjoint_eval = 0
+        self.mat_props = {}
+        return
   
-  def __repr__(self):
-    out = "<HydrOpTop results:\n"
-    out += f"p_opt: {self.p_opt}\n"
-    if self.p_opt_filtered is not None:
-      out += f"p_opt_filtered: {self.p_opt_filtered}\n"
-    out += f"fx: {self.fx}\ncx: {self.cx}>"
-    return out
+    # ---------- helpers ----------
+    def _fmt(self, x, max_len=80):
+        if x is None:
+            return "None"
+        if isinstance(x, np.ndarray):
+            s = np.array2string(
+                x,
+                precision=4,
+                threshold=6,
+                edgeitems=3,
+                suppress_small=True,
+            )
+        else:
+            s = str(x)
+
+        return s if len(s) <= max_len else s[: max_len - 3] + "..."
+
+    # ---------- human-readable ----------
+    def __str__(self):
+        lines = [
+            "HydrOpTop Results",
+            "─────────────────",
+            f"Iterations        : {self.func_eval}",
+            f"Adjoint evals     : {self.adjoint_eval}",
+            "",
+            f"Cost function fx  : {self._fmt(self.fx)}",
+            f"Constraints cx   : {self._fmt(self.cx)}",
+            "",
+            f"p_opt             : {self._fmt(self.p_opt)}",
+        ]
+
+        if self.p_opt_filtered is not None:
+            lines.append(f"p_opt_filtered    : {self._fmt(self.p_opt_filtered)}")
+
+        if self.mat_props:
+            lines.append("")
+            lines.append("Material properties:")
+            for k, v in self.mat_props.items():
+                lines.append(f"  - {k}: {self._fmt(v)}")
+
+        return "\n".join(lines)
+
+    # ---------- dev / debugger ----------
+    def __repr__(self):
+        return (
+            f"HydrOpTopResult("
+            f"fx={self.fx}, "
+            f"cx={self.cx}, "
+            f"func_eval={self.func_eval}, "
+            f"adjoint_eval={self.adjoint_eval})"
+        )
+
+    def write_p_opt(self,fout="p_opt.csv"):
+        np.savetxt(fout,self.p_opt)
+
+    def write_obj_jacobian(self,fout="jac.csv"):
+        np.savetxt(fout,self.p_opt_grad)
     
     
 
